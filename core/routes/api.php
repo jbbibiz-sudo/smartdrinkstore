@@ -316,6 +316,110 @@ Route::prefix('v1')->group(function () {
     });
     
     // ====================================
+    // MOUVEMENTS DE STOCK
+    // ====================================
+
+    // Lister les mouvements de stock
+    Route::get('/stock/movements', function (Request $request) {
+        try {
+            $query = DB::table('stock_movements')
+                ->join('products', 'stock_movements.product_id', '=', 'products.id')
+                ->select(
+                    'stock_movements.*',
+                    'products.name as product_name',
+                    'products.sku as product_sku'
+            )
+            ->orderBy('stock_movements.created_at', 'desc');
+        
+        // Filtres optionnels
+        if ($request->has('product_id')) {
+            $query->where('stock_movements.product_id', $request->product_id);
+        }
+        
+        if ($request->has('type')) {
+            $query->where('stock_movements.type', $request->type);
+        }
+        
+        if ($request->has('date_from')) {
+            $query->where('stock_movements.created_at', '>=', $request->date_from);
+        }
+        
+        if ($request->has('date_to')) {
+            $query->where('stock_movements.created_at', '<=', $request->date_to);
+        }
+        
+        // Pagination
+        $perPage = $request->get('per_page', 50);
+        $movements = $query->limit($perPage)->get();
+        
+        return response()->json([
+            'success' => true,
+            'data' => $movements
+        ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des mouvements',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    });
+
+    // Statistiques des mouvements
+    Route::get('/stock/movements/stats', function (Request $request) {
+        try {
+            $today = now()->startOfDay();
+            $thisWeek = now()->startOfWeek();
+            $thisMonth = now()->startOfMonth();
+            
+            $stats = [
+                'today' => [
+                    'in' => DB::table('stock_movements')
+                        ->where('type', 'in')
+                        ->where('created_at', '>=', $today)
+                        ->sum('quantity'),
+                    'out' => DB::table('stock_movements')
+                        ->where('type', 'out')
+                        ->where('created_at', '>=', $today)
+                        ->sum('quantity')
+                ],
+                'this_week' => [
+                    'in' => DB::table('stock_movements')
+                        ->where('type', 'in')
+                        ->where('created_at', '>=', $thisWeek)
+                        ->sum('quantity'),
+                    'out' => DB::table('stock_movements')
+                        ->where('type', 'out')
+                        ->where('created_at', '>=', $thisWeek)
+                        ->sum('quantity')
+                ],
+                'this_month' => [
+                    'in' => DB::table('stock_movements')
+                        ->where('type', 'in')
+                        ->where('created_at', '>=', $thisMonth)
+                        ->sum('quantity'),
+                    'out' => DB::table('stock_movements')
+                        ->where('type', 'out')
+                        ->where('created_at', '>=', $thisMonth)
+                        ->sum('quantity')
+                ],
+                'total_movements' => DB::table('stock_movements')->count()
+            ];
+            
+            return response()->json([
+                'success' => true,
+                'data' => $stats
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des statistiques',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    });
+
+    // ====================================
     // HEALTH CHECK
     // ====================================
     
