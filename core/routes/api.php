@@ -13,6 +13,89 @@ use Illuminate\Support\Facades\DB;
 */
 
 Route::prefix('v1')->group(function () {
+    // Categories - AJOUTE CECI
+    Route::post('categories', function (Request $request) {
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255|unique:categories'
+            ]);
+
+            $id = DB::table('categories')->insertGetId([
+                'name' => $validated['name'],
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Catégorie créée avec succès',
+                'data' => DB::table('categories')->where('id', $id)->first()
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la création',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    });
+
+    Route::put('categories/{id}', function (Request $request, $id) {
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255|unique:categories,name,' . $id
+            ]);
+
+            DB::table('categories')
+                ->where('id', $id)
+                ->update([
+                    'name' => $validated['name'],
+                    'updated_at' => now()
+                ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Catégorie mise à jour avec succès',
+                'data' => DB::table('categories')->where('id', $id)->first()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    });
+
+    Route::delete('categories/{id}', function ($id) {
+        try {
+            if (DB::table('products')->where('category_id', $id)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de supprimer : des produits sont liés à cette catégorie'
+                ], 400);
+            }
+
+            DB::table('categories')->where('id', $id)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Catégorie supprimée avec succès'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    });
+    
+    // ====================================
+    // CATEGORIES
+    // ====================================
+    
+    require __DIR__ . '/api/v1/subcategories.php';
     
     // ====================================
     // PRODUITS
@@ -23,9 +106,11 @@ Route::prefix('v1')->group(function () {
         try {
             $products = DB::table('products')
                 ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
+                ->leftJoin('subcategories', 'products.subcategory_id', '=', 'subcategories.id')
                 ->select(
                     'products.*',
-                    'categories.name as category_name'
+                    'categories.name as category_name',
+                    'subcategories.name as subcategory_name'
                 )
                 ->orderBy('products.name')
                 ->get();
@@ -38,10 +123,16 @@ Route::prefix('v1')->group(function () {
                     'unit_price' => (float) $product->unit_price,
                     'stock' => (int) $product->stock,
                     'min_stock' => (int) $product->min_stock,
+                    'category_id' => $product->category_id,
+                    'subcategory_id' => $product->subcategory_id,
                     'category' => [
                         'id' => $product->category_id,
                         'name' => $product->category_name ?? 'N/A'
-                    ]
+                    ],
+                    'subcategory' => $product->subcategory_id ? [
+                        'id' => $product->subcategory_id,
+                        'name' => $product->subcategory_name
+                    ] : null
                 ];
             });
             
@@ -62,21 +153,27 @@ Route::prefix('v1')->group(function () {
     Route::post('/products', function (Request $request) {
         try {
             $validated = $request->validate([
-                'name' => 'required|string|max:255',
+                'name' => 'required|string|max:255|unique:products',
                 'sku' => 'required|string|max:50|unique:products',
+                'code' => 'nullable|string|max:50|unique:products',
                 'unit_price' => 'required|numeric|min:0',
                 'stock' => 'required|integer|min:0',
                 'min_stock' => 'required|integer|min:0',
-                'category_id' => 'nullable|exists:categories,id'
+                'category_id' => 'nullable|exists:categories,id',
+                'image' => 'nullable|string',
+                'description' => 'nullable|string'
             ]);
             
             $id = DB::table('products')->insertGetId([
                 'name' => $validated['name'],
                 'sku' => $validated['sku'],
+                'code' => $validated['code'] ?? $validated['sku'], // Utilise le code fourni ou le SKU par défaut
                 'unit_price' => $validated['unit_price'],
                 'stock' => $validated['stock'],
                 'min_stock' => $validated['min_stock'],
                 'category_id' => $validated['category_id'] ?? null,
+                'image' => $validated['image'] ?? null,
+                'description' => $validated['description'] ?? null,
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
@@ -95,10 +192,80 @@ Route::prefix('v1')->group(function () {
                 'message' => 'Validation échouée',
                 'errors' => $e->errors()
             ], 422);
+        } catch (\Illuminate\Database\QueryException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de base de données (Doublon ou contrainte)',
+                'error' => $e->getMessage()
+            ], 409);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la création',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    });
+
+    // Retirer du stock (sortie)
+    Route::post('/stock/out', function (Request $request) {
+        try {
+            $validated = $request->validate([
+                'product_id' => 'required|exists:products,id',
+                'quantity' => 'required|integer|min:1',
+                'reason' => 'nullable|string|max:255'
+            ]);
+
+            DB::beginTransaction();
+
+            // Récupérer le produit
+            $product = DB::table('products')->where('id', $validated['product_id'])->first();
+
+            // Vérifier qu'il y a assez de stock
+            if ($product->stock < $validated['quantity']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Stock insuffisant',
+                    'error' => "Stock actuel: {$product->stock}, demandé: {$validated['quantity']}"
+                ], 400);
+            }
+
+            // Mettre à jour le stock
+            $newStock = $product->stock - $validated['quantity'];
+            DB::table('products')
+                ->where('id', $validated['product_id'])
+                ->update([
+                    'stock' => $newStock,
+                    'updated_at' => now()
+                ]);
+
+            // Enregistrer le mouvement
+            DB::table('stock_movements')->insert([
+                'product_id' => $validated['product_id'],
+                'type' => 'out',
+                'quantity' => $validated['quantity'],
+                'reason' => $validated['reason'] ?? 'Sortie de stock',
+                'created_at' => now()
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Stock retiré avec succès',
+                'data' => [
+                    'product_id' => $validated['product_id'],
+                    'old_stock' => $product->stock,
+                    'new_stock' => $newStock,
+                    'quantity_removed' => $validated['quantity']
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du retrait de stock',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -108,12 +275,15 @@ Route::prefix('v1')->group(function () {
     Route::put('/products/{id}', function (Request $request, $id) {
         try {
             $validated = $request->validate([
-                'name' => 'sometimes|required|string|max:255',
+                'name' => 'sometimes|required|string|max:255|unique:products,name,' . $id,
                 'sku' => 'sometimes|required|string|max:50|unique:products,sku,' . $id,
+                'code' => 'nullable|string|max:50|unique:products,code,' . $id,
                 'unit_price' => 'sometimes|required|numeric|min:0',
                 'stock' => 'sometimes|required|integer|min:0',
                 'min_stock' => 'sometimes|required|integer|min:0',
-                'category_id' => 'nullable|exists:categories,id'
+                'category_id' => 'nullable|exists:categories,id',
+                'image' => 'nullable|string',
+                'description' => 'nullable|string'
             ]);
             
             $validated['updated_at'] = now();
@@ -234,7 +404,7 @@ Route::prefix('v1')->group(function () {
     // ====================================
     
     // Ajouter du stock
-    Route::post('/stock/add', function (Request $request) {
+    Route::post('/stock/in', function (Request $request) {
         try {
             $validated = $request->validate([
                 'product_id' => 'required|exists:products,id',
@@ -320,7 +490,7 @@ Route::prefix('v1')->group(function () {
     // ====================================
 
     // Lister les mouvements de stock
-    Route::get('/stock/movements', function (Request $request) {
+    Route::get('/movements', function (Request $request) {
         try {
             $query = DB::table('stock_movements')
                 ->join('products', 'stock_movements.product_id', '=', 'products.id')
@@ -366,7 +536,7 @@ Route::prefix('v1')->group(function () {
     });
 
     // Statistiques des mouvements
-    Route::get('/stock/movements/stats', function (Request $request) {
+    Route::get('/movements/stats', function (Request $request) {
         try {
             $today = now()->startOfDay();
             $thisWeek = now()->startOfWeek();

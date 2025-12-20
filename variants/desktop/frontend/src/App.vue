@@ -138,6 +138,20 @@
         <div v-if="currentView === 'products'" class="space-y-6">
           <div class="flex justify-between items-center">
             <h2 class="text-3xl font-bold">Gestion des produits</h2>
+            <div class="flex gap-2">
+              <button 
+                @click="showCategoryModal = true"
+                class="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition"
+              >
+                🏷️ Gérer les catégories
+              </button>
+              <button 
+                @click="openProductModal(null)"
+                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+              >
+                ➕ Nouveau produit
+              </button>
+            </div>
           </div>
 
           <!-- Search and Filters -->
@@ -179,15 +193,27 @@
                     </div>
                   </td>
                 </tr>
+                <tr v-else-if="filteredProducts.length === 0">
+                  <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                    Aucun produit trouvé
+                  </td>
+                </tr>
                 <tr v-for="product in filteredProducts" :key="product.id" class="border-t hover:bg-gray-50">
                   <td class="px-6 py-4">
                     <div class="font-medium">{{ product.name }}</div>
                     <div class="text-sm text-gray-500">{{ product.sku }}</div>
                   </td>
                   <td class="px-6 py-4">
-                    <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
-                      {{ product.category?.name || 'N/A' }}
-                    </span>
+                    <div>
+                      <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
+                        {{ product.category?.name || 'N/A' }}
+                      </span>
+                      <div v-if="product.subcategory" class="mt-1">
+                        <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
+                          {{ product.subcategory.name }}
+                        </span>
+                      </div>
+                    </div>
                   </td>
                   <td class="px-6 py-4">
                     <span :class="['px-2 py-1 rounded text-sm font-medium',
@@ -199,12 +225,40 @@
                   </td>
                   <td class="px-6 py-4">{{ formatCurrency(product.unit_price) }}</td>
                   <td class="px-6 py-4">
-                    <button 
-                      @click="openRestockModal(product)"
-                      class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                    >
-                      ➕ Stock
-                    </button>
+                    <div class="flex items-center gap-2">
+                      <button 
+                        @click="viewProduct(product)"
+                        class="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm"
+                      >
+                        👁
+                      </button>
+                      <button 
+                        @click="openProductModal(product)"
+                        class="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm"
+                      >
+                        ✏️
+                      </button>
+                      <button 
+                        @click="openStockInModal(product)"
+                        class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                      >
+                        ↗ Entrée
+                      </button>
+                      <button 
+                        @click="openStockOutModal(product)"
+                        class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                        :disabled="product.stock === 0"
+                        :class="product.stock === 0 ? 'opacity-50 cursor-not-allowed' : ''"
+                      >
+                        ↘ Sortie
+                      </button>
+                      <button 
+                        @click="deleteProduct(product)"
+                        class="px-3 py-1 bg-gray-800 text-white rounded hover:bg-gray-900 text-sm"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -212,7 +266,7 @@
           </div>
         </div>
 
-        <!-- ✅ MOVEMENTS VIEW - NOUVELLE SECTION -->
+        <!-- Movements View -->
         <div v-if="currentView === 'movements'" class="space-y-6">
           <div class="flex justify-between items-center">
             <h2 class="text-3xl font-bold">Mouvements de stock</h2>
@@ -421,7 +475,7 @@
                   </p>
                 </div>
                 <button 
-                  @click="openRestockModal(product)"
+                  @click="openStockInModal(product)"
                   class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                 >
                   Réapprovisionner
@@ -446,7 +500,7 @@
                   <p class="text-sm text-red-700 font-bold mt-1">RUPTURE DE STOCK</p>
                 </div>
                 <button 
-                  @click="openRestockModal(product)"
+                  @click="openStockInModal(product)"
                   class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                 >
                   Réapprovisionner
@@ -459,7 +513,298 @@
       </main>
     </div>
 
-    <!-- Modal de réapprovisionnement -->
+    <!-- ✅ MODAL CRÉER/MODIFIER PRODUIT - CORRIGÉE -->
+    <div v-if="showProductModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-bold">
+            {{ editingProduct ? 'Modifier le produit' : 'Nouveau produit' }}
+          </h3>
+          <button @click="closeProductModal" class="text-gray-500 hover:text-gray-700 text-2xl">✕</button>
+        </div>
+        
+        <form @submit.prevent="saveProduct" class="space-y-4">
+          <!-- Nom du produit -->
+          <div>
+            <label class="block text-sm font-medium mb-2">
+              Nom du produit <span class="text-red-500">*</span>
+            </label>
+            <input
+              v-model="productForm.name"
+              type="text"
+              class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="Ex: Coca-Cola 33cl"
+              required
+            >
+          </div>
+
+          <!-- Code SKU -->
+          <div>
+            <label class="block text-sm font-medium mb-2">
+              Code SKU <span class="text-red-500">*</span>
+            </label>
+            <input
+              v-model="productForm.sku"
+              type="text"
+              class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="Ex: COCA-33"
+              required
+            >
+          </div>
+
+          <!-- Catégorie et Sous-catégorie -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium mb-2">
+                Catégorie <span class="text-red-500">*</span>
+              </label>
+              <select
+                v-model="productForm.category_id"
+                @change="filterSubcategories"
+                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option :value="null">Sélectionner une catégorie</option>
+                <option v-for="category in categories" :key="category.id" :value="category.id">
+                  {{ category.name }}
+                </option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium mb-2">
+                Sous-catégorie
+              </label>
+              <select
+                v-model="productForm.subcategory_id"
+                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                :disabled="!productForm.category_id || filteredSubcategories.length === 0"
+              >
+                <option :value="null">Sélectionner une sous-catégorie</option>
+                <option v-for="subcategory in filteredSubcategories" :key="subcategory.id" :value="subcategory.id">
+                  {{ subcategory.name }}
+                </option>
+              </select>
+              <p v-if="productForm.category_id && filteredSubcategories.length === 0" class="text-xs text-gray-500 mt-1">
+                Aucune sous-catégorie disponible
+              </p>
+            </div>
+          </div>
+
+          <!-- Prix et Stock -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium mb-2">
+                Prix de vente (FCFA) <span class="text-red-500">*</span>
+              </label>
+              <input
+                v-model.number="productForm.unit_price"
+                type="number"
+                step="0.01"
+                min="0"
+                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="500"
+                required
+              >
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium mb-2">
+                Stock actuel <span class="text-red-500">*</span>
+              </label>
+              <input
+                v-model.number="productForm.stock"
+                type="number"
+                min="0"
+                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="0"
+                required
+              >
+            </div>
+          </div>
+
+          <!-- Stock minimum -->
+          <div>
+            <label class="block text-sm font-medium mb-2">
+              Stock minimum d'alerte
+            </label>
+            <input
+              v-model.number="productForm.min_stock"
+              type="number"
+              min="0"
+              class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="10"
+            >
+            <p class="text-xs text-gray-500 mt-1">
+              Une alerte sera générée quand le stock atteint ce niveau
+            </p>
+          </div>
+
+          <!-- Boutons -->
+          <div class="flex justify-end space-x-4 pt-4 border-t">
+            <button
+              type="button"
+              @click="closeProductModal"
+              class="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-100 font-medium"
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+              :disabled="savingProduct"
+            >
+              {{ savingProduct ? 'Enregistrement...' : editingProduct ? 'Modifier' : 'Créer' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ✅ MODAL GÉRER LES CATÉGORIES - NOUVELLE -->
+    <div v-if="showCategoryModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-bold">🏷️ Gestion des catégories</h3>
+          <button @click="showCategoryModal = false" class="text-gray-500 hover:text-gray-700 text-2xl">✕</button>
+        </div>
+        
+        <!-- Formulaire de création de catégorie -->
+        <div class="mb-6 p-4 bg-blue-50 rounded-lg">
+          <h4 class="font-semibold mb-3">Nouvelle catégorie</h4>
+          <div class="flex gap-2">
+            <input 
+              v-model="newCategoryName"
+              type="text" 
+              placeholder="Nom de la catégorie"
+              class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              @keyup.enter="addCategory"
+            >
+            <button 
+              @click="addCategory"
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              ➕ Ajouter
+            </button>
+          </div>
+        </div>
+
+        <!-- Liste des catégories existantes -->
+        <div class="space-y-2">
+          <h4 class="font-semibold mb-2">Catégories existantes</h4>
+          <div v-if="categories.length === 0" class="text-gray-500 text-center py-4">
+            Aucune catégorie définie
+          </div>
+          <div 
+            v-for="category in categories" 
+            :key="category.id"
+            class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100"
+          >
+            <template v-if="editingCategoryId !== category.id">
+              <span class="font-medium">{{ category.name }}</span>
+              <div class="flex gap-2">
+                <button 
+                  @click="editCategory(category)"
+                  class="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm"
+                >
+                  ✏️ Modifier
+                </button>
+                <button 
+                  @click="deleteCategory(category)"
+                  class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                >
+                  🗑️
+                </button>
+              </div>
+            </template>
+            <template v-else>
+              <input 
+                v-model="editingCategoryName"
+                class="flex-1 px-2 py-1 border rounded mr-2"
+                @keyup.enter="saveEditedCategory"
+              >
+              <div class="flex gap-2">
+                <button @click="saveEditedCategory" class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm">
+                  💾
+                </button>
+                <button @click="cancelEditCategory" class="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm">
+                  ✕
+                </button>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Bouton fermer -->
+        <div class="mt-6 flex justify-end">
+          <button 
+            @click="showCategoryModal = false"
+            class="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+          >
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ✅ MODAL VOIR PRODUIT -->
+    <div v-if="showViewModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-bold">Détails du produit</h3>
+          <button @click="closeViewModal" class="text-gray-500 hover:text-gray-700 text-2xl">✕</button>
+        </div>
+        
+        <div v-if="viewingProduct" class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <p class="text-sm text-gray-500">Nom du produit</p>
+              <p class="font-semibold">{{ viewingProduct.name }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-500">SKU</p>
+              <p class="font-semibold">{{ viewingProduct.sku }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-500">Catégorie</p>
+              <p class="font-semibold">{{ viewingProduct.category?.name || 'N/A' }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-500">Prix unitaire</p>
+              <p class="font-semibold text-green-600">{{ formatCurrency(viewingProduct.unit_price) }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-500">Stock actuel</p>
+              <p class="font-semibold" :class="viewingProduct.stock <= viewingProduct.min_stock ? 'text-red-600' : 'text-green-600'">
+                {{ viewingProduct.stock }} unités
+              </p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-500">Stock minimum</p>
+              <p class="font-semibold">{{ viewingProduct.min_stock }} unités</p>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t">
+            <p class="text-sm text-gray-500 mb-2">Valeur du stock</p>
+            <p class="text-2xl font-bold text-blue-600">
+              {{ formatCurrency(viewingProduct.stock * viewingProduct.unit_price) }}
+            </p>
+          </div>
+        </div>
+
+        <div class="mt-6 flex justify-end">
+          <button 
+            @click="closeViewModal"
+            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
+          >
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ✅ MODAL ENTRÉE DE STOCK (Réapprovisionnement) -->
     <div v-if="showRestockModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
         <h3 class="text-xl font-bold mb-4">Réapprovisionner</h3>
@@ -479,7 +824,7 @@
             min="1"
             class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
             placeholder="Ex: 50"
-            @keyup.enter="submitRestock"
+            @keyup.enter="submitStockIn"
           >
         </div>
 
@@ -497,13 +842,13 @@
 
         <div class="flex space-x-3">
           <button 
-            @click="closeRestockModal"
+            @click="closeStockInModal"
             class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
           >
             Annuler
           </button>
           <button 
-            @click="submitRestock"
+            @click="submitStockIn"
             :disabled="!restockQuantity || restockQuantity < 1"
             class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
           >
@@ -512,348 +857,666 @@
         </div>
       </div>
     </div>
+
+    <!-- ✅ MODAL SORTIE DE STOCK -->
+    <div v-if="showStockOutModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+        <h3 class="text-xl font-bold mb-4 text-red-600">↘ Sortie de stock</h3>
+        
+        <div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p class="text-gray-700 font-medium">{{ stockOutProduct?.name }}</p>
+          <p class="text-sm text-gray-600">Stock actuel: {{ stockOutProduct?.stock }} unités</p>
+          <p class="text-xs text-red-600 mt-2">
+            ⚠️ Cette action va réduire le stock disponible
+          </p>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Quantité à retirer *
+          </label>
+          <input 
+            v-model.number="stockOutQuantity"
+            type="number"
+            min="1"
+            :max="stockOutProduct?.stock"
+            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500"
+            placeholder="Ex: 10"
+            @keyup.enter="submitStockOut"
+          >
+          <p v-if="stockOutQuantity > stockOutProduct?.stock" class="text-xs text-red-600 mt-1">
+            ⚠️ Quantité supérieure au stock disponible !
+          </p>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Type de sortie *
+          </label>
+          <select 
+            v-model="stockOutReasonType"
+            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500"
+          >
+            <option value="sale">Vente</option>
+            <option value="loss">Casse / Perte</option>
+            <option value="expiry">Péremption</option>
+            <option value="donation">Don</option>
+            <option value="return">Retour fournisseur</option>
+            <option value="other">Autre</option>
+          </select>
+        </div>
+
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Détails (optionnel)
+          </label>
+          <textarea 
+            v-model="stockOutReason"
+            rows="2"
+            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500"
+            placeholder="Ex: Vente client, Produit endommagé..."
+          ></textarea>
+        </div>
+
+        <div class="flex space-x-3">
+          <button 
+            @click="closeStockOutModal"
+            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+          >
+            Annuler
+          </button>
+          <button 
+            @click="submitStockOut"
+            :disabled="!stockOutQuantity || stockOutQuantity < 1 || stockOutQuantity > stockOutProduct?.stock"
+            class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+          >
+            Confirmer la sortie
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
-<script>
-export default {
-  name: 'App',
-  
-  data() {
-    return {
-      API_BASE: 'http://localhost:8000/api/v1',
-      appInfo: { mode: 'loading...', platform: 'unknown' },
-      currentDate: new Date().toLocaleDateString('fr-FR'),
-      currentView: 'dashboard',
-      
-      // Data
-      products: [],
-      stats: {},
-      alerts: { low_stock: [], out_of_stock: [] },
-      movements: [],
-      movementStats: {},
-      
-      // UI State
-      loading: false,
-      loadingMovements: false,
-      connectionError: false,
-      searchQuery: '',
-      
-      // Filtres mouvements
-      movementFilters: {
-        type: '',
-        product_id: '',
-        date_from: '',
-        date_to: ''
-      },
-      
-      // Restock Modal
-      showRestockModal: false,
-      restockProduct: null,
-      restockQuantity: null,
-      restockReason: ''
-    }
-  },
-  
-  computed: {
-    alertsCount() {
-      return (this.alerts.low_stock?.length || 0) + (this.alerts.out_of_stock?.length || 0)
-    },
-    
-    filteredProducts() {
-      if (!this.searchQuery) return this.products
-      
-      const query = this.searchQuery.toLowerCase()
-      return this.products.filter(p => 
-        p.name.toLowerCase().includes(query) || 
-        p.sku.toLowerCase().includes(query)
-      )
-    }
-  },
-  
-  methods: {
-    async apiRequest(endpoint, options = {}) {
-      try {
-        const response = await fetch(`${this.API_BASE}${endpoint}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            ...options.headers
-          },
-          ...options
-        })
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`)
-        }
-        
-        const data = await response.json()
-        this.connectionError = false
-        return data
-        
-      } catch (error) {
-        console.error('API Error:', error)
-        this.connectionError = true
-        throw error
-      }
-    },
-    
-    async retryConnection() {
-      this.connectionError = false
-      await Promise.all([
-        this.loadProducts(),
-        this.loadStats(),
-        this.loadAlerts()
-      ])
-    },
-    
-    async loadProducts() {
-      this.loading = true
-      try {
-        const data = await this.apiRequest('/products')
-        this.products = data.data || data
-      } catch (error) {
-        console.error('Error loading products:', error)
-      } finally {
-        this.loading = false
-      }
-    },
-    
-    async loadStats() {
-      try {
-        const data = await this.apiRequest('/dashboard/stats')
-        this.stats = data.data || data
-      } catch (error) {
-        console.error('Error loading stats:', error)
-      }
-    },
-    
-    async loadAlerts() {
-      try {
-        const data = await this.apiRequest('/stock/alerts')
-        this.alerts = data.data || data
-      } catch (error) {
-        console.error('Error loading alerts:', error)
-      }
-    },
-    
-    // ✅ MÉTHODES POUR LES MOUVEMENTS
-    async switchToMovements() {
-      this.currentView = 'movements'
-      await this.loadMovements()
-      await this.loadMovementStats()
-    },
-    
-    async loadMovements() {
-      this.loadingMovements = true
-      try {
-        // Construire les paramètres de requête
-        const params = new URLSearchParams()
-        
-        if (this.movementFilters.type) {
-          params.append('type', this.movementFilters.type)
-        }
-        if (this.movementFilters.product_id) {
-          params.append('product_id', this.movementFilters.product_id)
-        }
-        if (this.movementFilters.date_from) {
-          params.append('date_from', this.movementFilters.date_from)
-        }
-        if (this.movementFilters.date_to) {
-          params.append('date_to', this.movementFilters.date_to)
-        }
-        
-        const queryString = params.toString()
-        const endpoint = queryString ? `/stock/movements?${queryString}` : '/stock/movements'
-        
-        const data = await this.apiRequest(endpoint)
-        this.movements = data.data || data
-      } catch (error) {
-        console.error('Error loading movements:', error)
-        this.movements = []
-      } finally {
-        this.loadingMovements = false
-      }
-    },
-    
-    async loadMovementStats() {
-      try {
-        const data = await this.apiRequest('/stock/movements/stats')
-        this.movementStats = data.data || data
-      } catch (error) {
-        console.error('Error loading movement stats:', error)
-      }
-    },
-    
-    resetFilters() {
-      this.movementFilters = {
-        type: '',
-        product_id: '',
-        date_from: '',
-        date_to: ''
-      }
-      this.loadMovements()
-    },
-    
-    exportMovements() {
-      if (this.movements.length === 0) {
-        this.showNotification('Aucun mouvement à exporter', 'error')
-        return
-      }
-      
-      // Créer le CSV
-      const headers = ['Date', 'Produit', 'SKU', 'Type', 'Quantité', 'Raison']
-      const rows = this.movements.map(m => [
-        this.formatDate(m.created_at),
-        m.product_name,
-        m.product_sku,
-        m.type === 'in' ? 'Entrée' : m.type === 'out' ? 'Sortie' : 'Ajustement',
-        m.quantity,
-        m.reason || ''
-      ])
-      
-      let csv = headers.join(',') + '\n'
-      rows.forEach(row => {
-        csv += row.map(cell => `"${cell}"`).join(',') + '\n'
-      })
-      
-      // Télécharger
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-      const link = document.createElement('a')
-      link.href = URL.createObjectURL(blob)
-      link.download = `mouvements_${new Date().toISOString().split('T')[0]}.csv`
-      link.click()
-      
-      this.showNotification('Export CSV réussi', 'success')
-    },
-    
-    // MÉTHODES DE RÉAPPROVISIONNEMENT
-    openRestockModal(product) {
-      this.restockProduct = product
-      this.restockQuantity = Math.max(0, product.min_stock - product.stock + 10)
-      this.restockReason = 'Réapprovisionnement'
-      this.showRestockModal = true
-    },
-    
-    closeRestockModal() {
-      this.showRestockModal = false
-      this.restockProduct = null
-      this.restockQuantity = null
-      this.restockReason = ''
-    },
-    
-    async submitRestock() {
-      if (!this.restockQuantity || this.restockQuantity < 1) return
-      
-      try {
-        await this.apiRequest('/stock/add', {
-          method: 'POST',
-          body: JSON.stringify({
-            product_id: this.restockProduct.id,
-            quantity: parseInt(this.restockQuantity),
-            reason: this.restockReason || 'Réapprovisionnement'
-          })
-        })
-        
-        this.showNotification(`✅ ${this.restockQuantity} unités ajoutées à ${this.restockProduct.name}`, 'success')
-        this.closeRestockModal()
-        
-        // Recharger les données
-        await Promise.all([
-          this.loadProducts(),
-          this.loadStats(),
-          this.loadAlerts(),
-          this.loadMovements(),
-          this.loadMovementStats()
-        ])
-        
-      } catch (error) {
-        console.error('Error adding stock:', error)
-        this.showNotification('❌ Erreur lors du réapprovisionnement', 'error')
-      }
-    },
-    
-    // UTILITAIRES
-    formatCurrency(value) {
-      return new Intl.NumberFormat('fr-FR', {
-        minimumFractionDigits: 0
-      }).format(value || 0) + ' FCFA'
-    },
-    
-    formatDate(dateString) {
-      if (!dateString) return '-'
-      const date = new Date(dateString)
-      return date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-    },
-    
-    showNotification(message, type = 'success') {
-      console.log(`[${type.toUpperCase()}]`, message)
-      
-      if (typeof document === 'undefined') return
-      
-      try {
-        const notif = document.createElement('div')
-        notif.textContent = message
-        notif.style.cssText = `
-          position: fixed;
-          top: 20px;
-          right: 20px;
-          padding: 15px 25px;
-          background: ${type === 'error' ? '#ef4444' : '#10b981'};
-          color: white;
-          border-radius: 8px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-          z-index: 10000;
-          animation: slideIn 0.3s ease-out;
-        `
-        
-        document.body.appendChild(notif)
-        
-        setTimeout(() => {
-          notif.style.animation = 'slideOut 0.3s ease-in'
-          setTimeout(() => notif.remove(), 300)
-        }, 3000)
-        
-      } catch (error) {
-        console.error('Erreur notification:', error)
-      }
-    }
-  },
-  
-  async mounted() {
-    console.log('🚀 SmartDrinkStore Desktop chargé')
-    
-    // Récupérer l'API base depuis Electron
-    if (window.electronAPI) {
-      this.API_BASE = await window.electronAPI.getApiBase()
-      this.appInfo = await window.electronAPI.getAppInfo()
-    }
-    
-    console.log('📡 API:', this.API_BASE)
-    
-    await this.retryConnection()
-    
-    setInterval(() => {
-      this.currentDate = new Date().toLocaleDateString('fr-FR')
-    }, 60000)
+<!-- Fichier à modifier : variants/desktop/frontend/src/App.vue -->
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import api from '@/services/api'
+
+// ---------------------------
+// Réactivité
+// ---------------------------
+const currentView = ref('dashboard')
+const currentDate = ref(new Date().toLocaleDateString('fr-FR'))
+const loading = ref(true)
+const connectionError = ref(false)
+const loadingMovements = ref(false)
+
+// Info app
+const appInfo = ref({
+  mode: 'development',
+  platform: 'web',
+  version: '1.0.0'
+})
+
+// Données principales
+const products = ref([])
+const categories = ref([])
+const subcategories = ref([])
+const filteredSubcategories = ref([])
+const stats = ref({})
+const alerts = ref({
+  low_stock: [],
+  out_of_stock: []
+})
+
+// Recherche
+const searchQuery = ref('')
+
+// Mouvements
+const movements = ref([])
+const movementStats = ref({
+  today: { in: 0, out: 0 },
+  this_week: { in: 0, out: 0 },
+  this_month: { in: 0, out: 0 },
+  total_movements: 0
+})
+const movementFilters = ref({
+  type: '',
+  product_id: '',
+  date_from: '',
+  date_to: ''
+})
+
+// Modals
+const showProductModal = ref(false)
+const showCategoryModal = ref(false)
+const showViewModal = ref(false)
+const showRestockModal = ref(false)
+const showStockOutModal = ref(false)
+
+// Formulaires produit
+const editingProduct = ref(null)
+const savingProduct = ref(false)
+const productForm = ref({
+  name: '',
+  sku: '',
+  unit_price: 0,
+  stock: 0,
+  min_stock: 10,
+  category_id: null,
+  subcategory_id: null
+})
+
+// Vue produit
+const viewingProduct = ref(null)
+
+// Restock
+const restockProduct = ref(null)
+const restockQuantity = ref(null)
+const restockReason = ref('')
+
+// Stock out
+const stockOutProduct = ref(null)
+const stockOutQuantity = ref(null)
+const stockOutReason = ref('')
+const stockOutReasonType = ref('sale')
+
+// Nouvelle catégorie
+const newCategoryName = ref('')
+const editingCategoryId = ref(null)
+const editingCategoryName = ref('')
+
+// ---------------------------
+// Computed
+// ---------------------------
+const alertsCount = computed(() => 
+  (alerts.value.low_stock?.length || 0) + (alerts.value.out_of_stock?.length || 0)
+)
+
+const filteredProducts = computed(() => {
+  if (!searchQuery.value) return products.value
+  const query = searchQuery.value.toLowerCase()
+  return products.value.filter(p =>
+    p.name.toLowerCase().includes(query) ||
+    p.sku.toLowerCase().includes(query)
+  )
+})
+
+// ---------------------------
+// Fonctions API
+// ---------------------------
+async function loadCategories() {
+  try {
+    const response = await api.get('/categories')
+    console.log('Raw categories response:', response)
+    categories.value = response.data.data || []  // <--- ici
+    console.log('✅ Catégories chargées:', categories.value)
+  } catch (error) {
+    console.error('Error loading categories:', error)
+    categories.value = []
   }
 }
+
+async function loadSubcategories() {
+  try {
+    const response = await api.get('/subcategories')
+    console.log('Raw subcategories response:', response)
+    subcategories.value = response.data.data || [] // <--- ici
+    console.log('✅ Sous-catégories chargées:', subcategories.value)
+  } catch (error) {
+    console.error('Error loading subcategories:', error)
+    subcategories.value = []
+  }
+}
+
+async function loadProducts() {
+  loading.value = true
+  try {
+    const response = await api.get('/products')
+    console.log('Raw products response:', response)
+    products.value = response.data.data || [] // <--- ici
+    console.log('✅ Produits chargés:', products.value)
+  } catch (error) {
+    console.error('Error loading products:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadStats() {
+  try {
+    const response = await api.get('/dashboard/stats')
+    console.log('Raw stats response:', response)
+    stats.value = response.data.data || {} // <--- ici
+    console.log('✅ Stats chargées:', stats.value)
+  } catch (error) {
+    console.error('Erreur chargement stats:', error)
+  }
+}
+
+async function loadAlerts() {
+  try {
+    const response = await api.get('/stock/alerts')
+    console.log('Raw alerts response:', response)
+    alerts.value = response.data.data || {} // <--- ici
+    console.log('✅ Alerts chargées:', alerts.value)
+  } catch (error) {
+    console.error('Erreur chargement alertes:', error)
+  }
+}
+
+async function loadMovements() {
+  loadingMovements.value = true
+  try {
+    const params = {}
+    if (movementFilters.value.type) params.type = movementFilters.value.type
+    if (movementFilters.value.product_id) params.product_id = movementFilters.value.product_id
+    if (movementFilters.value.date_from) params.date_from = movementFilters.value.date_from
+    if (movementFilters.value.date_to) params.date_to = movementFilters.value.date_to
+    
+    const response = await api.get('/movements', { params })
+    movements.value = response.data?.data || response.data || []
+    
+    // Load movement stats
+    const statsResponse = await api.get('/movements/stats')
+    movementStats.value = statsResponse.data?.data || statsResponse.data || {}
+    
+    console.log('✅ Mouvements chargés:', movements.value)
+  } catch (error) {
+    console.error('Erreur chargement mouvements:', error)
+  } finally {
+    loadingMovements.value = false
+  }
+}
+
+// ==================== GESTION PRODUITS ====================
+function openProductModal(product) {
+  editingProduct.value = product
+  if (product) {
+    productForm.value = {
+      name: product.name,
+      sku: product.sku,
+      unit_price: product.unit_price,
+      stock: product.stock,
+      min_stock: product.min_stock || 10,
+      category_id: product.category_id,
+      subcategory_id: product.subcategory_id
+    }
+    filterSubcategories()
+  } else {
+    productForm.value = {
+      name: '',
+      sku: '',
+      unit_price: 0,
+      stock: 0,
+      min_stock: 10,
+      category_id: null,
+      subcategory_id: null
+    }
+  }
+  showProductModal.value = true
+}
+
+function closeProductModal() {
+  showProductModal.value = false
+  editingProduct.value = null
+  productForm.value = {
+    name: '',
+    sku: '',
+    unit_price: 0,
+    stock: 0,
+    min_stock: 10,
+    category_id: null,
+    subcategory_id: null
+  }
+}
+
+async function saveProduct() {
+  savingProduct.value = true
+
+    // Préparer les données en s'assurant qu'elles sont correctes
+  const data = {
+    name: productForm.value.name,
+    sku: productForm.value.sku,
+    unit_price: parseFloat(productForm.value.unit_price),
+    stock: parseInt(productForm.value.stock),
+    min_stock: parseInt(productForm.value.min_stock) || 10,
+    category_id: parseInt(productForm.value.category_id)
+  }
+  
+  // Ajouter subcategory_id seulement s'il existe
+  if (productForm.value.subcategory_id) {
+    data.subcategory_id = parseInt(productForm.value.subcategory_id)
+  }
+  
+  console.log('📤 Envoi des données:', data)
+
+  try {
+    if (editingProduct.value) {
+      // Mise à jour
+      await api.put(`/products/${editingProduct.value.id}`, data)
+      alert('✅ Produit modifié avec succès!')
+    } else {
+      // Création
+      const response = await api.post('/products', data)
+      console.log('📥 Réponse serveur:', response.data)
+      alert('✅ Produit créé avec succès!')
+    }
+    closeProductModal()
+    await Promise.all([loadProducts(), loadStats(), loadAlerts()])
+  } catch (error) {
+    console.error('Erreur sauvegarde produit:', error)
+
+    console.error('❌ Détails:', error.response?.data)
+    
+    let errorMsg = 'Erreur lors de la sauvegarde'
+    if (error.response?.data?.message) {
+      errorMsg = error.response.data.message
+    } else if (error.response?.data?.errors) {
+      errorMsg = Object.values(error.response.data.errors).flat().join('\n')
+    }
+    alert('❌ Erreur lors de la sauvegarde: ' + (error.response?.data?.message || error.message))
+  } finally {
+    savingProduct.value = false
+  }
+}
+
+async function deleteProduct(product) {
+  if (!confirm(`Êtes-vous sûr de vouloir supprimer "${product.name}" ?`)) return
+  
+  try {
+    await api.delete(`/products/${product.id}`)
+    alert('✅ Produit supprimé avec succès!')
+    await Promise.all([loadProducts(), loadStats(), loadAlerts()])
+  } catch (error) {
+    console.error('Erreur suppression produit:', error)
+    alert('❌ Erreur lors de la suppression: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+function viewProduct(product) {
+  viewingProduct.value = product
+  showViewModal.value = true
+}
+
+function closeViewModal() {
+  showViewModal.value = false
+  viewingProduct.value = null
+}
+
+function filterSubcategories() {
+  if (productForm.value.category_id) {
+    filteredSubcategories.value = subcategories.value.filter(
+      sub => sub.category_id === productForm.value.category_id
+    )
+  } else {
+    filteredSubcategories.value = []
+  }
+}
+
+// ==================== GESTION CATÉGORIES ====================
+async function addCategory() {
+  if (!newCategoryName.value.trim()) {
+    alert('⚠️ Veuillez entrer un nom de catégorie')
+    return
+  }
+  
+  try {
+    await api.post('/categories', { name: newCategoryName.value })
+    alert('✅ Catégorie créée avec succès!')
+    newCategoryName.value = ''
+    await loadCategories()
+  } catch (error) {
+    console.error('Erreur création catégorie:', error)
+    alert('❌ Erreur: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+function editCategory(category) {
+  editingCategoryId.value = category.id
+  editingCategoryName.value = category.name
+}
+
+function cancelEditCategory() {
+  editingCategoryId.value = null
+  editingCategoryName.value = ''
+}
+
+async function saveEditedCategory() {
+  if (!editingCategoryName.value.trim()) {
+    alert('⚠️ Le nom ne peut pas être vide')
+    return
+  }
+  
+  try {
+    await api.put(`/categories/${editingCategoryId.value}`, { name: editingCategoryName.value })
+    alert('✅ Catégorie modifiée avec succès!')
+    editingCategoryId.value = null
+    editingCategoryName.value = ''
+    await loadCategories()
+  } catch (error) {
+    console.error('Erreur modification catégorie:', error)
+    alert('❌ Erreur: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+async function deleteCategory(category) {
+  if (!confirm(`Supprimer la catégorie "${category.name}" ?`)) return
+  
+  try {
+    await api.delete(`/categories/${category.id}`)
+    alert('✅ Catégorie supprimée!')
+    await loadCategories()
+  } catch (error) {
+    console.error('Erreur suppression catégorie:', error)
+    alert('❌ Erreur: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+// ==================== MOUVEMENTS DE STOCK ====================
+function openStockInModal(product) {
+  restockProduct.value = product
+  restockQuantity.value = null
+  restockReason.value = ''
+  showRestockModal.value = true
+}
+
+function closeStockInModal() {
+  showRestockModal.value = false
+  restockProduct.value = null
+  restockQuantity.value = null
+  restockReason.value = ''
+}
+
+async function submitStockIn() {
+  if (!restockQuantity.value || restockQuantity.value < 1) {
+    alert('⚠️ Veuillez entrer une quantité valide')
+    return
+  }
+  
+  try {
+    await api.post('/stock/in', {
+      product_id: restockProduct.value.id,
+      quantity: restockQuantity.value,
+      reason: restockReason.value || 'Réapprovisionnement'
+    })
+    
+    alert(`✅ Stock ajouté: +${restockQuantity.value} unités`)
+    closeStockInModal()
+    await Promise.all([loadProducts(), loadStats(), loadAlerts(), loadMovements()])
+  } catch (error) {
+    console.error('Erreur entrée stock:', error)
+    alert('❌ Erreur: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+function openStockOutModal(product) {
+  stockOutProduct.value = product
+  stockOutQuantity.value = null
+  stockOutReason.value = ''
+  stockOutReasonType.value = 'sale'
+  showStockOutModal.value = true
+}
+
+function closeStockOutModal() {
+  showStockOutModal.value = false
+  stockOutProduct.value = null
+  stockOutQuantity.value = null
+  stockOutReason.value = ''
+  stockOutReasonType.value = 'sale'
+}
+
+async function submitStockOut() {
+  if (!stockOutQuantity.value || stockOutQuantity.value < 1) {
+    alert('⚠️ Veuillez entrer une quantité valide')
+    return
+  }
+  
+  if (stockOutQuantity.value > stockOutProduct.value.stock) {
+    alert('❌ Quantité supérieure au stock disponible!')
+    return
+  }
+  
+  try {
+    const reason = stockOutReason.value || 
+                   (stockOutReasonType.value === 'sale' ? 'Vente' :
+                    stockOutReasonType.value === 'loss' ? 'Casse/Perte' :
+                    stockOutReasonType.value === 'expiry' ? 'Péremption' :
+                    stockOutReasonType.value === 'donation' ? 'Don' :
+                    stockOutReasonType.value === 'return' ? 'Retour fournisseur' : 'Autre')
+    
+    await api.post('/stock/out', {
+      product_id: stockOutProduct.value.id,
+      quantity: stockOutQuantity.value,
+      reason: reason
+    })
+    
+    alert(`✅ Stock retiré: -${stockOutQuantity.value} unités`)
+    closeStockOutModal()
+    await Promise.all([loadProducts(), loadStats(), loadAlerts(), loadMovements()])
+  } catch (error) {
+    console.error('Erreur sortie stock:', error)
+    alert('❌ Erreur: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+function switchToMovements() {
+  currentView.value = 'movements'
+  if (movements.value.length === 0) {
+    loadMovements()
+  }
+}
+
+function resetFilters() {
+  movementFilters.value = {
+    type: '',
+    product_id: '',
+    date_from: '',
+    date_to: ''
+  }
+  loadMovements()
+}
+
+function exportMovements() {
+  if (movements.value.length === 0) {
+    alert('⚠️ Aucun mouvement à exporter')
+    return
+  }
+  
+  // Créer le CSV
+  const headers = ['Date', 'Produit', 'SKU', 'Type', 'Quantité', 'Raison']
+  const rows = movements.value.map(m => [
+    formatDate(m.created_at),
+    m.product_name,
+    m.product_sku,
+    m.type === 'in' ? 'Entrée' : 'Sortie',
+    m.quantity,
+    m.reason || '-'
+  ])
+  
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(r => r.map(cell => `"${cell}"`).join(','))
+  ].join('\n')
+  
+  // Télécharger
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+  link.setAttribute('href', url)
+  link.setAttribute('download', `mouvements_${new Date().toISOString().split('T')[0]}.csv`)
+  link.style.visibility = 'hidden'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  
+  alert('✅ Export CSV réussi!')
+}
+
+// ---------------------------
+// Utils
+// ---------------------------
+function formatCurrency(value) {
+  if (!value) return '0 FCFA'
+  return new Intl.NumberFormat('fr-FR').format(value) + ' FCFA'
+}
+
+function formatDate(dateString) {
+  if (!dateString) return '-'
+  const date = new Date(dateString)
+  return date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  })
+}
+
+async function retryConnection() {
+  connectionError.value = false
+  await init()
+}
+
+// ---------------------------
+// Initialisation
+// ---------------------------
+async function init() {
+  console.log('🎯 Initializing app...')
+  await Promise.all([
+    loadCategories(),
+    loadSubcategories(),
+    loadProducts(),
+    loadStats(),
+    loadAlerts()
+  ])
+  console.log('✅ App initialized')
+}
+
+// ---------------------------
+// Lifecycle
+// ---------------------------
+onMounted(async () => {
+  console.log('🎯 Initializing Vue app...')
+  await init()
+  console.log('✅ Vue app mounted')
+})
+
 </script>
 
+
+
+
 <style>
-[v-cloak] { display: none; }
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(400px); }
-  to { opacity: 1; transform: translateX(0); }
+[v-cloak] {
+  display: none;
 }
 
-@keyframes slideOut {
-  from { opacity: 1; transform: translateX(0); }
-  to { opacity: 0; transform: translateX(400px); }
+* {
+  box-sizing: border-box;
 }
 
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: #f1f1f1; }
-::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #555; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+}
 </style>

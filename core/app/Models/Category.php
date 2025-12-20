@@ -20,11 +20,12 @@ class Category extends Model
      */
     protected $fillable = [
         'name',
+        'code',          // ✅ AJOUTÉ
         'slug',
         'description',
         'color',
         'icon',
-        'order',
+        'position',      // ✅ AJOUTÉ (remplace 'order')
         'is_active',
         'parent_id'
     ];
@@ -34,7 +35,7 @@ class Category extends Model
      */
     protected $casts = [
         'is_active' => 'boolean',
-        'order' => 'integer',
+        'position' => 'integer',  // ✅ MODIFIÉ (avant c'était 'order')
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime'
@@ -104,11 +105,11 @@ class Category extends Model
     }
 
     /**
-     * Scope: Ordonner par ordre personnalisé
+     * Scope: Ordonner par position personnalisée
      */
     public function scopeOrdered($query)
     {
-        return $query->orderBy('order', 'asc');
+        return $query->orderBy('position', 'asc');
     }
 
     /**
