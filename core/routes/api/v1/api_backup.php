@@ -5,42 +5,6 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
-use App\Models\User;
-use Illuminate\Support\Facades\Hash;
-
-
-// ====================================
-// AUTHENTIFICATION
-// ====================================
-
-Route::post('/login', function(Request $request){
-    $request->validate([
-        'email'=>'required|email',
-        'password'=>'required|string'
-    ]);
-
-    $user = User::where('email',$request->email)->first();
-
-    if(!$user || !Hash::check($request->password,$user->password)){
-        return response()->json([
-            'success'=>false,
-            'message'=>'Identifiants invalides'
-        ], 401);
-    }
-
-    // Récupérer les rôles et permissions
-    $user->load('roles.permissions');
-
-    return response()->json([
-        'success'=>true,
-        'user'=>$user
-    ]);
-});
-
-Route::post('/logout', function(){
-    return response()->json(['success'=>true,'message'=>'Déconnexion réussie']);
-});
-
 
 /*
 |--------------------------------------------------------------------------
@@ -757,7 +721,7 @@ Route::prefix('v1')->group(function () {
     });
     
     // ====================================
-    // VENTES - VERSION CORRIGÉE
+    // VENTES
     // ====================================
     
     Route::post('/sales', function (Request $request) {
@@ -765,28 +729,23 @@ Route::prefix('v1')->group(function () {
             $validated = $request->validate([
                 'customer_id' => 'nullable|exists:customers,id',
                 'payment_method' => 'required|in:cash,credit,mobile',
-                'type' => 'nullable|in:counter,wholesale',
                 'items' => 'required|array|min:1',
                 'items.*.product_id' => 'required|exists:products,id',
                 'items.*.quantity' => 'required|integer|min:1',
                 'items.*.unit_price' => 'required|numeric|min:0',
                 'items.*.subtotal' => 'required|numeric|min:0',
                 'total_amount' => 'required|numeric|min:0',
-                'discount_amount' => 'nullable|numeric|min:0',
-                'invoice_number' => 'required|string|unique:sales,invoice_number'
+                'discount' => 'nullable|numeric|min:0'
             ]);
             
             DB::beginTransaction();
             
             // Créer la vente
             $saleId = DB::table('sales')->insertGetId([
-                'invoice_number' => $validated['invoice_number'],
-                'customer_id' => $validated['customer_id'] ?? null,
-                'type' => $validated['type'] ?? 'counter',
+                'customer_id' => $validated['customer_id'],
                 'payment_method' => $validated['payment_method'],
                 'total_amount' => $validated['total_amount'],
-                'discount_amount' => $validated['discount_amount'] ?? 0,
-                'paid_amount' => $validated['payment_method'] === 'credit' ? 0 : $validated['total_amount'],
+                'discount' => $validated['discount'] ?? 0,
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
@@ -796,19 +755,11 @@ Route::prefix('v1')->group(function () {
                 // Vérifier le stock
                 $product = DB::table('products')->where('id', $item['product_id'])->first();
                 
-                if (!$product) {
-                    DB::rollBack();
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Produit #{$item['product_id']} introuvable"
-                    ], 404);
-                }
-                
                 if ($product->stock < $item['quantity']) {
                     DB::rollBack();
                     return response()->json([
                         'success' => false,
-                        'message' => "Stock insuffisant pour {$product->name}. Disponible: {$product->stock}, Demandé: {$item['quantity']}"
+                        'message' => "Stock insuffisant pour {$product->name}"
                     ], 400);
                 }
                 
@@ -833,7 +784,7 @@ Route::prefix('v1')->group(function () {
                     'product_id' => $item['product_id'],
                     'type' => 'out',
                     'quantity' => $item['quantity'],
-                    'reason' => "Vente #{$validated['invoice_number']}",
+                    'reason' => "Vente #$saleId",
                     'created_at' => now()
                 ]);
             }
@@ -850,27 +801,15 @@ Route::prefix('v1')->group(function () {
             return response()->json([
                 'success' => true,
                 'message' => 'Vente enregistrée avec succès',
-                'data' => [
-                    'sale_id' => $saleId,
-                    'invoice_number' => $validated['invoice_number']
-                ]
+                'sale_id' => $saleId
             ], 201);
             
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur de validation',
-                'errors' => $e->errors()
-            ], 422);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'enregistrement de la vente',
-                'error' => $e->getMessage(),
-                'line' => $e->getLine(),
-                'file' => basename($e->getFile())
+                'error' => $e->getMessage()
             ], 500);
         }
     });
@@ -901,93 +840,6 @@ Route::prefix('v1')->group(function () {
             return response()->json([
                 'success' => true,
                 'data' => $sales
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors du chargement',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    });
-    
-    Route::get('/sales/{id}', function ($id) {
-        try {
-            $sale = DB::table('sales')
-                ->leftJoin('customers', 'sales.customer_id', '=', 'customers.id')
-                ->select(
-                    'sales.*',
-                    'customers.name as customer_name',
-                    'customers.phone as customer_phone',
-                    'customers.address as customer_address'
-                )
-                ->where('sales.id', $id)
-                ->first();
-
-            if (!$sale) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Vente non trouvée'
-                ], 404);
-            }
-
-            $items = DB::table('sale_items')
-                ->join('products', 'sale_items.product_id', '=', 'products.id')
-                ->where('sale_items.sale_id', $id)
-                ->select(
-                    'sale_items.*',
-                    'products.name as product_name',
-                    'products.sku as product_sku'
-                )
-                ->get();
-
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'sale' => $sale,
-                    'items' => $items
-                ]
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors du chargement de la vente',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    });
-    
-    // Statistiques des ventes
-    Route::get('/sales/stats/summary', function (Request $request) {
-        try {
-            $today = now()->startOfDay();
-            $thisWeek = now()->startOfWeek();
-            $thisMonth = now()->startOfMonth();
-
-            $stats = [
-                'today' => [
-                    'count' => DB::table('sales')->where('created_at', '>=', $today)->count(),
-                    'total' => DB::table('sales')->where('created_at', '>=', $today)->sum('total_amount') ?? 0,
-                    'cash' => DB::table('sales')->where('created_at', '>=', $today)->where('payment_method', 'cash')->sum('total_amount') ?? 0,
-                    'mobile' => DB::table('sales')->where('created_at', '>=', $today)->where('payment_method', 'mobile')->sum('total_amount') ?? 0,
-                    'credit' => DB::table('sales')->where('created_at', '>=', $today)->where('payment_method', 'credit')->sum('total_amount') ?? 0,
-                ],
-                'this_week' => [
-                    'count' => DB::table('sales')->where('created_at', '>=', $thisWeek)->count(),
-                    'total' => DB::table('sales')->where('created_at', '>=', $thisWeek)->sum('total_amount') ?? 0,
-                ],
-                'this_month' => [
-                    'count' => DB::table('sales')->where('created_at', '>=', $thisMonth)->count(),
-                    'total' => DB::table('sales')->where('created_at', '>=', $thisMonth)->sum('total_amount') ?? 0,
-                ],
-                'total_sales' => DB::table('sales')->count(),
-                'total_revenue' => DB::table('sales')->sum('total_amount') ?? 0,
-                'total_credit' => DB::table('customers')->sum('balance') ?? 0,
-            ];
-
-            return response()->json([
-                'success' => true,
-                'data' => $stats
             ]);
         } catch (\Exception $e) {
             return response()->json([

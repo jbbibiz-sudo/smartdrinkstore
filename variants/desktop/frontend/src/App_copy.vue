@@ -64,25 +64,6 @@
           >
             🛒 Caisse / Vente
           </button>
-          
-          <!-- NOUVEAU: Bouton Clients -->
-          <button 
-            @click="switchToCustomers"
-            :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
-                     currentView === 'customers' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-          >
-            👥 Clients
-          </button>
-          
-          <!-- NOUVEAU: Bouton Fournisseurs -->
-          <button 
-            @click="switchToSuppliers"
-            :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
-                     currentView === 'suppliers' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-          >
-            🏭 Fournisseurs
-          </button>
-          
           <button 
             @click="switchToMovements"
             :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
@@ -112,288 +93,6 @@
 
       <!-- Main Content -->
       <main class="flex-1 p-6 bg-gray-50">
-        
-        <!-- ============================================ -->
-        <!-- VUE GESTION DES CLIENTS -->
-        <!-- ============================================ -->
-        <div v-if="currentView === 'customers'" class="space-y-6">
-          <div class="flex justify-between items-center">
-            <h2 class="text-3xl font-bold">Gestion des clients</h2>
-            <button 
-              @click="openCustomerModal(null)"
-              class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
-            >
-              ➕ Nouveau client
-            </button>
-          </div>
-
-          <!-- Search Bar -->
-          <div class="bg-white rounded-lg shadow p-6">
-            <div class="flex gap-4">
-              <input 
-                v-model="customerSearchQuery"
-                type="text" 
-                placeholder="Rechercher un client (nom, téléphone, email)..."
-                class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-              <button 
-                @click="loadCustomers"
-                class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-              >
-                🔄 Actualiser
-              </button>
-            </div>
-          </div>
-
-          <!-- Statistics Cards -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Total clients</p>
-                  <p class="text-3xl font-bold text-blue-600">{{ customers.length }}</p>
-                </div>
-                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">👥</span>
-                </div>
-              </div>
-            </div>
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Créances totales</p>
-                  <p class="text-3xl font-bold text-orange-600">{{ formatCurrency(totalCustomerBalance) }}</p>
-                </div>
-                <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">💳</span>
-                </div>
-              </div>
-            </div>
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Clients à crédit</p>
-                  <p class="text-3xl font-bold text-red-600">{{ customersWithBalance }}</p>
-                </div>
-                <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">⚠️</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Customers Table -->
-          <div class="bg-white rounded-lg shadow overflow-hidden">
-            <table class="w-full">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Adresse</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Solde</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="loading">
-                  <td colspan="5" class="px-6 py-8 text-center">
-                    <div class="flex justify-center items-center">
-                      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                      <span class="ml-3">Chargement...</span>
-                    </div>
-                  </td>
-                </tr>
-                <tr v-else-if="filteredCustomers.length === 0">
-                  <td colspan="5" class="px-6 py-8 text-center text-gray-500">
-                    Aucun client trouvé
-                  </td>
-                </tr>
-                <tr v-for="customer in filteredCustomers" :key="customer.id" class="border-t hover:bg-gray-50">
-                  <td class="px-6 py-4">
-                    <div class="font-medium text-gray-900">{{ customer.name }}</div>
-                    <div class="text-sm text-gray-500">ID: #{{ customer.id }}</div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div v-if="customer.phone" class="text-sm">
-                      📞 {{ customer.phone }}
-                    </div>
-                    <div v-if="customer.email" class="text-sm text-gray-500">
-                      ✉️ {{ customer.email }}
-                    </div>
-                    <div v-if="!customer.phone && !customer.email" class="text-sm text-gray-400">
-                      Aucun contact
-                    </div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="text-sm text-gray-700">{{ customer.address || '-' }}</div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <span :class="['px-3 py-1 rounded-full text-sm font-medium',
-                                 customer.balance > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800']">
-                      {{ formatCurrency(customer.balance) }}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="flex gap-2">
-                      <button 
-                        @click="openCustomerModal(customer)"
-                        class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition text-sm"
-                      >
-                        ✏️ Modifier
-                      </button>
-                      <button 
-                        @click="deleteCustomer(customer)"
-                        class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition text-sm"
-                      >
-                        🗑️ Supprimer
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- ============================================ -->
-        <!-- VUE GESTION DES FOURNISSEURS -->
-        <!-- ============================================ -->
-        <div v-if="currentView === 'suppliers'" class="space-y-6">
-          <div class="flex justify-between items-center">
-            <h2 class="text-3xl font-bold">Gestion des fournisseurs</h2>
-            <button 
-              @click="openSupplierModal(null)"
-              class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
-            >
-              ➕ Nouveau fournisseur
-            </button>
-          </div>
-
-          <!-- Search Bar -->
-          <div class="bg-white rounded-lg shadow p-6">
-            <div class="flex gap-4">
-              <input 
-                v-model="supplierSearchQuery"
-                type="text" 
-                placeholder="Rechercher un fournisseur (nom, téléphone, email)..."
-                class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-              <button 
-                @click="loadSuppliers"
-                class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-              >
-                🔄 Actualiser
-              </button>
-            </div>
-          </div>
-
-          <!-- Statistics Card -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Total fournisseurs</p>
-                  <p class="text-3xl font-bold text-blue-600">{{ suppliers.length }}</p>
-                </div>
-                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">🏭</span>
-                </div>
-              </div>
-            </div>
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Fournisseurs actifs</p>
-                  <p class="text-3xl font-bold text-green-600">{{ activeSuppliers }}</p>
-                </div>
-                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">✅</span>
-                </div>
-              </div>
-            </div>
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Avec contacts</p>
-                  <p class="text-3xl font-bold text-purple-600">{{ suppliersWithContact }}</p>
-                </div>
-                <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">📱</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Suppliers Table -->
-          <div class="bg-white rounded-lg shadow overflow-hidden">
-            <table class="w-full">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Adresse</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date création</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="loading">
-                  <td colspan="5" class="px-6 py-8 text-center">
-                    <div class="flex justify-center items-center">
-                      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                      <span class="ml-3">Chargement...</span>
-                    </div>
-                  </td>
-                </tr>
-                <tr v-else-if="filteredSuppliers.length === 0">
-                  <td colspan="5" class="px-6 py-8 text-center text-gray-500">
-                    Aucun fournisseur trouvé
-                  </td>
-                </tr>
-                <tr v-for="supplier in filteredSuppliers" :key="supplier.id" class="border-t hover:bg-gray-50">
-                  <td class="px-6 py-4">
-                    <div class="font-medium text-gray-900">{{ supplier.name }}</div>
-                    <div class="text-sm text-gray-500">ID: #{{ supplier.id }}</div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div v-if="supplier.phone" class="text-sm">
-                      📞 {{ supplier.phone }}
-                    </div>
-                    <div v-if="supplier.email" class="text-sm text-gray-500">
-                      ✉️ {{ supplier.email }}
-                    </div>
-                    <div v-if="!supplier.phone && !supplier.email" class="text-sm text-gray-400">
-                      Aucun contact
-                    </div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="text-sm text-gray-700">{{ supplier.address || '-' }}</div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="text-sm text-gray-500">{{ formatDate(supplier.created_at) }}</div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="flex gap-2">
-                      <button 
-                        @click="openSupplierModal(supplier)"
-                        class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition text-sm"
-                      >
-                        ✏️ Modifier
-                      </button>
-                      <button 
-                        @click="deleteSupplier(supplier)"
-                        class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition text-sm"
-                      >
-                        🗑️ Supprimer
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
         <!-- Dashboard View -->
         <div v-if="currentView === 'dashboard'" class="space-y-6">
           <h2 class="text-3xl font-bold">Tableau de bord</h2>
@@ -508,7 +207,7 @@
                     </div>
                   </td>
                 </tr>
-                <tr v-else-if="filteredProducts?.length === 0">
+                <tr v-else-if="filteredProducts.length === 0">
                   <td colspan="5" class="px-6 py-8 text-center text-gray-500">
                     Aucun produit trouvé
                   </td>
@@ -795,7 +494,7 @@
 
             <div class="mt-4 flex gap-2">
               <button 
-                @click="resetSalesFilters"
+                @click="resetFilters"
                 class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
               >
                 ↺ Réinitialiser
@@ -997,71 +696,37 @@
 
           <!-- Filtres -->
           <div class="bg-white rounded-lg shadow p-4">
-            <h3 class="font-semibold mb-4">Filtres</h3>
             <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
               <input 
                 v-model="salesSearch"
                 type="text" 
-                placeholder="🔍 Rechercher N° facture, client..."
+                placeholder="🔍 Rechercher N° facture..."
                 class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
               >
-              <div>
-                <label class="block text-xs text-gray-600 mb-1">Date début</label>
-                <input 
-                  v-model="salesFilters.date_from"
-                  @change="loadSales"
-                  type="date"
-                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-              </div>
-              <div>
-                <label class="block text-xs text-gray-600 mb-1">Date fin</label>
-                <input 
-                  v-model="salesFilters.date_to"
-                  @change="loadSales"
-                  type="date"
-                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-              </div>
-              <div>
-                <label class="block text-xs text-gray-600 mb-1">Mode de paiement</label>
-                <select 
-                  v-model="salesFilters.payment_method"
-                  @change="loadSales"
-                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Tous les paiements</option>
-                  <option value="cash">Espèces</option>
-                  <option value="mobile">Mobile Money</option>
-                  <option value="credit">Crédit</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-xs text-gray-600 mb-1">Type de vente</label>
-                <select 
-                  v-model="salesFilters.sale_type"
-                  @change="loadSales"
-                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Tous les types</option>
-                  <option value="counter">Comptoir</option>
-                  <option value="wholesale">Gros</option>
-                </select>
-              </div>
-            </div>
-            
-            <div class="mt-4 flex gap-2">
-              <button 
-                @click="() => { salesSearch = ''; salesFilters.date_from = ''; salesFilters.date_to = ''; salesFilters.payment_method = ''; salesFilters.sale_type = ''; loadSales(); }"
-                class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              <input 
+                v-model="salesFilters.date_from"
+                type="date"
+                class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
               >
-                ↺ Réinitialiser
-              </button>
-              <button 
-                @click="exportSales"
-                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+              <input 
+                v-model="salesFilters.date_to"
+                type="date"
+                class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
               >
-                📥 Exporter CSV
+              <select 
+                v-model="salesFilters.payment_method"
+                class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Tous les paiements</option>
+                <option value="cash">Espèces</option>
+                <option value="mobile">Mobile Money</option>
+                <option value="credit">Crédit</option>
+              </select>
+              <button 
+                @click="loadSales"
+                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Filtrer
               </button>
             </div>
           </div>
@@ -1203,10 +868,10 @@
                 <!-- En-tête -->
                 <div class="flex justify-between items-start mb-8 border-b pb-6">
                   <div>
-                    <h1 class="text-3xl font-bold text-blue-600">Entreprises KAMDEM</h1>
-                    <p class="text-gray-600 mt-1">Dépôt de boissons</p>
+                    <h1 class="text-3xl font-bold text-blue-600">SmartDrinkStore</h1>
+                    <p class="text-gray-600 mt-1">KAMDEM - Dépôt de boissons</p>
                     <p class="text-sm text-gray-500 mt-2">Yaoundé, Cameroun</p>
-                    <p class="text-sm text-gray-500">Tél: +237 673 95 90 47</p>
+                    <p class="text-sm text-gray-500">Tél: +237 690 000 000</p>
                   </div>
                   <div class="text-right">
                     <h2 class="text-2xl font-bold text-gray-800">FACTURE</h2>
@@ -1282,9 +947,9 @@
               <!-- Ticket Thermique 58mm -->
               <div v-if="invoiceType === 'thermal' && currentInvoice" class="mx-auto" style="max-width: 220px;">
                 <div class="text-center mb-3 pb-2 border-b border-dashed border-gray-400">
-                  <h2 class="font-bold text-base">Entreprises KAMDEM</h2>
-                  <p class="text-xs">Dépôt de boissons</p>
-                  <p class="text-xs">Tel: +237 673 95 90 47</p>
+                  <h2 class="font-bold text-base">SmartDrinkStore</h2>
+                  <p class="text-xs">KAMDEM - Dépôt</p>
+                  <p class="text-xs">Tel: +237 690 000 000</p>
                 </div>
                 
                 <div class="text-xs mb-3">
@@ -1324,9 +989,9 @@
               <!-- Facture Détaillée -->
               <div v-if="invoiceType === 'detailed' && currentInvoice">
                 <div class="text-center mb-8">
-                  <h1 class="text-4xl font-bold text-blue-600 mb-2">Entreprises KAMDEM</h1>
-                  <p class="text-gray-600">Dépôt de boissons</p>
-                  <p class="text-sm text-gray-500 mt-2">Yaoundé, Cameroun • Tél: +237 673 95 90 47</p>
+                  <h1 class="text-4xl font-bold text-blue-600 mb-2">SmartDrinkStore</h1>
+                  <p class="text-gray-600">KAMDEM - Dépôt de boissons</p>
+                  <p class="text-sm text-gray-500 mt-2">Yaoundé, Cameroun • Tél: +237 690 000 000</p>
                 </div>
 
                 <div class="mb-6 p-4 bg-blue-50 rounded-lg">
@@ -1868,11 +1533,34 @@
       </div>
     </div>
 
+    <!-- TICKET D'IMPRESSION (Invisible sauf à l'impression) -->
+    <div id="print-ticket" class="hidden print:block print:w-[58mm] print:text-xs print:font-mono">
+      <div class="text-center mb-2">
+        <h2 class="font-bold text-sm">SmartDrinkStore</h2>
+        <p>KAMDEM - Dépôt</p>
+        <p>{{ new Date().toLocaleString() }}</p>
+      </div>
+      <hr class="border-black my-1">
+      <div v-for="item in lastSaleItems" :key="item.id" class="flex justify-between">
+        <span>{{ item.quantity }}x {{ item.name }}</span>
+        <span>{{ item.quantity * item.unit_price }}</span>
+      </div>
+      <hr class="border-black my-1">
+      <div class="flex justify-between font-bold text-sm">
+        <span>TOTAL</span>
+        <span>{{ lastSaleTotal }}</span>
+      </div>
+      <div class="text-center mt-4">
+        <p>Merci de votre visite !</p>
+      </div>
+    </div>
+
+  </div>
   <!-- TICKET D'IMPRESSION THERMIQUE (Optionnel - pour impression directe après vente) -->
   <div id="print-ticket" class="hidden print:block print:w-[58mm] print:text-xs print:font-mono">
     <div class="text-center mb-2">
-      <h2 class="font-bold text-sm">Entreprises KAMDEM</h2>
-      <p>Dépôt de Boissons</p>
+      <h2 class="font-bold text-sm">SmartDrinkStore</h2>
+      <p>KAMDEM - Dépôt</p>
       <p>{{ new Date().toLocaleString('fr-FR') }}</p>
     </div>
     <hr class="border-black my-1">
@@ -1889,337 +1577,845 @@
       <p>Merci de votre visite !</p>
     </div>
   </div>
-
-    <!-- ============================================ -->
-    <!-- MODAL GESTION CLIENT -->
-    <!-- ============================================ -->
-    <div v-if="showCustomerModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="p-6 border-b">
-          <h3 class="text-2xl font-bold">{{ editingCustomer ? 'Modifier le client' : 'Nouveau client' }}</h3>
-        </div>
-        
-        <div class="p-6 space-y-4">
-          <div>
-            <label class="block text-sm font-medium mb-2">Nom complet *</label>
-            <input 
-              v-model="customerForm.name"
-              type="text" 
-              placeholder="Ex: Jean Dupont"
-              class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              required
-            >
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium mb-2">Téléphone</label>
-              <input 
-                v-model="customerForm.phone"
-                type="tel" 
-                placeholder="Ex: +237 690 00 00 00"
-                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-2">Email</label>
-              <input 
-                v-model="customerForm.email"
-                type="email" 
-                placeholder="Ex: client@email.com"
-                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium mb-2">Adresse</label>
-            <textarea 
-              v-model="customerForm.address"
-              rows="3"
-              placeholder="Adresse complète du client"
-              class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-            ></textarea>
-          </div>
-
-          <div v-if="editingCustomer" class="bg-gray-50 p-4 rounded-lg">
-            <p class="text-sm text-gray-600">
-              <strong>Solde actuel:</strong> 
-              <span :class="editingCustomer.balance > 0 ? 'text-red-600' : 'text-green-600'">
-                {{ formatCurrency(editingCustomer.balance) }}
-              </span>
-            </p>
-          </div>
-        </div>
-
-        <div class="p-6 border-t flex justify-end gap-3">
-          <button 
-            @click="closeCustomerModal"
-            class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-          >
-            Annuler
-          </button>
-          <button 
-            @click="saveCustomer"
-            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
-            {{ editingCustomer ? 'Mettre à jour' : 'Créer' }}
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ============================================ -->
-    <!-- MODAL GESTION FOURNISSEUR -->
-    <!-- ============================================ -->
-    <div v-if="showSupplierModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="p-6 border-b">
-          <h3 class="text-2xl font-bold">{{ editingSupplier ? 'Modifier le fournisseur' : 'Nouveau fournisseur' }}</h3>
-        </div>
-        
-        <div class="p-6 space-y-4">
-          <div>
-            <label class="block text-sm font-medium mb-2">Nom de l'entreprise *</label>
-            <input 
-              v-model="supplierForm.name"
-              type="text" 
-              placeholder="Ex: SABC - Brasseries du Cameroun"
-              class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              required
-            >
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium mb-2">Téléphone</label>
-              <input 
-                v-model="supplierForm.phone"
-                type="tel" 
-                placeholder="Ex: +237 222 00 00 00"
-                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-2">Email</label>
-              <input 
-                v-model="supplierForm.email"
-                type="email" 
-                placeholder="Ex: contact@fournisseur.com"
-                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium mb-2">Adresse</label>
-            <textarea 
-              v-model="supplierForm.address"
-              rows="3"
-              placeholder="Adresse complète du fournisseur"
-              class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-            ></textarea>
-          </div>
-        </div>
-
-        <div class="p-6 border-t flex justify-end gap-3">
-          <button 
-            @click="closeSupplierModal"
-            class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-          >
-            Annuler
-          </button>
-          <button 
-            @click="saveSupplier"
-            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
-            {{ editingSupplier ? 'Mettre à jour' : 'Créer' }}
-          </button>
-        </div>
-      </div>
-    </div>
-
-  </div>
 </template>
 
+<!-- Fichier à modifier : variants/desktop/frontend/src/App.vue -->
 <script setup>
-// ============================================
-// APP.VUE - SCRIPT SETUP COMPLET CORRIGÉ
-// ============================================
-// ✅ TOUS LES MODULES INCLUS (1 à 11)
-// ✅ TOUTES LES ERREURS CORRIGÉES
+import { ref, computed, onMounted } from 'vue'
+import api from '@/services/api'
 
-import { onMounted } from 'vue';
+// ---------------------------
+// Réactivité
+// ---------------------------
+const currentView = ref('dashboard')
+const currentDate = ref(new Date().toLocaleDateString('fr-FR'))
+const loading = ref(true)
+const connectionError = ref(false)
+const loadingMovements = ref(false)
 
-// ============================================
-// IMPORTS DES MODULES
-// ============================================
+// Info app
+const appInfo = ref({
+  mode: 'development',
+  platform: 'web',
+  version: '1.0.0'
+})
 
-// Module 1 : Configuration et API
-import { API_BASE_URL, api } from './modules/module-1-config.js';
+// Données principales
+const products = ref([])
+const categories = ref([])
+const subcategories = ref([])
+const customers = ref([]) // Clients
+const filteredSubcategories = ref([])
+const stats = ref({})
+const alerts = ref({
+  low_stock: [],
+  out_of_stock: []
+})
 
-// Module 2 : États globaux
-import {
-  currentView, loading, connectionError, appInfo,
-  products, categories, subcategories, searchQuery,
-  productForm, editingProduct, viewingProduct, savingProduct,
-  showProductModal, showCategoryModal, showViewModal,
-  showRestockModal, showStockOutModal, showCheckoutModal,
-  showCustomerModal, showSupplierModal, showInvoiceModal,
-  newCategoryName, editingCategoryId, editingCategoryName,
-  restockProduct, restockQuantity, restockReason,
-  stockOutProduct, stockOutQuantity, stockOutReason, stockOutReasonType,
-  movements, loadingMovements, movementFilters, movementStats,
-  customers, customerSearchQuery, editingCustomer, customerForm,
-  suppliers, supplierSearchQuery, editingSupplier, supplierForm,
-  sales, loadingSales, salesSearch, salesFilters,
-  currentInvoice, invoiceType, salesStats,
-  cart, posSearch, saleType, selectedCustomerId, paymentMethod,
-  lastSaleItems, lastSaleTotal,
-  stats, alerts, alertsCount
-} from './modules/module-2-state.js';
+// Recherche
+const searchQuery = ref('')
+const posSearch = ref('') // Recherche POS
 
-// Module 3 : Fonctions utilitaires
-import {
-  formatCurrency, formatDate, getPaymentMethodLabel,
-  getMovementTypeLabel, getStockStatusClass, generateInvoiceNumber,
-  isValidEmail, isValidPhone, truncate, calculatePercentage,
-  debounce, exportToCSV, showToast
-} from './modules/module-3-utils.js';
+// POS State
+const cart = ref([])
+const saleType = ref('counter') // counter, wholesale
+const paymentMethod = ref('cash')
+const selectedCustomerId = ref(null)
+const showCheckoutModal = ref(false)
+const lastSaleItems = ref([])
+const lastSaleTotal = ref(0)
 
-// Module 4 : Computed Properties
-import { initComputedProperties } from './modules/module-4-computed.js';
+// Mouvements
+const movements = ref([])
+const movementStats = ref({
+  today: { in: 0, out: 0 },
+  this_week: { in: 0, out: 0 },
+  this_month: { in: 0, out: 0 },
+  total_movements: 0
+})
+const movementFilters = ref({
+  type: '',
+  product_id: '',
+  date_from: '',
+  date_to: ''
+})
 
-// Module 5 : Fonctions de chargement
-import { initDataLoaders } from './modules/module-5-data-loaders.js';
+// Modals
+const showProductModal = ref(false)
+const showCategoryModal = ref(false)
+const showViewModal = ref(false)
+const showRestockModal = ref(false)
+const showStockOutModal = ref(false)
 
-// Module 6 : Gestion des produits
-import { initProductManagement } from './modules/module-6-products.js';
+// Formulaires produit
+const editingProduct = ref(null)
+const savingProduct = ref(false)
+const productForm = ref({
+  name: '',
+  sku: '',
+  unit_price: 0,
+  stock: 0,
+  min_stock: 10,
+  category_id: null,
+  subcategory_id: null
+})
 
-// Module 7 : Gestion des catégories
-import { initCategoryManagement } from './modules/module-7-categories.js';
+// Vue produit
+const viewingProduct = ref(null)
 
-// Module 8 : Gestion du stock
-import { initStockManagement } from './modules/module-8-stock.js';
+// Restock
+const restockProduct = ref(null)
+const restockQuantity = ref(null)
+const restockReason = ref('')
 
-// Module 9 : Gestion de la caisse (POS)
-import { initPosManagement } from './modules/module-9-pos.js';
+// Stock out
+const stockOutProduct = ref(null)
+const stockOutQuantity = ref(null)
+const stockOutReason = ref('')
+const stockOutReasonType = ref('sale')
 
-// Module 10 : Clients & Fournisseurs
-import { initCustomersAndSuppliers } from './modules/module-10-customers-suppliers.js';
+// Nouvelle catégorie
+const newCategoryName = ref('')
+const editingCategoryId = ref(null)
+const editingCategoryName = ref('')
 
-// Module 11 : Factures et Ventes
-import { initInvoiceManagement } from './modules/module-11-invoices.js';
+// ==================== DONNÉES FACTURES ====================
+const sales = ref([])
+const salesStats = ref({
+  today: { count: 0, total: 0, cash: 0, mobile: 0, credit: 0 },
+  this_week: { count: 0, total: 0 },
+  this_month: { count: 0, total: 0 },
+  total_sales: 0,
+  total_revenue: 0,
+  total_credit: 0
+})
+const loadingSales = ref(false)
+const salesSearch = ref('')
+const salesFilters = ref({
+  date_from: '',
+  date_to: '',
+  payment_method: '',
+  customer_id: ''
+})
 
-// ============================================
-// CRÉATION DE L'OBJET D'ÉTAT GLOBAL
-// ============================================
+// Modals factures
+const showInvoiceModal = ref(false)
+const currentInvoice = ref(null)
+const invoiceType = ref('standard') // standard, detailed, thermal
 
-const state = {
-  currentView, loading, connectionError, appInfo,
-  products, categories, subcategories, searchQuery,
-  productForm, editingProduct, viewingProduct, savingProduct,
-  showProductModal, showCategoryModal, showViewModal,
-  showRestockModal, showStockOutModal, showCheckoutModal,
-  showCustomerModal, showSupplierModal, showInvoiceModal,
-  newCategoryName, editingCategoryId, editingCategoryName,
-  restockProduct, restockQuantity, restockReason,
-  stockOutProduct, stockOutQuantity, stockOutReason, stockOutReasonType,
-  movements, loadingMovements, movementFilters, movementStats,
-  customers, customerSearchQuery, editingCustomer, customerForm,
-  suppliers, supplierSearchQuery, editingSupplier, supplierForm,
-  sales, loadingSales, salesSearch, salesFilters,
-  currentInvoice, invoiceType, salesStats,
-  cart, posSearch, saleType, selectedCustomerId, paymentMethod,
-  lastSaleItems, lastSaleTotal,
-  stats, alerts, alertsCount
-};
+// ==================== COMPUTED - FILTRES ====================
+const filteredSales = computed(() => {
+  let result = sales.value
 
-// ============================================
-// INITIALISATION DES MODULES
-// ============================================
+  // Filtre par recherche (numéro de facture)
+  if (salesSearch.value) {
+    const query = salesSearch.value.toLowerCase()
+    result = result.filter(sale =>
+      sale.invoice_number.toLowerCase().includes(query) ||
+      (sale.customer_name && sale.customer_name.toLowerCase().includes(query))
+    )
+  }
 
-const loaders = initDataLoaders(state);
-const computed = initComputedProperties(state);
-const productMgmt = initProductManagement(state, loaders);
-const categoryMgmt = initCategoryManagement(state, loaders);
-const stockMgmt = initStockManagement(state, loaders);
-const posMgmt = initPosManagement(state, loaders);
-const customerSupplierMgmt = initCustomersAndSuppliers(state, loaders);
-const invoiceMgmt = initInvoiceManagement(state, loaders);
+  return result
+})
 
-// ============================================
-// EXTRACTION DES FONCTIONS
-// ============================================
+// ==================== FONCTIONS API FACTURES ====================
+async function loadSales() {
+  loadingSales.value = true
+  try {
+    const params = {}
+    if (salesFilters.value.date_from) params.date_from = salesFilters.value.date_from
+    if (salesFilters.value.date_to) params.date_to = salesFilters.value.date_to
+    if (salesFilters.value.payment_method) params.payment_method = salesFilters.value.payment_method
+    if (salesFilters.value.customer_id) params.customer_id = salesFilters.value.customer_id
+    
+    const response = await api.get('/sales', { params })
+    sales.value = response.data.data || []
+    console.log('✅ Ventes chargées:', sales.value.length)
+  } catch (error) {
+    console.error('Erreur chargement ventes:', error)
+    alert('❌ Erreur lors du chargement des ventes')
+  } finally {
+    loadingSales.value = false
+  }
+}
 
-// Computed Properties
-const {
-  currentDate, filteredProducts, filteredSubcategories,
-  filteredPosProducts, cartTotal, finalTotal,
-  filteredCustomers, totalCustomerBalance, customersWithBalance,
-  filteredSuppliers, activeSuppliers, suppliersWithContact,
-  filteredSales, filteredMovements, totalAlerts,
-  dashboardStats, cartItemCount, isCartEmpty,
-  isProductFormValid, isCustomerFormValid, isSupplierFormValid
-} = computed;
+async function loadSalesStats() {
+  try {
+    const response = await api.get('/sales/stats/summary')
+    salesStats.value = response.data.data || {}
+    console.log('✅ Stats ventes chargées:', salesStats.value)
+  } catch (error) {
+    console.error('Erreur chargement stats ventes:', error)
+  }
+}
 
-// Data Loaders
-const {
-  loadProducts, loadCategories, loadSubcategories,
-  loadCustomers, loadSuppliers, loadStats, loadAlerts,
-  loadMovements, loadSales, loadSalesStats,
-  retryConnection, init
-} = loaders;
+async function loadSaleDetails(saleId) {
+  try {
+    const response = await api.get(`/sales/${saleId}`)
+    return response.data.data
+  } catch (error) {
+    console.error('Erreur chargement détails vente:', error)
+    alert('❌ Erreur lors du chargement des détails')
+    return null
+  }
+}
 
-// Product Management
-const {
-  openProductModal, closeProductModal, filterSubcategories,
-  saveProduct, deleteProduct, viewProduct, closeViewModal
-} = productMgmt;
+// ==================== GESTION FACTURES ====================
+async function viewInvoice(sale) {
+  try {
+    const details = await loadSaleDetails(sale.id)
+    if (details) {
+      currentInvoice.value = details
+      showInvoiceModal.value = true
+    }
+  } catch (error) {
+    console.error('Erreur affichage facture:', error)
+  }
+}
 
-// Category Management
-const {
-  addCategory, editCategory, saveEditedCategory,
-  cancelEditCategory, deleteCategory
-} = categoryMgmt;
+async function printInvoice(sale) {
+  try {
+    const details = await loadSaleDetails(sale.id)
+    if (details) {
+      currentInvoice.value = details
+      invoiceType.value = 'standard'
+      showInvoiceModal.value = true
+      
+      // Attendre que le modal soit affiché avant d'imprimer
+      setTimeout(() => {
+        window.print()
+      }, 500)
+    }
+  } catch (error) {
+    console.error('Erreur impression facture:', error)
+  }
+}
 
-// Stock Management
-const {
-  openStockInModal, closeStockInModal, submitStockIn,
-  openStockOutModal, closeStockOutModal, submitStockOut,
-  resetFilters, exportMovements, switchToMovements
-} = stockMgmt;
+function printCurrentInvoice() {
+  window.print()
+}
 
-// POS Management
-const {
-  addToCart, removeFromCart, updateCartQty,
-  clearCart, openCheckoutModal, closeCheckoutModal, processSale
-} = posMgmt;
+function closeInvoiceModal() {
+  showInvoiceModal.value = false
+  currentInvoice.value = null
+}
 
-// Customer & Supplier Management
-const {
-  switchToCustomers, openCustomerModal, closeCustomerModal,
-  saveCustomer, deleteCustomer, switchToSuppliers,
-  openSupplierModal, closeSupplierModal, saveSupplier, deleteSupplier
-} = customerSupplierMgmt;
+function getPaymentMethodLabel(method) {
+  const labels = {
+    cash: 'Espèces',
+    mobile: 'Mobile Money',
+    credit: 'Crédit'
+  }
+  return labels[method] || method
+}
 
-// Invoice Management
-const {
-  switchToInvoices, viewInvoice, closeInvoiceModal,
-  printCurrentInvoice, printInvoice, exportSales, generateSalesReport
-} = invoiceMgmt;
+// ==================== NAVIGATION ====================
+function switchToInvoices() {
+  currentView.value = 'invoices'
+  if (sales.value.length === 0) {
+    loadSales()
+    loadSalesStats()
+  }
+}
 
-// ============================================
-// LIFECYCLE
-// ============================================
 
+// ---------------------------
+// Computed
+// ---------------------------
+const alertsCount = computed(() => 
+  (alerts.value.low_stock?.length || 0) + (alerts.value.out_of_stock?.length || 0)
+)
+
+const filteredPosProducts = computed(() => {
+  if (!posSearch.value) return products.value
+  const query = posSearch.value.toLowerCase()
+  return products.value.filter(p =>
+    p.name.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query)
+  )
+})
+
+const filteredProducts = computed(() => {
+  if (!searchQuery.value) return products.value
+  const query = searchQuery.value.toLowerCase()
+  return products.value.filter(p =>
+    p.name.toLowerCase().includes(query) ||
+    p.sku.toLowerCase().includes(query)
+  )
+})
+
+const cartTotal = computed(() => {
+  return cart.value.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0)
+})
+
+const finalTotal = computed(() => {
+  let total = cartTotal.value
+  // Logique simple de remise en gros (ex: -5% global si mode gros)
+  if (saleType.value === 'wholesale') total *= 0.95
+  return Math.round(total)
+})
+
+// ---------------------------
+// Fonctions API
+// ---------------------------
+async function loadCategories() {
+  try {
+    const response = await api.get('/categories')
+    console.log('Raw categories response:', response)
+    categories.value = response.data.data || []  // <--- ici
+    console.log('✅ Catégories chargées:', categories.value)
+  } catch (error) {
+    console.error('Error loading categories:', error)
+    categories.value = []
+  }
+}
+
+async function loadSubcategories() {
+  try {
+    const response = await api.get('/subcategories')
+    console.log('Raw subcategories response:', response)
+    subcategories.value = response.data.data || [] // <--- ici
+    console.log('✅ Sous-catégories chargées:', subcategories.value)
+  } catch (error) {
+    console.error('Error loading subcategories:', error)
+    subcategories.value = []
+  }
+}
+
+async function loadProducts() {
+  loading.value = true
+  try {
+    const response = await api.get('/products')
+    console.log('Raw products response:', response)
+    products.value = response.data.data || [] // <--- ici
+    console.log('✅ Produits chargés:', products.value)
+  } catch (error) {
+    console.error('Error loading products:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadCustomers() {
+  try {
+    const response = await api.get('/customers')
+    customers.value = response.data.data || []
+  } catch (error) {
+    console.error('Error loading customers', error)
+  }
+}
+
+async function loadStats() {
+  try {
+    const response = await api.get('/dashboard/stats')
+    console.log('Raw stats response:', response)
+    stats.value = response.data.data || {} // <--- ici
+    console.log('✅ Stats chargées:', stats.value)
+  } catch (error) {
+    console.error('Erreur chargement stats:', error)
+  }
+}
+
+async function loadAlerts() {
+  try {
+    const response = await api.get('/stock/alerts')
+    console.log('Raw alerts response:', response)
+    alerts.value = response.data.data || {} // <--- ici
+    console.log('✅ Alerts chargées:', alerts.value)
+  } catch (error) {
+    console.error('Erreur chargement alertes:', error)
+  }
+}
+
+async function loadMovements() {
+  loadingMovements.value = true
+  try {
+    const params = {}
+    if (movementFilters.value.type) params.type = movementFilters.value.type
+    if (movementFilters.value.product_id) params.product_id = movementFilters.value.product_id
+    if (movementFilters.value.date_from) params.date_from = movementFilters.value.date_from
+    if (movementFilters.value.date_to) params.date_to = movementFilters.value.date_to
+    
+    const response = await api.get('/movements', { params })
+    movements.value = response.data?.data || response.data || []
+    
+    // Load movement stats
+    const statsResponse = await api.get('/movements/stats')
+    movementStats.value = statsResponse.data?.data || statsResponse.data || {}
+    
+    console.log('✅ Mouvements chargés:', movements.value)
+  } catch (error) {
+    console.error('Erreur chargement mouvements:', error)
+  } finally {
+    loadingMovements.value = false
+  }
+}
+
+// ==================== GESTION PRODUITS ====================
+function openProductModal(product) {
+  editingProduct.value = product
+  if (product) {
+    productForm.value = {
+      name: product.name,
+      sku: product.sku,
+      unit_price: product.unit_price,
+      stock: product.stock,
+      min_stock: product.min_stock || 10,
+      category_id: product.category_id,
+      subcategory_id: product.subcategory_id
+    }
+    filterSubcategories()
+  } else {
+    productForm.value = {
+      name: '',
+      sku: '',
+      unit_price: 0,
+      stock: 0,
+      min_stock: 10,
+      category_id: null,
+      subcategory_id: null
+    }
+  }
+  showProductModal.value = true
+}
+
+function closeProductModal() {
+  showProductModal.value = false
+  editingProduct.value = null
+  productForm.value = {
+    name: '',
+    sku: '',
+    unit_price: 0,
+    stock: 0,
+    min_stock: 10,
+    category_id: null,
+    subcategory_id: null
+  }
+}
+
+async function saveProduct() {
+  savingProduct.value = true
+
+    // Préparer les données en s'assurant qu'elles sont correctes
+  const data = {
+    name: productForm.value.name,
+    sku: productForm.value.sku,
+    unit_price: parseFloat(productForm.value.unit_price),
+    stock: parseInt(productForm.value.stock),
+    min_stock: parseInt(productForm.value.min_stock) || 10,
+    category_id: parseInt(productForm.value.category_id)
+  }
+  
+  // Ajouter subcategory_id seulement s'il existe
+  if (productForm.value.subcategory_id) {
+    data.subcategory_id = parseInt(productForm.value.subcategory_id)
+  }
+  
+  console.log('📤 Envoi des données:', data)
+
+  try {
+    if (editingProduct.value) {
+      // Mise à jour
+      await api.put(`/products/${editingProduct.value.id}`, data)
+      alert('✅ Produit modifié avec succès!')
+    } else {
+      // Création
+      const response = await api.post('/products', data)
+      console.log('📥 Réponse serveur:', response.data)
+      alert('✅ Produit créé avec succès!')
+    }
+    closeProductModal()
+    await Promise.all([loadProducts(), loadStats(), loadAlerts()])
+  } catch (error) {
+    console.error('Erreur sauvegarde produit:', error)
+
+    console.error('❌ Détails:', error.response?.data)
+    
+    let errorMsg = 'Erreur lors de la sauvegarde'
+    if (error.response?.data?.message) {
+      errorMsg = error.response.data.message
+    } else if (error.response?.data?.errors) {
+      errorMsg = Object.values(error.response.data.errors).flat().join('\n')
+    }
+    alert('❌ Erreur lors de la sauvegarde: ' + (error.response?.data?.message || error.message))
+  } finally {
+    savingProduct.value = false
+  }
+}
+
+async function deleteProduct(product) {
+  if (!confirm(`Êtes-vous sûr de vouloir supprimer "${product.name}" ?`)) return
+  
+  try {
+    await api.delete(`/products/${product.id}`)
+    alert('✅ Produit supprimé avec succès!')
+    await Promise.all([loadProducts(), loadStats(), loadAlerts()])
+  } catch (error) {
+    console.error('Erreur suppression produit:', error)
+    alert('❌ Erreur lors de la suppression: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+function viewProduct(product) {
+  viewingProduct.value = product
+  showViewModal.value = true
+}
+
+function closeViewModal() {
+  showViewModal.value = false
+  viewingProduct.value = null
+}
+
+function filterSubcategories() {
+  if (productForm.value.category_id) {
+    filteredSubcategories.value = subcategories.value.filter(
+      sub => sub.category_id === productForm.value.category_id
+    )
+  } else {
+    filteredSubcategories.value = []
+  }
+}
+
+// ==================== GESTION CATÉGORIES ====================
+async function addCategory() {
+  if (!newCategoryName.value.trim()) {
+    alert('⚠️ Veuillez entrer un nom de catégorie')
+    return
+  }
+  
+  try {
+    await api.post('/categories', { name: newCategoryName.value })
+    alert('✅ Catégorie créée avec succès!')
+    newCategoryName.value = ''
+    await loadCategories()
+  } catch (error) {
+    console.error('Erreur création catégorie:', error)
+    alert('❌ Erreur: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+function editCategory(category) {
+  editingCategoryId.value = category.id
+  editingCategoryName.value = category.name
+}
+
+function cancelEditCategory() {
+  editingCategoryId.value = null
+  editingCategoryName.value = ''
+}
+
+async function saveEditedCategory() {
+  if (!editingCategoryName.value.trim()) {
+    alert('⚠️ Le nom ne peut pas être vide')
+    return
+  }
+  
+  try {
+    await api.put(`/categories/${editingCategoryId.value}`, { name: editingCategoryName.value })
+    alert('✅ Catégorie modifiée avec succès!')
+    editingCategoryId.value = null
+    editingCategoryName.value = ''
+    await loadCategories()
+  } catch (error) {
+    console.error('Erreur modification catégorie:', error)
+    alert('❌ Erreur: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+async function deleteCategory(category) {
+  if (!confirm(`Supprimer la catégorie "${category.name}" ?`)) return
+  
+  try {
+    await api.delete(`/categories/${category.id}`)
+    alert('✅ Catégorie supprimée!')
+    await loadCategories()
+  } catch (error) {
+    console.error('Erreur suppression catégorie:', error)
+    alert('❌ Erreur: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+// ==================== POS / CAISSE ====================
+function addToCart(product) {
+  if (product.stock <= 0) {
+    alert('Stock épuisé !')
+    return
+  }
+  
+  const existing = cart.value.find(item => item.id === product.id)
+  if (existing) {
+    if (existing.quantity < product.stock) existing.quantity++
+  } else {
+    cart.value.push({
+      id: product.id,
+      name: product.name,
+      unit_price: product.unit_price,
+      quantity: 1,
+      max_stock: product.stock
+    })
+  }
+}
+
+function updateCartQty(index, change) {
+  const item = cart.value[index]
+  const newQty = item.quantity + change
+  if (newQty > 0 && newQty <= item.max_stock) {
+    item.quantity = newQty
+  }
+}
+
+function removeFromCart(index) {
+  cart.value.splice(index, 1)
+}
+
+function clearCart() {
+  cart.value = []
+}
+
+function openCheckoutModal() {
+  showCheckoutModal.value = true
+}
+
+async function addCustomer() {
+  const name = prompt("Nom du nouveau client:")
+  if (name) {
+    try {
+      await api.post('/customers', { name })
+      await loadCustomers()
+    } catch (e) { alert('Erreur création client') }
+  }
+}
+
+async function processSale() {
+  try {
+    const payload = {
+      items: cart.value.map(i => ({ id: i.id, quantity: i.quantity })),
+      customer_id: selectedCustomerId.value,
+      type: saleType.value,
+      payment_method: paymentMethod.value,
+      discount_amount: cartTotal.value - finalTotal.value
+    }
+
+    const response = await api.post('/sales', payload)
+    
+    // Préparer impression
+    lastSaleItems.value = [...cart.value]
+    lastSaleTotal.value = finalTotal.value
+    
+    alert('✅ Vente enregistrée !')
+    showCheckoutModal.value = false
+    clearCart()
+    
+    // ✅ AJOUTEZ CES LIGNES pour recharger les ventes et stats
+    await Promise.all([
+      loadProducts(),
+      loadStats(),
+      loadCustomers(),
+      loadSales(),
+      loadSalesStats()
+    ])
+    
+    // Impression
+    setTimeout(() => window.print(), 500)
+    
+  } catch (error) {
+    alert('❌ Erreur vente: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+// ==================== MOUVEMENTS DE STOCK ====================
+function openStockInModal(product) {
+  restockProduct.value = product
+  restockQuantity.value = null
+  restockReason.value = ''
+  showRestockModal.value = true
+}
+
+function closeStockInModal() {
+  showRestockModal.value = false
+  restockProduct.value = null
+  restockQuantity.value = null
+  restockReason.value = ''
+}
+
+async function submitStockIn() {
+  if (!restockQuantity.value || restockQuantity.value < 1) {
+    alert('⚠️ Veuillez entrer une quantité valide')
+    return
+  }
+  
+  try {
+    await api.post('/stock/in', {
+      product_id: restockProduct.value.id,
+      quantity: restockQuantity.value,
+      reason: restockReason.value || 'Réapprovisionnement'
+    })
+    
+    alert(`✅ Stock ajouté: +${restockQuantity.value} unités`)
+    closeStockInModal()
+    await Promise.all([loadProducts(), loadStats(), loadAlerts(), loadMovements()])
+  } catch (error) {
+    console.error('Erreur entrée stock:', error)
+    alert('❌ Erreur: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+function openStockOutModal(product) {
+  stockOutProduct.value = product
+  stockOutQuantity.value = null
+  stockOutReason.value = ''
+  stockOutReasonType.value = 'sale'
+  showStockOutModal.value = true
+}
+
+function closeStockOutModal() {
+  showStockOutModal.value = false
+  stockOutProduct.value = null
+  stockOutQuantity.value = null
+  stockOutReason.value = ''
+  stockOutReasonType.value = 'sale'
+}
+
+async function submitStockOut() {
+  if (!stockOutQuantity.value || stockOutQuantity.value < 1) {
+    alert('⚠️ Veuillez entrer une quantité valide')
+    return
+  }
+  
+  if (stockOutQuantity.value > stockOutProduct.value.stock) {
+    alert('❌ Quantité supérieure au stock disponible!')
+    return
+  }
+  
+  try {
+    const reason = stockOutReason.value || 
+                   (stockOutReasonType.value === 'sale' ? 'Vente' :
+                    stockOutReasonType.value === 'loss' ? 'Casse/Perte' :
+                    stockOutReasonType.value === 'expiry' ? 'Péremption' :
+                    stockOutReasonType.value === 'donation' ? 'Don' :
+                    stockOutReasonType.value === 'return' ? 'Retour fournisseur' : 'Autre')
+    
+    await api.post('/stock/out', {
+      product_id: stockOutProduct.value.id,
+      quantity: stockOutQuantity.value,
+      reason: reason
+    })
+    
+    alert(`✅ Stock retiré: -${stockOutQuantity.value} unités`)
+    closeStockOutModal()
+    await Promise.all([loadProducts(), loadStats(), loadAlerts(), loadMovements()])
+  } catch (error) {
+    console.error('Erreur sortie stock:', error)
+    alert('❌ Erreur: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+function switchToMovements() {
+  currentView.value = 'movements'
+  if (movements.value.length === 0) {
+    loadMovements()
+  }
+}
+
+function resetFilters() {
+  movementFilters.value = {
+    type: '',
+    product_id: '',
+    date_from: '',
+    date_to: ''
+  }
+  loadMovements()
+}
+
+function exportMovements() {
+  if (movements.value.length === 0) {
+    alert('⚠️ Aucun mouvement à exporter')
+    return
+  }
+  
+  // Créer le CSV
+  const headers = ['Date', 'Produit', 'SKU', 'Type', 'Quantité', 'Raison']
+  const rows = movements.value.map(m => [
+    formatDate(m.created_at),
+    m.product_name,
+    m.product_sku,
+    m.type === 'in' ? 'Entrée' : 'Sortie',
+    m.quantity,
+    m.reason || '-'
+  ])
+  
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(r => r.map(cell => `"${cell}"`).join(','))
+  ].join('\n')
+  
+  // Télécharger
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+  link.setAttribute('href', url)
+  link.setAttribute('download', `mouvements_${new Date().toISOString().split('T')[0]}.csv`)
+  link.style.visibility = 'hidden'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  
+  alert('✅ Export CSV réussi!')
+}
+
+// ---------------------------
+// Utils
+// ---------------------------
+function formatCurrency(value) {
+  if (!value) return '0 FCFA'
+  return new Intl.NumberFormat('fr-FR').format(value) + ' FCFA'
+}
+
+function formatDate(dateString) {
+  if (!dateString) return '-'
+  const date = new Date(dateString)
+  return date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  })
+}
+
+async function retryConnection() {
+  connectionError.value = false
+  await init()
+}
+
+// ---------------------------
+// Initialisation
+// ---------------------------
+async function init() {
+  console.log('🎯 Initializing app...')
+  await Promise.all([
+    loadCategories(),
+    loadSubcategories(),
+    loadProducts(),
+    loadStats(),
+    loadAlerts(),
+    loadCustomers(),
+    loadSalesStats(),
+    loadMovements()
+  ])
+  console.log('✅ App initialized')
+}
+
+// ---------------------------
+// Lifecycle
+// ---------------------------
 onMounted(async () => {
-  console.log('🎯 Démarrage de l\'application Vue...');
-  await init();
-  console.log('✅ Application Vue montée');
-});
+  console.log('🎯 Initializing Vue app...')
+  await init()
+  console.log('✅ Vue app mounted')
+})
 
 </script>
+
+
+
 
 <style>
 [v-cloak] {
@@ -2235,6 +2431,70 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
 }
 
+/* ============================================
+   STYLES D'IMPRESSION POUR LES FACTURES
+   ============================================ */
+
+@media print {
+  /* Masquer tout sauf la facture */
+  body * {
+    visibility: hidden;
+  }
+  
+  #invoice-print,
+  #invoice-print * {
+    visibility: visible;
+  }
+  
+  #invoice-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: white;
+  }
+  
+  /* Masquer les éléments non imprimables */
+  .no-print {
+    display: none !important;
+  }
+  
+  /* Configuration de la page */
+  @page {
+    margin: 1cm;
+    size: A4;
+  }
+  
+  /* Style spécial pour ticket thermique */
+  @page thermal {
+    size: 58mm auto;
+    margin: 0;
+  }
+  
+  /* Éviter les sauts de page dans les tableaux */
+  table {
+    page-break-inside: avoid;
+  }
+  
+  tr {
+    page-break-inside: avoid;
+  }
+  
+  /* Forcer l'impression en noir et blanc pour économie */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* Style du ticket thermique pour l'aperçu à l'écran */
+.thermal-preview {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Animation du loader */
 @keyframes spin {
   to {
     transform: rotate(360deg);

@@ -13,7 +13,13 @@ class DatabaseSeeder extends Seeder
             CategorySeeder::class,
             SubcategorySeeder::class,
             ProductSeeder::class,
-            StockMovementSeeder::class
+            StockMovementSeeder::class,
+            // Puis les clients
+            CustomerSeeder::class,
+            // Et les fournisseurs
+            SupplierSeeder::class,            
+            // Enfin les ventes
+            SalesSeeder::class,
         ]);
     }    
 }

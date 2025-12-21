@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "SmartDrinkStore Desktop Application",
   "main": "src/main.js",
-  "author": "KAMDEM",
+  "author": "BANG NTEME JB",
   "license": "MIT",
   "scripts": {
     "start": "electron .",

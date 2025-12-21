@@ -123,4 +123,9 @@ class Product extends Model
             'expiry_date'=>$expiry
         ]);
     }
+
+    public function saleItems()
+    {
+        return $this->hasMany(SaleItem::class);
+    }
 }
