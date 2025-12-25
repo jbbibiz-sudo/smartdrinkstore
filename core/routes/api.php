@@ -1,55 +1,61 @@
 <?php
+// Chemin: C:\smartdrinkstore\core\routes\api.php
+// Routes API avec authentification Sanctum - VERSION CORRIGÉE
 
-// core/routes/api.php
-
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CustomerController;
+use App\Http\Controllers\Api\SupplierController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
-use App\Models\User;
-use Illuminate\Support\Facades\Hash;
-
-
-// ====================================
-// AUTHENTIFICATION
-// ====================================
-
-Route::post('/login', function(Request $request){
-    $request->validate([
-        'email'=>'required|email',
-        'password'=>'required|string'
-    ]);
-
-    $user = User::where('email',$request->email)->first();
-
-    if(!$user || !Hash::check($request->password,$user->password)){
-        return response()->json([
-            'success'=>false,
-            'message'=>'Identifiants invalides'
-        ], 401);
-    }
-
-    // Récupérer les rôles et permissions
-    $user->load('roles.permissions');
-
-    return response()->json([
-        'success'=>true,
-        'user'=>$user
-    ]);
-});
-
-Route::post('/logout', function(){
-    return response()->json(['success'=>true,'message'=>'Déconnexion réussie']);
-});
-
 
 /*
 |--------------------------------------------------------------------------
 | API Routes pour SmartDrinkStore Desktop
 |--------------------------------------------------------------------------
+| ✅ Structure corrigée avec ordre de précédence respecté
+| ✅ Routes customers et suppliers ajoutées
+| ✅ Toutes les routes protégées par Sanctum sauf /auth/login
 */
 
-Route::prefix('v1')->group(function () {
+// ====================================
+// ROUTES PUBLIQUES (sans authentification)
+// ====================================
+
+Route::prefix('auth')->group(function () {
+    Route::post('/login', [AuthController::class, 'login']);
+});
+
+// ====================================
+// ROUTES PROTÉGÉES (avec authentification Sanctum)
+// ====================================
+
+Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     
+    // ====================================
+    // AUTHENTIFICATION
+    // ====================================
+    
+    Route::prefix('auth')->group(function () {
+        Route::post('/logout', [AuthController::class, 'logout']);
+        Route::get('/user', [AuthController::class, 'user']);
+        Route::get('/check-session', [AuthController::class, 'checkSession']);
+        Route::post('/change-password', [AuthController::class, 'changePassword']);
+    });
+
+    // ====================================
+    // TEST DE CONNEXION
+    // ====================================
+    
+    Route::get('/ping', function () {
+        return response()->json([
+            'success' => true,
+            'message' => 'API connectée',
+            'timestamp' => now()->toIso8601String(),
+            'user' => auth()->user()->name ?? 'Unknown',
+        ]);
+    });
+
     // ====================================
     // CATÉGORIES
     // ====================================
@@ -181,7 +187,32 @@ Route::prefix('v1')->group(function () {
     // ====================================
     // PRODUITS
     // ====================================
+    // ⚠️ ROUTES SPÉCIFIQUES AVANT ROUTES PARAMÉTRÉES
     
+    // Routes spécifiques d'abord
+    Route::get('/products/low-stock', function () {
+        try {
+            $products = DB::table('products')
+                ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
+                ->select('products.*', 'categories.name as category_name')
+                ->whereRaw('products.stock <= products.min_stock')
+                ->orderBy('products.stock', 'asc')
+                ->get();
+            
+            return response()->json([
+                'success' => true,
+                'data' => $products
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    });
+    
+    // Liste tous les produits
     Route::get('/products', function () {
         try {
             $products = DB::table('products')
@@ -195,33 +226,9 @@ Route::prefix('v1')->group(function () {
                 ->orderBy('products.name')
                 ->get();
             
-            $formatted = $products->map(function ($product) {
-                return [
-                    'id' => $product->id,
-                    'name' => $product->name,
-                    'sku' => $product->sku,
-                    'code' => $product->code ?? $product->sku,
-                    'unit_price' => (float) $product->unit_price,
-                    'stock' => (int) $product->stock,
-                    'min_stock' => (int) $product->min_stock,
-                    'category_id' => $product->category_id,
-                    'subcategory_id' => $product->subcategory_id,
-                    'description' => $product->description ?? '',
-                    'image' => $product->image ?? null,
-                    'category' => [
-                        'id' => $product->category_id,
-                        'name' => $product->category_name ?? 'N/A'
-                    ],
-                    'subcategory' => $product->subcategory_id ? [
-                        'id' => $product->subcategory_id,
-                        'name' => $product->subcategory_name
-                    ] : null
-                ];
-            });
-            
             return response()->json([
                 'success' => true,
-                'data' => $formatted
+                'data' => $products
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -236,91 +243,116 @@ Route::prefix('v1')->group(function () {
         try {
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
-                'sku' => 'required|string|max:50|unique:products',
-                'code' => 'nullable|string|max:50',
-                'unit_price' => 'required|numeric|min:0',
-                'stock' => 'required|integer|min:0',
-                'min_stock' => 'required|integer|min:0',
-                'category_id' => 'nullable|exists:categories,id',
+                'sku' => 'required|string|max:100|unique:products',
+                'code' => 'nullable|string|max:100',
+                'category_id' => 'required|exists:categories,id',
                 'subcategory_id' => 'nullable|exists:subcategories,id',
-                'image' => 'nullable|string',
-                'description' => 'nullable|string'
+                'unit_price' => 'required|numeric|min:0',
+                'min_stock' => 'required|integer|min:0',
+                'stock' => 'required|integer|min:0'
             ]);
-            
-            $id = DB::table('products')->insertGetId([
-                'name' => $validated['name'],
-                'sku' => $validated['sku'],
-                'code' => $validated['code'] ?? $validated['sku'],
-                'unit_price' => $validated['unit_price'],
-                'stock' => $validated['stock'],
-                'min_stock' => $validated['min_stock'],
-                'category_id' => $validated['category_id'] ?? null,
-                'subcategory_id' => $validated['subcategory_id'] ?? null,
-                'image' => $validated['image'] ?? null,
-                'description' => $validated['description'] ?? null,
+
+            $id = DB::table('products')->insertGetId(array_merge($validated, [
                 'created_at' => now(),
                 'updated_at' => now()
-            ]);
-            
-            $product = DB::table('products')->where('id', $id)->first();
-            
+            ]));
+
+            $product = DB::table('products')
+                ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
+                ->where('products.id', $id)
+                ->select('products.*', 'categories.name as category_name')
+                ->first();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Produit créé avec succès',
                 'data' => $product
             ], 201);
-            
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la création du produit',
+                'message' => 'Erreur lors de la création',
                 'error' => $e->getMessage()
             ], 500);
         }
     });
     
+    // Route paramétré APRÈS les routes spécifiques
+    Route::get('/products/{id}', function ($id) {
+        try {
+            $product = DB::table('products')
+                ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
+                ->leftJoin('subcategories', 'products.subcategory_id', '=', 'subcategories.id')
+                ->where('products.id', $id)
+                ->select(
+                    'products.*',
+                    'categories.name as category_name',
+                    'subcategories.name as subcategory_name'
+                )
+                ->first();
+
+            if (!$product) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Produit non trouvé'
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $product
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    });
+
     Route::put('/products/{id}', function (Request $request, $id) {
         try {
             $validated = $request->validate([
-                'name' => 'sometimes|required|string|max:255',
-                'sku' => 'sometimes|required|string|max:50|unique:products,sku,' . $id,
-                'code' => 'nullable|string|max:50',
-                'unit_price' => 'sometimes|required|numeric|min:0',
-                'stock' => 'sometimes|required|integer|min:0',
-                'min_stock' => 'sometimes|required|integer|min:0',
-                'category_id' => 'nullable|exists:categories,id',
+                'name' => 'required|string|max:255',
+                'sku' => 'required|string|max:100|unique:products,sku,' . $id,
+                'code' => 'nullable|string|max:100',
+                'category_id' => 'required|exists:categories,id',
                 'subcategory_id' => 'nullable|exists:subcategories,id',
-                'image' => 'nullable|string',
-                'description' => 'nullable|string'
+                'unit_price' => 'required|numeric|min:0',
+                'min_stock' => 'required|integer|min:0',
+                'stock' => 'required|integer|min:0'
             ]);
-            
+
             DB::table('products')
                 ->where('id', $id)
                 ->update(array_merge($validated, [
                     'updated_at' => now()
                 ]));
-            
-            $product = DB::table('products')->where('id', $id)->first();
-            
+
+            $product = DB::table('products')
+                ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
+                ->where('products.id', $id)
+                ->select('products.*', 'categories.name as category_name')
+                ->first();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Produit mis à jour avec succès',
                 'data' => $product
             ]);
-            
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la mise à jour du produit',
+                'message' => 'Erreur lors de la mise à jour',
                 'error' => $e->getMessage()
             ], 500);
         }
     });
-    
+
     Route::delete('/products/{id}', function ($id) {
         try {
             DB::table('products')->where('id', $id)->delete();
-            
             return response()->json([
                 'success' => true,
                 'message' => 'Produit supprimé avec succès'
@@ -328,52 +360,40 @@ Route::prefix('v1')->group(function () {
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la suppression du produit',
+                'message' => 'Erreur lors de la suppression',
                 'error' => $e->getMessage()
             ], 500);
         }
     });
     
     // ====================================
-    // ALERTES DE STOCK
+    // CLIENTS (ROUTES CORRIGÉES)
     // ====================================
-    
-    Route::get('/products/alerts', function () {
-        try {
-            $lowStock = DB::table('products')
-                ->whereColumn('stock', '<=', 'min_stock')
-                ->where('stock', '>', 0)
-                ->orderBy('stock', 'asc')
-                ->get();
-            
-            $outOfStock = DB::table('products')
-                ->where('stock', '=', 0)
-                ->get();
-            
-            $alerts = [
-                'low_stock' => $lowStock,
-                'out_of_stock' => $outOfStock,
-                'count' => $lowStock->count() + $outOfStock->count()
-            ];
-            
-            return response()->json([
-                'success' => true,
-                'data' => $alerts
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors du chargement des alertes',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    });
+
+    // Routes spécifiques d'abord
+    Route::get('/customers/search', [CustomerController::class, 'search']);
+    Route::get('/customers/stats', [CustomerController::class, 'stats']);
+    Route::post('/customers/{id}/adjust-balance', [CustomerController::class, 'adjustBalance']);
+
+    // Resource routes après
+    Route::apiResource('customers', CustomerController::class);
+
+    // ====================================
+    // FOURNISSEURS (ROUTES CORRIGÉES)
+    // ====================================
+
+    // Routes spécifiques d'abord
+    Route::get('/suppliers/search', [SupplierController::class, 'search']);
+    Route::get('/suppliers/stats', [SupplierController::class, 'stats']);
+
+    // Resource routes après
+    Route::apiResource('suppliers', SupplierController::class);
     
     // ====================================
     // MOUVEMENTS DE STOCK
     // ====================================
     
-    Route::get('/stock/movements', function (Request $request) {
+    Route::get('/movements', function (Request $request) {
         try {
             $query = DB::table('stock_movements')
                 ->join('products', 'stock_movements.product_id', '=', 'products.id')
@@ -383,25 +403,16 @@ Route::prefix('v1')->group(function () {
                     'products.sku as product_sku'
                 )
                 ->orderBy('stock_movements.created_at', 'desc');
-            
-            if ($request->has('type') && $request->type != '') {
+
+            if ($request->has('type')) {
                 $query->where('stock_movements.type', $request->type);
             }
-            
-            if ($request->has('product_id') && $request->product_id != '') {
+            if ($request->has('product_id')) {
                 $query->where('stock_movements.product_id', $request->product_id);
             }
-            
-            if ($request->has('date_from')) {
-                $query->where('stock_movements.created_at', '>=', $request->date_from);
-            }
-            
-            if ($request->has('date_to')) {
-                $query->where('stock_movements.created_at', '<=', $request->date_to);
-            }
-            
+
             $movements = $query->limit(100)->get();
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $movements
@@ -409,78 +420,81 @@ Route::prefix('v1')->group(function () {
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors du chargement des mouvements',
+                'message' => 'Erreur lors du chargement',
                 'error' => $e->getMessage()
             ], 500);
         }
     });
-    
-    Route::post('/stock/in', function (Request $request) {
+
+    Route::post('/movements/restock', function (Request $request) {
         try {
             $validated = $request->validate([
                 'product_id' => 'required|exists:products,id',
                 'quantity' => 'required|integer|min:1',
-                'reason' => 'required|string|max:255'
+                'reason' => 'nullable|string|max:500'
             ]);
-            
+
             DB::beginTransaction();
-            
-            // Mettre à jour le stock
+
             DB::table('products')
                 ->where('id', $validated['product_id'])
                 ->increment('stock', $validated['quantity']);
-            
-            // Enregistrer le mouvement
+
             DB::table('stock_movements')->insert([
                 'product_id' => $validated['product_id'],
                 'type' => 'in',
                 'quantity' => $validated['quantity'],
-                'reason' => $validated['reason'],
+                'reason' => $validated['reason'] ?? 'Réapprovisionnement',
                 'created_at' => now()
             ]);
-            
+
             DB::commit();
-            
+
             return response()->json([
                 'success' => true,
-                'message' => 'Stock ajouté avec succès'
+                'message' => 'Stock mis à jour avec succès'
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de l\'ajout du stock',
+                'message' => 'Erreur lors de la mise à jour du stock',
                 'error' => $e->getMessage()
             ], 500);
         }
     });
-    
-    Route::post('/stock/out', function (Request $request) {
+
+    Route::post('/movements/stock-out', function (Request $request) {
         try {
             $validated = $request->validate([
                 'product_id' => 'required|exists:products,id',
                 'quantity' => 'required|integer|min:1',
-                'reason' => 'required|string|max:255'
+                'reason' => 'required|string|max:500',
+                'reason_type' => 'required|in:damage,loss,adjustment,other'
             ]);
-            
-            DB::beginTransaction();
-            
-            // Vérifier le stock disponible
+
             $product = DB::table('products')->where('id', $validated['product_id'])->first();
-            
+
+            if (!$product) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Produit non trouvé'
+                ], 404);
+            }
+
             if ($product->stock < $validated['quantity']) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Stock insuffisant'
                 ], 400);
             }
-            
-            // Mettre à jour le stock
+
+            DB::beginTransaction();
+
             DB::table('products')
                 ->where('id', $validated['product_id'])
                 ->decrement('stock', $validated['quantity']);
-            
-            // Enregistrer le mouvement
+
             DB::table('stock_movements')->insert([
                 'product_id' => $validated['product_id'],
                 'type' => 'out',
@@ -488,284 +502,75 @@ Route::prefix('v1')->group(function () {
                 'reason' => $validated['reason'],
                 'created_at' => now()
             ]);
-            
+
             DB::commit();
-            
+
             return response()->json([
                 'success' => true,
-                'message' => 'Stock retiré avec succès'
+                'message' => 'Sortie de stock enregistrée avec succès'
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors du retrait du stock',
+                'message' => 'Erreur lors de l\'enregistrement',
                 'error' => $e->getMessage()
             ], 500);
         }
     });
     
     // ====================================
-    // CLIENTS
+    // VENTES
     // ====================================
+    // ⚠️ ROUTES SPÉCIFIQUES AVANT ROUTES PARAMÉTRÉES
     
-    Route::get('/customers', function () {
+    // Routes spécifiques d'abord
+    Route::get('/sales/stats/summary', function (Request $request) {
         try {
-            $customers = DB::table('customers')
-                ->orderBy('name')
-                ->get();
-            
+            $today = now()->startOfDay();
+            $thisWeek = now()->startOfWeek();
+            $thisMonth = now()->startOfMonth();
+
+            $stats = [
+                'today' => [
+                    'count' => DB::table('sales')->where('created_at', '>=', $today)->count(),
+                    'total' => DB::table('sales')->where('created_at', '>=', $today)->sum('total_amount') ?? 0,
+                    'cash' => DB::table('sales')->where('created_at', '>=', $today)->where('payment_method', 'cash')->sum('total_amount') ?? 0,
+                    'mobile' => DB::table('sales')->where('created_at', '>=', $today)->where('payment_method', 'mobile')->sum('total_amount') ?? 0,
+                    'credit' => DB::table('sales')->where('created_at', '>=', $today)->where('payment_method', 'credit')->sum('total_amount') ?? 0,
+                ],
+                'this_week' => [
+                    'count' => DB::table('sales')->where('created_at', '>=', $thisWeek)->count(),
+                    'total' => DB::table('sales')->where('created_at', '>=', $thisWeek)->sum('total_amount') ?? 0,
+                ],
+                'this_month' => [
+                    'count' => DB::table('sales')->where('created_at', '>=', $thisMonth)->count(),
+                    'total' => DB::table('sales')->where('created_at', '>=', $thisMonth)->sum('total_amount') ?? 0,
+                ],
+                'total_sales' => DB::table('sales')->count(),
+                'total_revenue' => DB::table('sales')->sum('total_amount') ?? 0,
+                'total_credit' => DB::table('customers')->sum('balance') ?? 0,
+            ];
+
             return response()->json([
                 'success' => true,
-                'data' => $customers
+                'data' => $stats
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors du chargement des clients',
+                'message' => 'Erreur lors du chargement',
                 'error' => $e->getMessage()
             ], 500);
         }
     });
-    
-    Route::post('/customers', function (Request $request) {
-        try {
-            $validated = $request->validate([
-                'name' => 'required|string|max:255',
-                'phone' => 'nullable|string|max:20',
-                'email' => 'nullable|email|max:255',
-                'address' => 'nullable|string'
-            ]);
-            
-            $id = DB::table('customers')->insertGetId(array_merge($validated, [
-                'balance' => 0,
-                'created_at' => now(),
-                'updated_at' => now()
-            ]));
-            
-            $customer = DB::table('customers')->find($id);
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Client créé avec succès',
-                'data' => $customer
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la création du client',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    });
-    
-    Route::put('/customers/{id}', function (Request $request, $id) {
-        try {
-            $validated = $request->validate([
-                'name' => 'sometimes|required|string|max:255',
-                'phone' => 'nullable|string|max:20',
-                'email' => 'nullable|email|max:255',
-                'address' => 'nullable|string'
-            ]);
-            
-            DB::table('customers')
-                ->where('id', $id)
-                ->update(array_merge($validated, [
-                    'updated_at' => now()
-                ]));
-            
-            $updatedCustomer = DB::table('customers')->find($id);
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Client mis à jour avec succès',
-                'data' => $updatedCustomer
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la mise à jour du client',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    });
-    
-    Route::delete('/customers/{id}', function ($id) {
-        try {
-            $customer = DB::table('customers')->find($id);
-            
-            if (!$customer) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Client non trouvé'
-                ], 404);
-            }
-            
-            DB::table('customers')->where('id', $id)->delete();
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Client supprimé avec succès'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la suppression du client',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    });
-    
-    // ====================================
-    // FOURNISSEURS
-    // ====================================
-    
-    Route::get('/suppliers', function () {
-        try {
-            $suppliers = DB::table('suppliers')
-                ->orderBy('name')
-                ->get();
-            
-            return response()->json([
-                'success' => true,
-                'data' => $suppliers
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors du chargement des fournisseurs',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    });
-    
-    Route::post('/suppliers', function (Request $request) {
-        try {
-            $validated = $request->validate([
-                'name' => 'required|string|max:255',
-                'phone' => 'nullable|string|max:20',
-                'email' => 'nullable|email|max:255',
-                'address' => 'nullable|string'
-            ]);
-            
-            $id = DB::table('suppliers')->insertGetId(array_merge($validated, [
-                'created_at' => now(),
-                'updated_at' => now()
-            ]));
-            
-            $supplier = DB::table('suppliers')->find($id);
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Fournisseur créé avec succès',
-                'data' => $supplier
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la création du fournisseur',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    });
-    
-    Route::put('/suppliers/{id}', function (Request $request, $id) {
-        try {
-            $validated = $request->validate([
-                'name' => 'sometimes|required|string|max:255',
-                'phone' => 'nullable|string|max:20',
-                'email' => 'nullable|email|max:255',
-                'address' => 'nullable|string'
-            ]);
-            
-            DB::table('suppliers')
-                ->where('id', $id)
-                ->update(array_merge($validated, [
-                    'updated_at' => now()
-                ]));
-            
-            $updatedSupplier = DB::table('suppliers')->find($id);
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Fournisseur mis à jour avec succès',
-                'data' => $updatedSupplier
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la mise à jour du fournisseur',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    });
-    
-    Route::delete('/suppliers/{id}', function ($id) {
-        try {
-            DB::table('suppliers')->where('id', $id)->delete();
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Fournisseur supprimé avec succès'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la suppression du fournisseur',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    });
-    
-    // ====================================
-    // DASHBOARD
-    // ====================================
-    
-    Route::get('/dashboard/stats', function () {
-        try {
-            $totalProducts = DB::table('products')->count();
-            
-            $lowStock = DB::table('products')
-                ->whereColumn('stock', '<=', 'min_stock')
-                ->where('stock', '>', 0)
-                ->count();
-            
-            $outOfStock = DB::table('products')
-                ->where('stock', '=', 0)
-                ->count();
-            
-            $totalStockValue = DB::table('products')
-                ->selectRaw('SUM(stock * unit_price) as total')
-                ->value('total') ?? 0;
-            
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'total_products' => $totalProducts,
-                    'low_stock_count' => $lowStock,
-                    'out_of_stock' => $outOfStock,
-                    'total_stock_value' => (float) $totalStockValue
-                ]
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    });
-    
-    // ====================================
-    // VENTES - VERSION CORRIGÉE
-    // ====================================
     
     Route::post('/sales', function (Request $request) {
         try {
             $validated = $request->validate([
                 'customer_id' => 'nullable|exists:customers,id',
-                'payment_method' => 'required|in:cash,credit,mobile',
-                'type' => 'nullable|in:counter,wholesale',
+                'payment_method' => 'required|in:cash,mobile_money,bank_transfer,credit',
+                'type' => 'required|in:counter,wholesale',
                 'items' => 'required|array|min:1',
                 'items.*.product_id' => 'required|exists:products,id',
                 'items.*.quantity' => 'required|integer|min:1',
@@ -775,32 +580,35 @@ Route::prefix('v1')->group(function () {
                 'discount_amount' => 'nullable|numeric|min:0',
                 'invoice_number' => 'required|string|unique:sales,invoice_number'
             ]);
-            
+
+            if ($validated['payment_method'] === 'credit' && !$validated['customer_id']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Un client est requis pour une vente à crédit'
+                ], 422);
+            }
+
             DB::beginTransaction();
             
-            // Créer la vente
             $saleId = DB::table('sales')->insertGetId([
+                'customer_id' => $validated['customer_id'],
                 'invoice_number' => $validated['invoice_number'],
-                'customer_id' => $validated['customer_id'] ?? null,
-                'type' => $validated['type'] ?? 'counter',
                 'payment_method' => $validated['payment_method'],
+                'type' => $validated['type'],
                 'total_amount' => $validated['total_amount'],
                 'discount_amount' => $validated['discount_amount'] ?? 0,
-                'paid_amount' => $validated['payment_method'] === 'credit' ? 0 : $validated['total_amount'],
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
             
-            // Ajouter les items et mettre à jour le stock
             foreach ($validated['items'] as $item) {
-                // Vérifier le stock
                 $product = DB::table('products')->where('id', $item['product_id'])->first();
                 
                 if (!$product) {
                     DB::rollBack();
                     return response()->json([
                         'success' => false,
-                        'message' => "Produit #{$item['product_id']} introuvable"
+                        'message' => "Produit introuvable"
                     ], 404);
                 }
                 
@@ -812,7 +620,6 @@ Route::prefix('v1')->group(function () {
                     ], 400);
                 }
                 
-                // Créer la ligne de vente
                 DB::table('sale_items')->insert([
                     'sale_id' => $saleId,
                     'product_id' => $item['product_id'],
@@ -823,12 +630,10 @@ Route::prefix('v1')->group(function () {
                     'updated_at' => now()
                 ]);
                 
-                // Décrémenter le stock
                 DB::table('products')
                     ->where('id', $item['product_id'])
                     ->decrement('stock', $item['quantity']);
                 
-                // Enregistrer le mouvement de stock
                 DB::table('stock_movements')->insert([
                     'product_id' => $item['product_id'],
                     'type' => 'out',
@@ -838,7 +643,6 @@ Route::prefix('v1')->group(function () {
                 ]);
             }
             
-            // Si vente à crédit, mettre à jour le solde client
             if ($validated['payment_method'] === 'credit' && $validated['customer_id']) {
                 DB::table('customers')
                     ->where('id', $validated['customer_id'])
@@ -911,6 +715,7 @@ Route::prefix('v1')->group(function () {
         }
     });
     
+    // Route paramétré APRÈS les routes spécifiques
     Route::get('/sales/{id}', function ($id) {
         try {
             $sale = DB::table('sales')
@@ -957,32 +762,34 @@ Route::prefix('v1')->group(function () {
         }
     });
     
-    // Statistiques des ventes
-    Route::get('/sales/stats/summary', function (Request $request) {
+    // ====================================
+    // STATISTIQUES DASHBOARD
+    // ====================================
+    
+    Route::get('/stats', function () {
         try {
-            $today = now()->startOfDay();
-            $thisWeek = now()->startOfWeek();
-            $thisMonth = now()->startOfMonth();
+            $lowStockProducts = DB::table('products')
+                ->whereRaw('stock <= min_stock')
+                ->where('stock', '>', 0)
+                ->get();
+
+            $outOfStockProducts = DB::table('products')
+                ->where('stock', 0)
+                ->get();
 
             $stats = [
-                'today' => [
-                    'count' => DB::table('sales')->where('created_at', '>=', $today)->count(),
-                    'total' => DB::table('sales')->where('created_at', '>=', $today)->sum('total_amount') ?? 0,
-                    'cash' => DB::table('sales')->where('created_at', '>=', $today)->where('payment_method', 'cash')->sum('total_amount') ?? 0,
-                    'mobile' => DB::table('sales')->where('created_at', '>=', $today)->where('payment_method', 'mobile')->sum('total_amount') ?? 0,
-                    'credit' => DB::table('sales')->where('created_at', '>=', $today)->where('payment_method', 'credit')->sum('total_amount') ?? 0,
-                ],
-                'this_week' => [
-                    'count' => DB::table('sales')->where('created_at', '>=', $thisWeek)->count(),
-                    'total' => DB::table('sales')->where('created_at', '>=', $thisWeek)->sum('total_amount') ?? 0,
-                ],
-                'this_month' => [
-                    'count' => DB::table('sales')->where('created_at', '>=', $thisMonth)->count(),
-                    'total' => DB::table('sales')->where('created_at', '>=', $thisMonth)->sum('total_amount') ?? 0,
-                ],
-                'total_sales' => DB::table('sales')->count(),
-                'total_revenue' => DB::table('sales')->sum('total_amount') ?? 0,
-                'total_credit' => DB::table('customers')->sum('balance') ?? 0,
+                'total_products' => DB::table('products')->count(),
+                'low_stock_count' => $lowStockProducts->count(),
+                'out_of_stock' => $outOfStockProducts->count(),
+                'total_stock_value' => DB::table('products')
+                    ->selectRaw('SUM(stock * unit_price) as value')
+                    ->value('value') ?? 0,
+                'total_customers' => DB::table('customers')->count(),
+                'total_suppliers' => DB::table('suppliers')->count(),
+                'alerts' => [
+                    'low_stock' => $lowStockProducts,
+                    'out_of_stock' => $outOfStockProducts
+                ]
             ];
 
             return response()->json([
@@ -997,4 +804,202 @@ Route::prefix('v1')->group(function () {
             ], 500);
         }
     });
+    
+    // ====================================
+    // GESTION DU STOCK (Entrées/Sorties)
+    // ====================================
+    
+    Route::post('/stock/in', function (Request $request) {
+        try {
+            $validated = $request->validate([
+                'product_id' => 'required|exists:products,id',
+                'quantity' => 'required|integer|min:1',
+                'reason' => 'nullable|string'
+            ]);
+            
+            DB::beginTransaction();
+            
+            $product = DB::table('products')->where('id', $validated['product_id'])->first();
+            
+            if (!$product) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Produit non trouvé'
+                ], 404);
+            }
+            
+            $previousStock = $product->stock;
+            $newStock = $previousStock + $validated['quantity'];
+            
+            // Mettre à jour le stock
+            DB::table('products')
+                ->where('id', $validated['product_id'])
+                ->update([
+                    'stock' => $newStock,
+                    'updated_at' => now()
+                ]);
+            
+            // Enregistrer le mouvement
+            DB::table('stock_movements')->insert([
+                'product_id' => $validated['product_id'],
+                'type' => 'in',
+                'quantity' => $validated['quantity'],
+                'previous_stock' => $previousStock,
+                'new_stock' => $newStock,
+                'reason' => $validated['reason'] ?? 'Réapprovisionnement',
+                'user_id' => auth()->id(),
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+            
+            DB::commit();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Stock ajouté avec succès',
+                'data' => [
+                    'previous_stock' => $previousStock,
+                    'new_stock' => $newStock,
+                    'quantity_added' => $validated['quantity']
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'ajout du stock',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    });
+    
+    Route::post('/stock/out', function (Request $request) {
+        try {
+            $validated = $request->validate([
+                'product_id' => 'required|exists:products,id',
+                'quantity' => 'required|integer|min:1',
+                'reason' => 'nullable|string'
+            ]);
+            
+            DB::beginTransaction();
+            
+            $product = DB::table('products')->where('id', $validated['product_id'])->first();
+            
+            if (!$product) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Produit non trouvé'
+                ], 404);
+            }
+            
+            if ($product->stock < $validated['quantity']) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Stock insuffisant'
+                ], 400);
+            }
+            
+            $previousStock = $product->stock;
+            $newStock = $previousStock - $validated['quantity'];
+            
+            // Mettre à jour le stock
+            DB::table('products')
+                ->where('id', $validated['product_id'])
+                ->update([
+                    'stock' => $newStock,
+                    'updated_at' => now()
+                ]);
+            
+            // Enregistrer le mouvement
+            DB::table('stock_movements')->insert([
+                'product_id' => $validated['product_id'],
+                'type' => 'out',
+                'quantity' => $validated['quantity'],
+                'previous_stock' => $previousStock,
+                'new_stock' => $newStock,
+                'reason' => $validated['reason'] ?? 'Sortie de stock',
+                'user_id' => auth()->id(),
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+            
+            DB::commit();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Stock retiré avec succès',
+                'data' => [
+                    'previous_stock' => $previousStock,
+                    'new_stock' => $newStock,
+                    'quantity_removed' => $validated['quantity']
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du retrait du stock',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    });
+    
+    // ====================================
+    // MOUVEMENTS DE STOCK
+    // ====================================
+    
+    Route::get('/movements', function (Request $request) {
+        try {
+            $query = DB::table('stock_movements')
+                ->join('products', 'stock_movements.product_id', '=', 'products.id')
+                ->select(
+                    'stock_movements.*',
+                    'products.name as product_name',
+                    'products.sku as product_sku'
+                )
+                ->orderBy('stock_movements.created_at', 'desc');
+            
+            if ($request->has('product_id')) {
+                $query->where('stock_movements.product_id', $request->product_id);
+            }
+            if ($request->has('type')) {
+                $query->where('stock_movements.type', $request->type);
+            }
+            if ($request->has('date_from')) {
+                $query->where('stock_movements.created_at', '>=', $request->date_from);
+            }
+            if ($request->has('date_to')) {
+                $query->where('stock_movements.created_at', '<=', $request->date_to);
+            }
+            
+            $movements = $query->limit(100)->get();
+            
+            return response()->json([
+                'success' => true,
+                'data' => $movements
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des mouvements',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    });
+});
+
+// ====================================
+// ROUTE DE FALLBACK
+// ====================================
+
+Route::fallback(function () {
+    return response()->json([
+        'success' => false,
+        'message' => 'Route non trouvée',
+    ], 404);
 });

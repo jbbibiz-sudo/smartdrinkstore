@@ -1,0 +1,90 @@
+// variants/desktop/electron/src/preload.js
+const { contextBridge, ipcRenderer } = require('electron');
+
+// ================================
+// EXPOSITION DES APIs ELECTRON
+// ================================
+contextBridge.exposeInMainWorld('electronAPI', {
+  // Récupérer l'URL de base de l'API Laravel
+  getApiBase: () => ipcRenderer.invoke('get-api-base'),
+  
+  // Récupérer les informations de l'application
+  getAppInfo: () => ipcRenderer.invoke('get-app-info'),
+  
+  // Vérifier si on est dans Electron
+  isElectron: () => true,
+  
+  // Plateforme
+  platform: process.platform,
+  
+  // ================================
+  // NOUVELLES FONCTIONNALITÉS POUR AUTH OFFLINE
+  // ================================
+  
+  // Gestion du stockage local sécurisé (pour tokens, sessions, etc.)
+  storage: {
+    get: (key) => ipcRenderer.invoke('storage-get', key),
+    set: (key, value) => ipcRenderer.invoke('storage-set', key, value),
+    delete: (key) => ipcRenderer.invoke('storage-delete', key),
+    clear: () => ipcRenderer.invoke('storage-clear')
+  },
+  
+  // Gestion des fichiers (pour base de données SQLite locale)
+  fs: {
+    readFile: (path) => ipcRenderer.invoke('fs-read-file', path),
+    writeFile: (path, data) => ipcRenderer.invoke('fs-write-file', path, data),
+    exists: (path) => ipcRenderer.invoke('fs-exists', path),
+    deleteFile: (path) => ipcRenderer.invoke('fs-delete-file', path)
+  },
+  
+  // Gestion de l'impression (pour factures)
+  print: {
+    invoice: (html) => ipcRenderer.invoke('print-invoice', html),
+    receipt: (html) => ipcRenderer.invoke('print-receipt', html)
+  },
+  
+  // Événements système
+  on: (channel, callback) => {
+    const validChannels = ['app-ready', 'auth-changed', 'network-status'];
+    if (validChannels.includes(channel)) {
+      const subscription = (event, ...args) => callback(...args);
+      ipcRenderer.on(channel, subscription);
+      return () => ipcRenderer.removeListener(channel, subscription);
+    }
+  }
+});
+
+// ================================
+// PROTECTION CONTRE LES ERREURS GLOBALES
+// ================================
+window.addEventListener('error', (event) => {
+  // Intercepter l'erreur dragEvent spécifique
+  if (event.message && event.message.includes('dragEvent')) {
+    console.warn('⚠️ Erreur dragEvent interceptée et ignorée');
+    event.preventDefault();
+    return true;
+  }
+  
+  // Logger les autres erreurs pour debug
+  console.error('❌ Erreur globale:', {
+    message: event.message,
+    filename: event.filename,
+    lineno: event.lineno,
+    colno: event.colno
+  });
+});
+
+// Protection contre les promesses rejetées non gérées
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('❌ Promise rejetée non gérée:', event.reason);
+});
+
+// ================================
+// LOGGING DE DÉMARRAGE
+// ================================
+console.log('✅ Preload script chargé avec succès');
+console.log('📦 Electron API exposée avec:', Object.keys(window.electronAPI || {}));
+console.log('🖥️  Platform:', process.platform);
+console.log('🔧 Node version:', process.versions.node);
+console.log('⚡ Electron version:', process.versions.electron);
+console.log('🎯 Chrome version:', process.versions.chrome);

@@ -7,12 +7,25 @@ use Illuminate\Http\Request;
 
 class CheckPermission
 {
-    public function handle(Request $request, Closure $next, $permission)
+    public function handle(Request $request, Closure $next, ...$permissions)
     {
-        $user = $request->user();
-        if (!$user || !$user->hasPermission($permission)) {
-            return response()->json(['success'=>false,'message'=>'Permission refusée'],403);
+        // If no permissions specified, just pass through
+        if (empty($permissions)) {
+            return $next($request);
         }
+
+        $user = $request->user();
+        
+        // Check if user has any of the required permissions
+        foreach ($permissions as $permission) {
+            if (!$user || !$user->hasPermission($permission)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Permission refusée'
+                ], 403);
+            }
+        }
+        
         return $next($request);
     }
 }

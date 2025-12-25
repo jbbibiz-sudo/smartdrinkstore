@@ -63,14 +63,8 @@ const movements = ref([]);
 const loadingMovements = ref(false);
 const movementFilters = ref({
   type: '',
-  product_id: '',
-  date_from: '',
-  date_to: ''
-});
-const movementStats = ref({
-  today: { in: 0, out: 0 },
-  this_week: { in: 0, out: 0 },
-  this_month: { in: 0, out: 0 }
+  startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 jours avant
+  endDate: new Date().toISOString().split('T')[0] // aujourd'hui
 });
 
 // États clients
@@ -188,7 +182,6 @@ export {
   movements,
   loadingMovements,
   movementFilters,
-  movementStats,
   
   // Clients
   customers,

@@ -1,2247 +1,1775 @@
 <template>
   <div v-cloak>
-    <!-- Header -->
-    <header class="bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg">
-      <div class="container mx-auto px-4 py-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-3">
-            <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center">
-              <span class="text-2xl font-bold text-blue-600">SD</span>
+    <!-- ====== AUTHENTIFICATION ====== -->
+    <Login 
+      v-if="!isAuthenticated" 
+      @login-success="handleLoginSuccess"
+    />
+
+    <!-- ====== APPLICATION PRINCIPALE (après connexion) ====== -->
+    <div v-else>
+      <!-- Header -->
+      <header class="bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg">
+        <div class="container mx-auto px-4 py-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+              <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center">
+                <span class="text-2xl font-bold text-blue-600">SD</span>
+              </div>
+              <div>
+                <h1 class="text-2xl font-bold">Entreprises KAMDEM</h1>
+                <p class="text-sm text-blue-100">Dépôt de boissons</p>
+              </div>
             </div>
+            <div class="flex items-center space-x-4">
+              <div class="text-right">
+                <p class="text-sm font-medium">{{ currentUser?.name }}</p>
+                <p class="text-xs text-blue-200">{{ currentUserRole }}</p>
+              </div>
+              <div class="flex flex-col items-end gap-1">
+                <button 
+                  @click="handleLogout"
+                  class="px-4 py-2 bg-blue-800 hover:bg-blue-900 rounded-lg transition text-sm font-medium flex items-center gap-2"
+                  title="Déconnexion"
+                >
+                  <span>🚪</span>
+                  <span>Déconnexion</span>
+                </button>
+                <!-- Infos de l'application sous le bouton -->
+                <p class="text-xs text-blue-300">
+                  {{ appInfo.mode }} • {{ appInfo.platform }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Connection Error Banner -->
+      <div v-if="connectionError" class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 shadow-md">
+        <div class="flex items-center justify-between container mx-auto">
+          <div class="flex items-center">
+            <span class="text-2xl mr-3">⚠️</span>
             <div>
-              <h1 class="text-2xl font-bold">SmartDrinkStore Manager</h1>
-              <p class="text-sm text-blue-100">KAMDEM - Dépôt de boissons</p>
+              <p class="font-bold">Erreur de connexion!</p>
+              <p class="text-sm">Le serveur API ne répond pas correctement.</p>
             </div>
           </div>
-          <div class="flex items-center space-x-4">
-            <div class="text-right">
-              <p class="text-sm text-blue-100">{{ currentDate }}</p>
-              <p class="text-xs text-blue-200">Mode: {{ appInfo.mode }} | {{ appInfo.platform }}</p>
-            </div>
-          </div>
+          <button @click="retryConnection" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition">
+            Réessayer
+          </button>
         </div>
       </div>
-    </header>
 
-    <!-- Connection Error Banner -->
-    <div v-if="connectionError" class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 shadow-md">
-      <div class="flex items-center justify-between container mx-auto">
-        <div class="flex items-center">
-          <span class="text-2xl mr-3">⚠️</span>
-          <div>
-            <p class="font-bold">Erreur de connexion!</p>
-            <p class="text-sm">Le serveur API ne répond pas correctement.</p>
-          </div>
-        </div>
-        <button @click="retryConnection" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition">
-          Réessayer
-        </button>
-      </div>
-    </div>
-
-    <div class="flex min-h-screen">
-      <!-- Sidebar -->
-      <aside class="w-64 bg-white shadow-lg">
-        <nav class="p-4 space-y-2">
-          <button 
-            @click="currentView = 'dashboard'"
-            :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
-                     currentView === 'dashboard' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-          >
-            📊 Dashboard
-          </button>
-          <button 
-            @click="currentView = 'products'"
-            :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
-                     currentView === 'products' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-          >
-            📦 Produits
-          </button>
-          <button 
-            @click="currentView = 'pos'"
-            :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
-                     currentView === 'pos' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-          >
-            🛒 Caisse / Vente
-          </button>
-          
-          <!-- NOUVEAU: Bouton Clients -->
-          <button 
-            @click="switchToCustomers"
-            :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
-                     currentView === 'customers' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-          >
-            👥 Clients
-          </button>
-          
-          <!-- NOUVEAU: Bouton Fournisseurs -->
-          <button 
-            @click="switchToSuppliers"
-            :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
-                     currentView === 'suppliers' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-          >
-            🏭 Fournisseurs
-          </button>
-          
-          <button 
-            @click="switchToMovements"
-            :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
-                     currentView === 'movements' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-          >
-            🔄 Mouvements
-          </button>
-          <button 
-            @click="currentView = 'alerts'"
-            :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition relative', 
-                     currentView === 'alerts' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-          >
-            ⚠ Alertes
-            <span v-if="alertsCount > 0" class="absolute top-2 right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
-              {{ alertsCount }}
-            </span>
-          </button>
-          <button 
-            @click="switchToInvoices"
-            :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
-                    currentView === 'invoices' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-          >
-            📄 Factures
-          </button>
-        </nav>
-      </aside>
-
-      <!-- Main Content -->
-      <main class="flex-1 p-6 bg-gray-50">
-        
-        <!-- ============================================ -->
-        <!-- VUE GESTION DES CLIENTS -->
-        <!-- ============================================ -->
-        <div v-if="currentView === 'customers'" class="space-y-6">
-          <div class="flex justify-between items-center">
-            <h2 class="text-3xl font-bold">Gestion des clients</h2>
+      <div class="flex min-h-screen">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white shadow-lg">
+          <nav class="p-4 space-y-2">
             <button 
-              @click="openCustomerModal(null)"
-              class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+              v-if="hasPermission('view_dashboard') || hasRole('admin')"
+              @click="currentView = 'dashboard'"
+              :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
+                      currentView === 'dashboard' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
             >
-              ➕ Nouveau client
+              📊 Dashboard
             </button>
-          </div>
-
-          <!-- Search Bar -->
-          <div class="bg-white rounded-lg shadow p-6">
-            <div class="flex gap-4">
-              <input 
-                v-model="customerSearchQuery"
-                type="text" 
-                placeholder="Rechercher un client (nom, téléphone, email)..."
-                class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-              <button 
-                @click="loadCustomers"
-                class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-              >
-                🔄 Actualiser
-              </button>
-            </div>
-          </div>
-
-          <!-- Statistics Cards -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Total clients</p>
-                  <p class="text-3xl font-bold text-blue-600">{{ customers.length }}</p>
-                </div>
-                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">👥</span>
-                </div>
-              </div>
-            </div>
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Créances totales</p>
-                  <p class="text-3xl font-bold text-orange-600">{{ formatCurrency(totalCustomerBalance) }}</p>
-                </div>
-                <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">💳</span>
-                </div>
-              </div>
-            </div>
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Clients à crédit</p>
-                  <p class="text-3xl font-bold text-red-600">{{ customersWithBalance }}</p>
-                </div>
-                <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">⚠️</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Customers Table -->
-          <div class="bg-white rounded-lg shadow overflow-hidden">
-            <table class="w-full">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Adresse</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Solde</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="loading">
-                  <td colspan="5" class="px-6 py-8 text-center">
-                    <div class="flex justify-center items-center">
-                      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                      <span class="ml-3">Chargement...</span>
-                    </div>
-                  </td>
-                </tr>
-                <tr v-else-if="filteredCustomers.length === 0">
-                  <td colspan="5" class="px-6 py-8 text-center text-gray-500">
-                    Aucun client trouvé
-                  </td>
-                </tr>
-                <tr v-for="customer in filteredCustomers" :key="customer.id" class="border-t hover:bg-gray-50">
-                  <td class="px-6 py-4">
-                    <div class="font-medium text-gray-900">{{ customer.name }}</div>
-                    <div class="text-sm text-gray-500">ID: #{{ customer.id }}</div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div v-if="customer.phone" class="text-sm">
-                      📞 {{ customer.phone }}
-                    </div>
-                    <div v-if="customer.email" class="text-sm text-gray-500">
-                      ✉️ {{ customer.email }}
-                    </div>
-                    <div v-if="!customer.phone && !customer.email" class="text-sm text-gray-400">
-                      Aucun contact
-                    </div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="text-sm text-gray-700">{{ customer.address || '-' }}</div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <span :class="['px-3 py-1 rounded-full text-sm font-medium',
-                                 customer.balance > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800']">
-                      {{ formatCurrency(customer.balance) }}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="flex gap-2">
-                      <button 
-                        @click="openCustomerModal(customer)"
-                        class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition text-sm"
-                      >
-                        ✏️ Modifier
-                      </button>
-                      <button 
-                        @click="deleteCustomer(customer)"
-                        class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition text-sm"
-                      >
-                        🗑️ Supprimer
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- ============================================ -->
-        <!-- VUE GESTION DES FOURNISSEURS -->
-        <!-- ============================================ -->
-        <div v-if="currentView === 'suppliers'" class="space-y-6">
-          <div class="flex justify-between items-center">
-            <h2 class="text-3xl font-bold">Gestion des fournisseurs</h2>
             <button 
-              @click="openSupplierModal(null)"
-              class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+              v-if="hasPermission('view_products')"
+              @click="currentView = 'products'"
+              :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
+                      currentView === 'products' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
             >
-              ➕ Nouveau fournisseur
+              📦 Produits
             </button>
-          </div>
+            <button 
+              v-if="hasPermission('create_sale')"
+              @click="currentView = 'pos'"
+              :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
+                      currentView === 'pos' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
+            >
+              🛒 Caisse / Vente
+            </button>
+            <button 
+              v-if="hasPermission('view_clients')"
+              @click="switchToCustomers"
+              :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
+                      currentView === 'customers' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
+            >
+              👥 Clients
+            </button>
+            <button
+              v-if="hasPermission('view_suppliers')" 
+              @click="switchToSuppliers"
+              :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
+                      currentView === 'suppliers' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
+            >
+              🏭 Fournisseurs
+            </button>
+            <button
+              v-if="hasPermission('view_stock_movements')" 
+              @click="switchToMovements"
+              :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
+                      currentView === 'movements' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
+            >
+              🔄 Mouvements
+            </button>
+            <button 
+              v-if="hasPermission('view_products')"
+              @click="currentView = 'alerts'"
+              :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition relative', 
+                      currentView === 'alerts' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
+            >
+              ⚠ Alertes
+              <span v-if="alertsCount > 0" class="absolute top-2 right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
+                {{ alertsCount }}
+              </span>
+            </button>
+            <button 
+              v-if="hasPermission('view_sales')"
+              @click="switchToInvoices"
+              :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
+                      currentView === 'invoices' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
+            >
+              📄 Factures
+            </button>
+          </nav>
+        </aside>
 
-          <!-- Search Bar -->
-          <div class="bg-white rounded-lg shadow p-6">
-            <div class="flex gap-4">
-              <input 
-                v-model="supplierSearchQuery"
-                type="text" 
-                placeholder="Rechercher un fournisseur (nom, téléphone, email)..."
-                class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-              <button 
-                @click="loadSuppliers"
-                class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-              >
-                🔄 Actualiser
-              </button>
-            </div>
-          </div>
-
-          <!-- Statistics Card -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Total fournisseurs</p>
-                  <p class="text-3xl font-bold text-blue-600">{{ suppliers.length }}</p>
-                </div>
-                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">🏭</span>
+        <!-- Main Content -->
+        <main class="flex-1 p-6 bg-gray-50">
+          <!-- Dashboard View -->
+          <div v-if="currentView === 'dashboard'" class="space-y-6">
+            <h2 class="text-3xl font-bold">Tableau de bord</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-gray-500 text-sm">Produits totaux</p>
+                    <p class="text-3xl font-bold text-blue-600">{{ stats.total_products || 0 }}</p>
+                  </div>
+                  <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <span class="text-2xl">📦</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Fournisseurs actifs</p>
-                  <p class="text-3xl font-bold text-green-600">{{ activeSuppliers }}</p>
-                </div>
-                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">✅</span>
+
+              <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-gray-500 text-sm">Stock faible</p>
+                    <p class="text-3xl font-bold text-orange-600">{{ stats.low_stock_count || 0 }}</p>
+                  </div>
+                  <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                    <span class="text-2xl">⚠</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Avec contacts</p>
-                  <p class="text-3xl font-bold text-purple-600">{{ suppliersWithContact }}</p>
-                </div>
-                <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">📱</span>
+
+              <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-gray-500 text-sm">Valeur du stock</p>
+                    <p class="text-3xl font-bold text-green-600">{{ formatCurrency(stats.total_stock_value) }}</p>
+                  </div>
+                  <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <span class="text-2xl">💰</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <!-- Suppliers Table -->
-          <div class="bg-white rounded-lg shadow overflow-hidden">
-            <table class="w-full">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Adresse</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date création</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="loading">
-                  <td colspan="5" class="px-6 py-8 text-center">
-                    <div class="flex justify-center items-center">
-                      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                      <span class="ml-3">Chargement...</span>
-                    </div>
-                  </td>
-                </tr>
-                <tr v-else-if="filteredSuppliers.length === 0">
-                  <td colspan="5" class="px-6 py-8 text-center text-gray-500">
-                    Aucun fournisseur trouvé
-                  </td>
-                </tr>
-                <tr v-for="supplier in filteredSuppliers" :key="supplier.id" class="border-t hover:bg-gray-50">
-                  <td class="px-6 py-4">
-                    <div class="font-medium text-gray-900">{{ supplier.name }}</div>
-                    <div class="text-sm text-gray-500">ID: #{{ supplier.id }}</div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div v-if="supplier.phone" class="text-sm">
-                      📞 {{ supplier.phone }}
-                    </div>
-                    <div v-if="supplier.email" class="text-sm text-gray-500">
-                      ✉️ {{ supplier.email }}
-                    </div>
-                    <div v-if="!supplier.phone && !supplier.email" class="text-sm text-gray-400">
-                      Aucun contact
-                    </div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="text-sm text-gray-700">{{ supplier.address || '-' }}</div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="text-sm text-gray-500">{{ formatDate(supplier.created_at) }}</div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="flex gap-2">
-                      <button 
-                        @click="openSupplierModal(supplier)"
-                        class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition text-sm"
-                      >
-                        ✏️ Modifier
-                      </button>
-                      <button 
-                        @click="deleteSupplier(supplier)"
-                        class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition text-sm"
-                      >
-                        🗑️ Supprimer
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Dashboard View -->
-        <div v-if="currentView === 'dashboard'" class="space-y-6">
-          <h2 class="text-3xl font-bold">Tableau de bord</h2>
-          
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Produits totaux</p>
-                  <p class="text-3xl font-bold text-blue-600">{{ stats.total_products || 0 }}</p>
-                </div>
-                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">📦</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Stock faible</p>
-                  <p class="text-3xl font-bold text-orange-600">{{ stats.low_stock_count || 0 }}</p>
-                </div>
-                <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">⚠</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Valeur du stock</p>
-                  <p class="text-3xl font-bold text-green-600">{{ formatCurrency(stats.total_stock_value) }}</p>
-                </div>
-                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">💰</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-gray-500 text-sm">Rupture de stock</p>
-                  <p class="text-3xl font-bold text-red-600">{{ stats.out_of_stock || 0 }}</p>
-                </div>
-                <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">🚫</span>
+              <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-gray-500 text-sm">Rupture de stock</p>
+                    <p class="text-3xl font-bold text-red-600">{{ stats.out_of_stock || 0 }}</p>
+                  </div>
+                  <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                    <span class="text-2xl">🚫</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Products View -->
-        <div v-if="currentView === 'products'" class="space-y-6">
-          <div class="flex justify-between items-center">
-            <h2 class="text-3xl font-bold">Gestion des produits</h2>
-            <div class="flex gap-2">
-              <button 
-                @click="showCategoryModal = true"
-                class="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition"
-              >
-                🏷️ Gérer les catégories
-              </button>
-              <button 
-                @click="openProductModal(null)"
-                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
-              >
-                ➕ Nouveau produit
-              </button>
+          <!-- Products View -->
+          <div v-if="currentView === 'products'" class="space-y-6">
+            <div class="flex justify-between items-center">
+              <h2 class="text-3xl font-bold">Gestion des produits</h2>
+              <div class="flex gap-2">
+                <button 
+                  @click="showCategoryModal = true"
+                  class="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition"
+                >
+                  🏷️ Gérer les catégories
+                </button>
+                <button 
+                  @click="() => { 
+                    console.log('🎯 Bouton cliqué!'); 
+                    console.log('openProductModal type:', typeof openProductModal);
+                    console.log('openProductModal:', openProductModal);
+                    try {
+                      openProductModal(null);
+                      console.log('✅ openProductModal appelé sans erreur');
+                    } catch(e) {
+                      console.error('❌ Erreur lors de l\'appel:', e);
+                    }
+                  }"
+                  class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+                >
+                  ➕ Nouveau produit
+                </button>
+              </div>
             </div>
-          </div>
 
-          <!-- Search and Filters -->
-          <div class="bg-white rounded-lg shadow p-6">
-            <div class="flex flex-wrap gap-4">
-              <input 
-                v-model="searchQuery"
-                type="text" 
-                placeholder="Rechercher un produit..."
-                class="flex-1 min-w-[200px] px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-              <button 
-                @click="loadProducts"
-                class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-              >
-                🔄 Actualiser
-              </button>
+            <div class="bg-white rounded-lg shadow p-6">
+              <div class="flex flex-wrap gap-4">
+                <input
+                  ref="productSearchInput" 
+                  v-model="searchQuery"
+                  type="text" 
+                  placeholder="Rechercher un produit..."
+                  class="flex-1 min-w-[200px] px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  autofocus
+                >
+                <button 
+                  @click="loadProducts"
+                  class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                >
+                  🔄 Actualiser
+                </button>
+              </div>
             </div>
-          </div>
 
-          <!-- Products Table -->
-          <div class="bg-white rounded-lg shadow overflow-hidden">
-            <table class="w-full">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produit</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="loading">
-                  <td colspan="5" class="px-6 py-8 text-center">
-                    <div class="flex justify-center items-center">
-                      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                      <span class="ml-3">Chargement...</span>
-                    </div>
-                  </td>
-                </tr>
-                <tr v-else-if="filteredProducts?.length === 0">
-                  <td colspan="5" class="px-6 py-8 text-center text-gray-500">
-                    Aucun produit trouvé
-                  </td>
-                </tr>
-                <tr v-for="product in filteredProducts" :key="product.id" class="border-t hover:bg-gray-50">
-                  <td class="px-6 py-4">
-                    <div class="font-medium">{{ product.name }}</div>
-                    <div class="text-sm text-gray-500">{{ product.sku }}</div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div>
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+              <table class="w-full">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produit</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="loading">
+                    <td colspan="5" class="px-6 py-8 text-center">
+                      <div class="flex justify-center items-center">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <span class="ml-3">Chargement...</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-else-if="filteredProducts?.length === 0">
+                    <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                      Aucun produit trouvé
+                    </td>
+                  </tr>
+                  <tr v-for="product in filteredProducts" :key="product.id" class="border-t hover:bg-gray-50">
+                    <td class="px-6 py-4">
+                      <div class="font-medium">{{ product.name }}</div>
+                      <div class="text-sm text-gray-500">{{ product.sku }}</div>
+                    </td>
+                    <td class="px-6 py-4">
                       <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
                         {{ product.category?.name || 'N/A' }}
                       </span>
-                      <div v-if="product.subcategory" class="mt-1">
-                        <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
-                          {{ product.subcategory.name }}
+                    </td>
+                    <td class="px-6 py-4">
+                      <span :class="['px-2 py-1 rounded text-sm font-medium',
+                                   product.stock === 0 ? 'bg-red-100 text-red-800' :
+                                   product.stock <= product.min_stock ? 'bg-orange-100 text-orange-800' :
+                                   'bg-green-100 text-green-800']">
+                        {{ product.stock }} unités
+                      </span>
+                    </td>
+                    <td class="px-6 py-4">{{ formatCurrency(product.unit_price) }}</td>
+                    <td class="px-6 py-4">
+                      <div class="flex items-center gap-2">
+                        <button 
+                          @click="() => viewProduct(product)"
+                          class="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm"
+                        >
+                          👁
+                        </button>
+                        <button 
+                          @click="() => openProductModal(product)"
+                          class="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm"
+                        >
+                          ✏️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- MODAL PRODUIT -->
+            <div 
+              v-if="showProductModal" 
+              class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+              @click.self="showProductModal = false"
+            >
+              <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                  <h3 class="text-2xl font-bold">
+                    {{ editingProduct ? 'Modifier le produit' : 'Nouveau produit' }}
+                  </h3>
+                  <button 
+                    @click="showProductModal = false"
+                    class="text-gray-500 hover:text-gray-700 text-2xl"
+                  >
+                    ×
+                  </button>
+                </div>
+                
+                <form @submit.prevent="saveProduct" class="space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Nom du produit *</label>
+                    <input 
+                      v-model="productForm.name"
+                      type="text"
+                      required
+                      class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="Ex: Coca-Cola 1.5L"
+                    >
+                  </div>
+                  
+                  <div>
+                    <label class="block text-sm font-medium mb-1">SKU *</label>
+                    <input 
+                      v-model="productForm.sku"
+                      type="text"
+                      required
+                      class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="Ex: BIR-COCA-150"
+                    >
+                  </div>
+                  
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Catégorie *</label>
+                    <select 
+                      v-model="productForm.category_id"
+                      required
+                      class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Sélectionner une catégorie</option>
+                      <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+                        {{ cat.name }}
+                      </option>
+                    </select>
+                  </div>
+                  
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-sm font-medium mb-1">Prix unitaire (FCFA) *</label>
+                      <input 
+                        v-model.number="productForm.unit_price"
+                        type="number"
+                        required
+                        min="0"
+                        step="1"
+                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                    </div>
+                    
+                    <div>
+                      <label class="block text-sm font-medium mb-1">Stock minimum *</label>
+                      <input 
+                        v-model.number="productForm.min_stock"
+                        type="number"
+                        required
+                        min="0"
+                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                    </div>
+                  </div>
+                  
+                  <div v-if="!editingProduct">
+                    <label class="block text-sm font-medium mb-1">Stock initial</label>
+                    <input 
+                      v-model.number="productForm.stock"
+                      type="number"
+                      min="0"
+                      class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                  </div>
+                  
+                  <div class="flex justify-end gap-2 pt-4">
+                    <button 
+                      type="button"
+                      @click="showProductModal = false"
+                      class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Annuler
+                    </button>
+                    <button 
+                      type="submit"
+                      :disabled="savingProduct"
+                      class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {{ savingProduct ? 'Enregistrement...' : 'Enregistrer' }}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <!-- MODAL CATÉGORIES -->
+            <div 
+              v-if="showCategoryModal" 
+              class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+              @click.self="showCategoryModal = false"
+            >
+              <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                  <h3 class="text-2xl font-bold">Gestion des catégories</h3>
+                  <button 
+                    @click="showCategoryModal = false"
+                    class="text-gray-500 hover:text-gray-700 text-2xl"
+                  >
+                    ×
+                  </button>
+                </div>
+                
+                <!-- Formulaire ajout catégorie -->
+                <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <form @submit.prevent="addCategory" class="flex gap-2">
+                    <input 
+                      ref="categoryInput"
+                      v-model="newCategoryName"
+                      type="text"
+                      placeholder="Nouvelle catégorie..."
+                      class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                      autofocus
+                    >
+                    <button 
+                      type="submit"
+                      class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      ➕ Ajouter
+                    </button>
+                  </form>
+                </div>
+                
+                <!-- Liste des catégories -->
+                <div class="space-y-2">
+                  <div 
+                    v-for="category in categories" 
+                    :key="category.id"
+                    class="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
+                  >
+                    <div v-if="editingCategoryId === category.id" class="flex-1 flex gap-2">
+                      <input 
+                        v-model="editingCategoryName"
+                        type="text"
+                        class="flex-1 px-3 py-1 border rounded focus:ring-2 focus:ring-blue-500"
+                        @keyup.enter="saveCategory(category.id)"
+                        @keyup.esc="cancelEditCategory"
+                      >
+                      <button 
+                        @click="saveCategory(category.id)"
+                        class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                      >
+                        ✓
+                      </button>
+                      <button 
+                        @click="cancelEditCategory"
+                        class="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div v-else class="flex-1 flex items-center justify-between">
+                      <span class="font-medium">{{ category.name }}</span>
+                      <div class="flex gap-2">
+                        <button 
+                          @click="editCategory(category)"
+                          class="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm"
+                        >
+                          ✏️
+                        </button>
+                        <button 
+                          @click="deleteCategory(category.id)"
+                          class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODAL VISUALISATION PRODUIT -->
+          <div 
+            v-if="showViewModal && viewingProduct" 
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            @click.self="showViewModal = false"
+          >
+            <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold">Détails du produit</h3>
+                <button 
+                  @click="showViewModal = false"
+                  class="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-500 mb-1">Nom du produit</label>
+                    <p class="text-lg font-semibold">{{ viewingProduct.name }}</p>
+                  </div>
+                  
+                  <div>
+                    <label class="block text-sm font-medium text-gray-500 mb-1">SKU</label>
+                    <p class="text-lg font-mono">{{ viewingProduct.sku }}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-gray-500 mb-1">Catégorie</label>
+                  <span class="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-lg">
+                    {{ viewingProduct.category?.name || 'N/A' }}
+                  </span>
+                </div>
+                
+                <div class="grid grid-cols-3 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-500 mb-1">Prix unitaire</label>
+                    <p class="text-xl font-bold text-green-600">{{ formatCurrency(viewingProduct.unit_price) }}</p>
+                  </div>
+                  
+                  <div>
+                    <label class="block text-sm font-medium text-gray-500 mb-1">Stock actuel</label>
+                    <p :class="['text-xl font-bold',
+                              viewingProduct.stock === 0 ? 'text-red-600' :
+                              viewingProduct.stock <= viewingProduct.min_stock ? 'text-orange-600' :
+                              'text-green-600']">
+                      {{ viewingProduct.stock }} unités
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label class="block text-sm font-medium text-gray-500 mb-1">Stock minimum</label>
+                    <p class="text-xl font-bold text-gray-600">{{ viewingProduct.min_stock }} unités</p>
+                  </div>
+                </div>
+                
+                <div v-if="viewingProduct.stock <= viewingProduct.min_stock" class="bg-orange-50 border-l-4 border-orange-500 p-4 rounded">
+                  <div class="flex items-center">
+                    <span class="text-2xl mr-3">⚠️</span>
+                    <div>
+                      <p class="font-bold text-orange-800">Alerte stock faible</p>
+                      <p class="text-sm text-orange-700">Ce produit nécessite un réapprovisionnement</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="pt-4 flex justify-end gap-2">
+                  <button 
+                    @click="showViewModal = false"
+                    class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Fermer
+                  </button>
+                  <button 
+                    @click="() => { showViewModal = false; openProductModal(viewingProduct); }"
+                    class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    ✏️ Modifier
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- POS View -->
+          <div v-if="currentView === 'pos'" class="space-y-6">
+            <h2 class="text-3xl font-bold">Point de Vente</h2>
+            
+            <div class="grid grid-cols-3 gap-6">
+              <div class="col-span-2 space-y-4">
+                <div class="bg-white rounded-lg shadow p-6">
+                  <input
+                    ref="posSearchInput" 
+                    v-model="posSearch"
+                    type="text"
+                    placeholder="🔍 Rechercher un produit par nom ou SKU..."
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                </div>
+
+                <div class="bg-white rounded-lg shadow overflow-hidden max-h-[600px] overflow-y-auto">
+                  <div v-if="!filteredPosProducts || filteredPosProducts.length === 0" class="p-8 text-center text-gray-500">
+                    <p class="text-lg">Aucun produit disponible</p>
+                    <p class="text-sm">{{ products?.length || 0 }} produits chargés</p>
+                  </div>
+                  <div class="grid grid-cols-2 gap-4 p-4">
+                    <div 
+                      v-for="product in filteredPosProducts" 
+                      :key="product.id"
+                      @click="addToCart(product)"
+                      class="border rounded-lg p-4 cursor-pointer hover:bg-blue-50 transition"
+                    >
+                      <h3 class="font-medium">{{ product.name }}</h3>
+                      <p class="text-sm text-gray-500">{{ product.sku }}</p>
+                      <div class="flex justify-between items-center mt-2">
+                        <span class="text-lg font-bold text-blue-600">{{ formatCurrency(product.unit_price) }}</span>
+                        <span :class="['text-sm px-2 py-1 rounded',
+                                     product.stock === 0 ? 'bg-red-100 text-red-800' :
+                                     product.stock <= 5 ? 'bg-orange-100 text-orange-800' :
+                                     'bg-green-100 text-green-800']">
+                          {{ product.stock }} en stock
                         </span>
                       </div>
                     </div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <span :class="['px-2 py-1 rounded text-sm font-medium',
-                                 product.stock === 0 ? 'bg-red-100 text-red-800' :
-                                 product.stock <= product.min_stock ? 'bg-orange-100 text-orange-800' :
-                                 'bg-green-100 text-green-800']">
-                      {{ product.stock }} unités
-                    </span>
-                  </td>
-                  <td class="px-6 py-4">{{ formatCurrency(product.unit_price) }}</td>
-                  <td class="px-6 py-4">
-                    <div class="flex items-center gap-2">
-                      <button 
-                        @click="viewProduct(product)"
-                        class="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm"
-                      >
-                        👁
-                      </button>
-                      <button 
-                        @click="openProductModal(product)"
-                        class="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm"
-                      >
-                        ✏️
-                      </button>
-                      <button 
-                        @click="openStockInModal(product)"
-                        class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-                      >
-                        ↗ Entrée
-                      </button>
-                      <button 
-                        @click="openStockOutModal(product)"
-                        class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-                        :disabled="product.stock === 0"
-                        :class="product.stock === 0 ? 'opacity-50 cursor-not-allowed' : ''"
-                      >
-                        ↘ Sortie
-                      </button>
-                      <button 
-                        @click="deleteProduct(product)"
-                        class="px-3 py-1 bg-gray-800 text-white rounded hover:bg-gray-900 text-sm"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- POS / Sales View -->
-        <div v-if="currentView === 'pos'" class="h-[calc(100vh-6rem)] flex gap-4">
-          <!-- Left: Product Grid -->
-          <div class="flex-1 flex flex-col bg-white rounded-lg shadow overflow-hidden">
-            <div class="p-4 border-b">
-              <input 
-                v-model="posSearch" 
-                type="text" 
-                placeholder="🔍 Scanner ou chercher un produit..." 
-                class="w-full px-4 py-3 border rounded-lg text-lg focus:ring-2 focus:ring-blue-500"
-                ref="posSearchInput"
-              >
-            </div>
-            <div class="flex-1 overflow-y-auto p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 content-start">
-              <div 
-                v-for="product in filteredPosProducts" 
-                :key="product.id"
-                @click="addToCart(product)"
-                class="bg-gray-50 border hover:border-blue-500 cursor-pointer p-3 rounded-lg transition flex flex-col justify-between h-32"
-              >
-                <div>
-                  <p class="font-bold text-gray-800 line-clamp-2">{{ product.name }}</p>
-                  <p class="text-xs text-gray-500">{{ product.sku }}</p>
-                </div>
-                <div class="flex justify-between items-end mt-2">
-                  <span class="font-bold text-blue-600">{{ formatCurrency(product.unit_price) }}</span>
-                  <span :class="['text-xs px-2 py-1 rounded', product.stock > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800']">
-                    {{ product.stock }} en stock
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Right: Cart & Checkout -->
-          <div class="w-96 bg-white rounded-lg shadow flex flex-col">
-            <div class="p-4 bg-blue-600 text-white rounded-t-lg flex justify-between items-center">
-              <h3 class="font-bold text-lg">Panier en cours</h3>
-              <button @click="clearCart" class="text-xs bg-blue-700 px-2 py-1 rounded hover:bg-blue-800">Vider</button>
-            </div>
-            
-            <!-- Cart Items -->
-            <div class="flex-1 overflow-y-auto p-4 space-y-3">
-              <div v-if="cart.length === 0" class="text-center text-gray-400 mt-10">
-                Le panier est vide
-              </div>
-              <div v-for="(item, index) in cart" :key="index" class="flex justify-between items-center border-b pb-2">
-                <div class="flex-1">
-                  <p class="font-medium text-sm">{{ item.name }}</p>
-                  <div class="flex items-center text-xs text-gray-500 mt-1">
-                    <button @click="updateCartQty(index, -1)" class="w-6 h-6 bg-gray-200 rounded hover:bg-gray-300">-</button>
-                    <span class="mx-2 font-bold">{{ item.quantity }}</span>
-                    <button @click="updateCartQty(index, 1)" class="w-6 h-6 bg-gray-200 rounded hover:bg-gray-300">+</button>
-                    <span class="ml-2">x {{ formatCurrency(item.unit_price) }}</span>
                   </div>
                 </div>
-                <div class="text-right">
-                  <p class="font-bold">{{ formatCurrency(item.unit_price * item.quantity) }}</p>
-                  <button @click="removeFromCart(index)" class="text-red-500 text-xs hover:underline">Suppr.</button>
+              </div>
+
+              <!-- ============================================ -->
+              <!-- SECTION PANIER (POS) - CODE CORRIGÉ -->
+              <!-- ============================================ -->
+
+              <div class="space-y-4">
+                <div class="bg-white rounded-lg shadow p-6">
+                  <h3 class="text-xl font-bold mb-4">Panier</h3>
+                  
+                  <div v-if="cart.length === 0" class="text-center text-gray-500 py-8">
+                    Panier vide
+                  </div>
+
+                  <div v-else class="space-y-3 max-h-[400px] overflow-y-auto">
+                    <div v-for="item in cart" :key="item.product_id" class="border rounded p-3">
+                      <div class="flex justify-between items-start mb-2">
+                        <span class="font-medium">{{ item.name }}</span>
+                        <button @click="removeFromCart(cart.indexOf(item))" class="text-red-500 hover:text-red-700">
+                          ×
+                        </button>
+                      </div>
+                      <div class="flex items-center gap-2 mb-2">
+                        <button 
+                          @click="decreaseQuantity(item.product_id)"
+                          class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
+                        >
+                          -
+                        </button>
+                        <input 
+                          v-model.number="item.quantity"
+                          type="number"
+                          min="1"
+                          :max="item.stock"
+                          class="w-16 px-2 py-1 border rounded text-center"
+                          @change="updateCartQty(cart.indexOf(item), 0)"
+                        >
+                        <button 
+                          @click="increaseQuantity(item.product_id)"
+                          class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <div class="text-sm text-gray-600">
+                        {{ formatCurrency(item.unit_price) }} × {{ item.quantity }} = 
+                        <span class="font-bold">{{ formatCurrency(item.quantity * item.unit_price) }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="mt-6 pt-4 border-t space-y-3">
+                    <!-- Affichage du sous-total -->
+                    <div class="flex justify-between text-lg">
+                      <span class="text-gray-600">Sous-total:</span>
+                      <span class="font-semibold">{{ formatCurrency(cartTotal) }}</span>
+                    </div>
+
+                    <!-- Type de vente -->
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-2">Type de vente</label>
+                      <select v-model="saleType" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="counter">Vente au comptoir</option>
+                        <option value="wholesale">Vente en gros (-5%)</option>
+                      </select>
+                    </div>
+
+                    <!-- Affichage de la remise si vente en gros -->
+                    <div v-if="saleType === 'wholesale'" class="flex justify-between text-sm text-green-600">
+                      <span>Remise (5%):</span>
+                      <span class="font-semibold">- {{ formatCurrency(cartTotal * 0.05) }}</span>
+                    </div>
+
+                    <!-- Total final -->
+                    <div class="flex justify-between text-2xl font-bold border-t pt-3">
+                      <span>Total:</span>
+                      <span class="text-blue-600">{{ formatCurrency(finalTotal) }}</span>
+                    </div>
+
+                    <!-- Mode de paiement -->
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-2">Mode de paiement</label>
+                      <div class="space-y-2">
+                        <select v-model="paymentMethod" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                          <option value="cash">💵 Espèces</option>
+                          <option value="mobile_money">📱 Mobile Money</option>
+                          <option value="bank_transfer">🏦 Virement bancaire</option>
+                          <option value="credit">📝 À crédit</option>
+                        </select>
+
+                        <!-- Sélection du client si paiement à crédit -->
+                        <select 
+                          v-if="paymentMethod === 'credit'"
+                          v-model="selectedCustomerId"
+                          class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                          required
+                        >
+                          <option value="">Sélectionner un client</option>
+                          <option v-for="customer in customers" :key="customer.id" :value="customer.id">
+                            {{ customer.name }}
+                          </option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <!-- Boutons d'action -->
+                    <button 
+                      @click="processSale"
+                      :disabled="cart.length === 0 || (paymentMethod === 'credit' && !selectedCustomerId)"
+                      class="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
+                    >
+                      ✅ Valider la vente
+                    </button>
+
+                    <button 
+                      @click="clearCart"
+                      class="w-full py-2 border border-red-600 text-red-600 rounded-lg hover:bg-red-50 transition"
+                    >
+                      🗑️ Vider le panier
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            <!-- Totals & Actions -->
-            <div class="p-4 bg-gray-50 border-t space-y-3">
-              <div class="flex justify-between text-sm">
-                <span>Sous-total</span>
-                <span>{{ formatCurrency(cartTotal) }}</span>
+          <!-- Customers View -->
+          <div v-if="currentView === 'customers'" class="space-y-6">
+            <div class="flex justify-between items-center">
+              <h2 class="text-3xl font-bold">Gestion des Clients</h2>
+              <button 
+                @click="openCustomerModal(null)"
+                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+              >
+                ➕ Nouveau client
+              </button>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6">
+              <input 
+                v-model="customerSearchQuery"
+                type="text"
+                placeholder="Rechercher un client..."
+                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+            </div>
+
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+              <table class="w-full">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Adresse</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Solde</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="customer in filteredCustomers" :key="customer.id" class="border-t hover:bg-gray-50">
+                    <td class="px-6 py-4 font-medium">{{ customer.name }}</td>
+                    <td class="px-6 py-4">
+                      <div>{{ customer.phone }}</div>
+                      <div class="text-sm text-gray-500">{{ customer.email }}</div>
+                    </td>
+                    <td class="px-6 py-4">{{ customer.address || 'N/A' }}</td>
+                    <td class="px-6 py-4">
+                      <span :class="['font-semibold', customer.balance > 0 ? 'text-red-600' : 'text-green-600']">
+                        {{ formatCurrency(customer.balance || 0) }}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4">
+                      <div class="flex gap-2">
+                        <button 
+                          @click="openCustomerModal(customer)"
+                          class="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm"
+                        >
+                          ✏️ Modifier
+                        </button>
+                        <button 
+                          @click="deleteCustomer(customer.id)"
+                          class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                        >
+                          🗑️ Supprimer
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Modal Nouveau/Modifier Client -->
+          <div 
+            v-if="showCustomerModal" 
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            @click.self="closeCustomerModal"
+          >
+            <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div class="flex justify-between items-center mb-4">
+                <h3 class="text-2xl font-bold">
+                  {{ editingCustomer ? 'Modifier le client' : 'Nouveau client' }}
+                </h3>
+                <button 
+                  @click="closeCustomerModal"
+                  class="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
               </div>
               
-              <!-- Type de vente -->
-              <div class="flex gap-2 text-xs">
-                <button 
-                  @click="saleType = 'counter'"
-                  :class="['flex-1 py-1 rounded border', saleType === 'counter' ? 'bg-blue-100 border-blue-500 text-blue-700' : 'bg-white']"
-                >
-                  Comptoir
-                </button>
-                <button 
-                  @click="saleType = 'wholesale'"
-                  :class="['flex-1 py-1 rounded border', saleType === 'wholesale' ? 'bg-blue-100 border-blue-500 text-blue-700' : 'bg-white']"
-                >
-                  Gros (-5%)
-                </button>
-              </div>
-
-              <div class="flex justify-between font-bold text-xl text-blue-800 pt-2 border-t">
-                <span>Total à payer</span>
-                <span>{{ formatCurrency(finalTotal) }}</span>
-              </div>
-
-              <button 
-                @click="openCheckoutModal"
-                :disabled="cart.length === 0"
-                class="w-full py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg"
-              >
-                💳 Encaisser
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Movements View -->
-        <div v-if="currentView === 'movements'" class="space-y-6">
-          <div class="flex justify-between items-center">
-            <h2 class="text-3xl font-bold">Mouvements de stock</h2>
-            <button 
-              @click="loadMovements"
-              class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-            >
-              🔄 Actualiser
-            </button>
-          </div>
-
-          <!-- Stats des mouvements -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-white rounded-lg shadow p-6">
-              <h3 class="text-sm font-medium text-gray-500 mb-2">Aujourd'hui</h3>
-              <div class="flex items-center justify-between">
+              <form @submit.prevent="saveCustomer" class="space-y-4">
                 <div>
-                  <p class="text-2xl font-bold text-green-600">+{{ movementStats.today?.in || 0 }}</p>
-                  <p class="text-sm text-gray-600">Entrées</p>
-                </div>
-                <div class="text-right">
-                  <p class="text-2xl font-bold text-red-600">-{{ movementStats.today?.out || 0 }}</p>
-                  <p class="text-sm text-gray-600">Sorties</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="bg-white rounded-lg shadow p-6">
-              <h3 class="text-sm font-medium text-gray-500 mb-2">Cette semaine</h3>
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-2xl font-bold text-green-600">+{{ movementStats.this_week?.in || 0 }}</p>
-                  <p class="text-sm text-gray-600">Entrées</p>
-                </div>
-                <div class="text-right">
-                  <p class="text-2xl font-bold text-red-600">-{{ movementStats.this_week?.out || 0 }}</p>
-                  <p class="text-sm text-gray-600">Sorties</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="bg-white rounded-lg shadow p-6">
-              <h3 class="text-sm font-medium text-gray-500 mb-2">Ce mois</h3>
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-2xl font-bold text-green-600">+{{ movementStats.this_month?.in || 0 }}</p>
-                  <p class="text-sm text-gray-600">Entrées</p>
-                </div>
-                <div class="text-right">
-                  <p class="text-2xl font-bold text-red-600">-{{ movementStats.this_month?.out || 0 }}</p>
-                  <p class="text-sm text-gray-600">Sorties</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Filtres -->
-          <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="font-semibold mb-4">Filtres</h3>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Type de mouvement</label>
-                <select 
-                  v-model="movementFilters.type"
-                  @change="loadMovements"
-                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Tous</option>
-                  <option value="in">Entrées</option>
-                  <option value="out">Sorties</option>
-                  <option value="adjustment">Ajustements</option>
-                </select>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Produit</label>
-                <select 
-                  v-model="movementFilters.product_id"
-                  @change="loadMovements"
-                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Tous les produits</option>
-                  <option v-for="product in products" :key="product.id" :value="product.id">
-                    {{ product.name }}
-                  </option>
-                </select>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Date début</label>
-                <input 
-                  v-model="movementFilters.date_from"
-                  @change="loadMovements"
-                  type="date"
-                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Date fin</label>
-                <input 
-                  v-model="movementFilters.date_to"
-                  @change="loadMovements"
-                  type="date"
-                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-              </div>
-            </div>
-
-            <div class="mt-4 flex gap-2">
-              <button 
-                @click="resetSalesFilters"
-                class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-              >
-                ↺ Réinitialiser
-              </button>
-              <button 
-                @click="exportMovements"
-                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-              >
-                📥 Exporter CSV
-              </button>
-            </div>
-          </div>
-
-          <!-- Tableau des mouvements -->
-          <div class="bg-white rounded-lg shadow overflow-hidden">
-            <table class="w-full">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produit</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Raison</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="loadingMovements">
-                  <td colspan="5" class="px-6 py-8 text-center">
-                    <div class="flex justify-center items-center">
-                      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                      <span class="ml-3">Chargement...</span>
-                    </div>
-                  </td>
-                </tr>
-                <tr v-else-if="movements.length === 0">
-                  <td colspan="5" class="px-6 py-8 text-center text-gray-500">
-                    Aucun mouvement trouvé
-                  </td>
-                </tr>
-                <tr v-for="movement in movements" :key="movement.id" class="border-t hover:bg-gray-50">
-                  <td class="px-6 py-4 text-sm">
-                    {{ formatDate(movement.created_at) }}
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="font-medium">{{ movement.product_name }}</div>
-                    <div class="text-sm text-gray-500">{{ movement.product_sku }}</div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <span :class="['px-2 py-1 rounded text-xs font-medium',
-                                 movement.type === 'in' ? 'bg-green-100 text-green-800' :
-                                 movement.type === 'out' ? 'bg-red-100 text-red-800' :
-                                 'bg-blue-100 text-blue-800']">
-                      {{ movement.type === 'in' ? '↗ Entrée' : movement.type === 'out' ? '↘ Sortie' : '⚙ Ajustement' }}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4">
-                    <span :class="['font-semibold',
-                                 movement.type === 'in' ? 'text-green-600' : 'text-red-600']">
-                      {{ movement.type === 'in' ? '+' : '-' }}{{ movement.quantity }}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 text-sm text-gray-600">
-                    {{ movement.reason || '-' }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Pagination info -->
-          <div v-if="movements.length > 0" class="bg-white rounded-lg shadow p-4 text-center text-sm text-gray-600">
-            Affichage de {{ movements.length }} mouvement(s) • Total: {{ movementStats.total_movements || 0 }}
-          </div>
-        </div>
-
-        <!-- Alerts View -->
-        <div v-if="currentView === 'alerts'" class="space-y-6">
-          <h2 class="text-3xl font-bold">Alertes de stock</h2>
-
-          <!-- Stock faible -->
-          <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="text-xl font-semibold mb-4 flex items-center">
-              <span class="text-2xl mr-2">⚠</span>
-              Stock faible ({{ alerts.low_stock?.length || 0 }})
-            </h3>
-            <div v-if="alerts.low_stock && alerts.low_stock.length > 0" class="space-y-3">
-              <div v-for="product in alerts.low_stock" :key="product.id" 
-                   class="flex items-center justify-between p-4 bg-orange-50 rounded-lg border border-orange-200">
-                <div class="flex-1">
-                  <p class="font-medium text-gray-900">{{ product.name }}</p>
-                  <p class="text-sm text-gray-600">SKU: {{ product.sku }}</p>
-                  <p class="text-sm text-orange-700 font-medium mt-1">
-                    {{ product.stock }} unités (Minimum: {{ product.min_stock }})
-                  </p>
-                </div>
-                <button 
-                  @click="openStockInModal(product)"
-                  class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                >
-                  Réapprovisionner
-                </button>
-              </div>
-            </div>
-            <p v-else class="text-gray-500 text-center py-4">Aucun produit en stock faible</p>
-          </div>
-
-          <!-- Rupture de stock -->
-          <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="text-xl font-semibold mb-4 flex items-center">
-              <span class="text-2xl mr-2">🚫</span>
-              Rupture de stock ({{ alerts.out_of_stock?.length || 0 }})
-            </h3>
-            <div v-if="alerts.out_of_stock && alerts.out_of_stock.length > 0" class="space-y-3">
-              <div v-for="product in alerts.out_of_stock" :key="product.id"
-                   class="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
-                <div class="flex-1">
-                  <p class="font-medium text-gray-900">{{ product.name }}</p>
-                  <p class="text-sm text-gray-600">SKU: {{ product.sku }}</p>
-                  <p class="text-sm text-red-700 font-bold mt-1">RUPTURE DE STOCK</p>
-                </div>
-                <button 
-                  @click="openStockInModal(product)"
-                  class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                >
-                  Réapprovisionner
-                </button>
-              </div>
-            </div>
-            <p v-else class="text-gray-500 text-center py-4">Aucune rupture de stock</p>
-          </div>
-        </div>
-        
-        <!-- Vue FACTURES / HISTORIQUE DES VENTES -->
-        <div v-if="currentView === 'invoices'" class="space-y-6">
-          <!-- En-tête -->
-          <div class="flex justify-between items-center">
-            <div>
-              <h2 class="text-3xl font-bold">Historique des ventes</h2>
-              <p class="text-gray-600 mt-1">Consultez et imprimez vos factures</p>
-            </div>
-            <button 
-              @click="loadSales"
-              class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              🔄 Actualiser
-            </button>
-          </div>
-
-          <!-- Statistiques rapides -->
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm text-gray-600">Ventes aujourd'hui</p>
-                  <p class="text-2xl font-bold text-blue-600">{{ salesStats.today?.count || 0 }}</p>
-                </div>
-                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">🛒</span>
-                </div>
-              </div>
-            </div>
-            
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm text-gray-600">CA Aujourd'hui</p>
-                  <p class="text-2xl font-bold text-green-600">{{ formatCurrency(salesStats.today?.total || 0) }}</p>
-                </div>
-                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">💰</span>
-                </div>
-              </div>
-            </div>
-            
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm text-gray-600">Espèces</p>
-                  <p class="text-2xl font-bold text-yellow-600">{{ formatCurrency(salesStats.today?.cash || 0) }}</p>
-                </div>
-                <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">💵</span>
-                </div>
-              </div>
-            </div>
-            
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm text-gray-600">Crédit en cours</p>
-                  <p class="text-2xl font-bold text-orange-600">{{ formatCurrency(salesStats.total_credit || 0) }}</p>
-                </div>
-                <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <span class="text-2xl">💳</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Filtres -->
-          <div class="bg-white rounded-lg shadow p-4">
-            <h3 class="font-semibold mb-4">Filtres</h3>
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <input 
-                v-model="salesSearch"
-                type="text" 
-                placeholder="🔍 Rechercher N° facture, client..."
-                class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-              <div>
-                <label class="block text-xs text-gray-600 mb-1">Date début</label>
-                <input 
-                  v-model="salesFilters.date_from"
-                  @change="loadSales"
-                  type="date"
-                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-              </div>
-              <div>
-                <label class="block text-xs text-gray-600 mb-1">Date fin</label>
-                <input 
-                  v-model="salesFilters.date_to"
-                  @change="loadSales"
-                  type="date"
-                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-              </div>
-              <div>
-                <label class="block text-xs text-gray-600 mb-1">Mode de paiement</label>
-                <select 
-                  v-model="salesFilters.payment_method"
-                  @change="loadSales"
-                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Tous les paiements</option>
-                  <option value="cash">Espèces</option>
-                  <option value="mobile">Mobile Money</option>
-                  <option value="credit">Crédit</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-xs text-gray-600 mb-1">Type de vente</label>
-                <select 
-                  v-model="salesFilters.sale_type"
-                  @change="loadSales"
-                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Tous les types</option>
-                  <option value="counter">Comptoir</option>
-                  <option value="wholesale">Gros</option>
-                </select>
-              </div>
-            </div>
-            
-            <div class="mt-4 flex gap-2">
-              <button 
-                @click="() => { salesSearch = ''; salesFilters.date_from = ''; salesFilters.date_to = ''; salesFilters.payment_method = ''; salesFilters.sale_type = ''; loadSales(); }"
-                class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-              >
-                ↺ Réinitialiser
-              </button>
-              <button 
-                @click="exportSales"
-                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-              >
-                📥 Exporter CSV
-              </button>
-            </div>
-          </div>
-
-          <!-- Tableau des ventes -->
-          <div class="bg-white rounded-lg shadow overflow-hidden">
-            <table class="w-full">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Facture</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Paiement</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Montant</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="loadingSales">
-                  <td colspan="7" class="px-6 py-8 text-center">
-                    <div class="flex justify-center items-center">
-                      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                      <span class="ml-3">Chargement...</span>
-                    </div>
-                  </td>
-                </tr>
-                <tr v-else-if="filteredSales.length === 0">
-                  <td colspan="7" class="px-6 py-8 text-center text-gray-500">
-                    Aucune vente trouvée
-                  </td>
-                </tr>
-                <tr v-for="sale in filteredSales" :key="sale.id" class="border-t hover:bg-gray-50">
-                  <td class="px-6 py-4">
-                    <span class="font-mono text-sm font-semibold">{{ sale.invoice_number }}</span>
-                  </td>
-                  <td class="px-6 py-4 text-sm text-gray-600">
-                    {{ formatDate(sale.created_at) }}
-                  </td>
-                  <td class="px-6 py-4">
-                    <span class="font-medium">{{ sale.customer_name || 'Client de passage' }}</span>
-                  </td>
-                  <td class="px-6 py-4">
-                    <span :class="['px-2 py-1 rounded text-xs font-medium',
-                                  sale.type === 'wholesale' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800']">
-                      {{ sale.type === 'wholesale' ? 'Gros' : 'Comptoir' }}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4">
-                    <span :class="['px-2 py-1 rounded text-xs font-medium',
-                                  sale.payment_method === 'cash' ? 'bg-green-100 text-green-800' :
-                                  sale.payment_method === 'mobile' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-orange-100 text-orange-800']">
-                      {{ getPaymentMethodLabel(sale.payment_method) }}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4">
-                    <span class="font-semibold text-green-600">
-                      {{ formatCurrency(sale.total_amount) }}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="flex gap-2">
-                      <button
-                        @click="viewInvoice(sale)"
-                        class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                        title="Voir"
-                      >
-                        👁️ Voir
-                      </button>
-                      <button
-                        @click="printInvoice(sale)"
-                        class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-                        title="Imprimer"
-                      >
-                        🖨️ Imprimer
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Pagination info -->
-          <div v-if="filteredSales.length > 0" class="bg-white rounded-lg shadow p-4 text-center text-sm text-gray-600">
-            Affichage de {{ filteredSales.length }} vente(s) • Total: {{ sales.length }}
-          </div>
-        </div>
-
-        <!-- MODAL DE PRÉVISUALISATION DE FACTURE -->
-        <div v-if="showInvoiceModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <!-- Barre d'actions -->
-            <div class="sticky top-0 bg-white border-b p-4 flex justify-between items-center no-print z-10">
-              <div class="flex gap-2">
-                <button
-                  @click="invoiceType = 'standard'"
-                  :class="['px-4 py-2 rounded text-sm font-medium', 
-                          invoiceType === 'standard' ? 'bg-blue-600 text-white' : 'bg-gray-100']"
-                >
-                  📄 Standard
-                </button>
-                <button
-                  @click="invoiceType = 'detailed'"
-                  :class="['px-4 py-2 rounded text-sm font-medium',
-                          invoiceType === 'detailed' ? 'bg-blue-600 text-white' : 'bg-gray-100']"
-                >
-                  📋 Détaillée
-                </button>
-                <button
-                  @click="invoiceType = 'thermal'"
-                  :class="['px-4 py-2 rounded text-sm font-medium',
-                          invoiceType === 'thermal' ? 'bg-blue-600 text-white' : 'bg-gray-100']"
-                >
-                  🧾 Ticket
-                </button>
-              </div>
-              <div class="flex gap-2">
-                <button
-                  @click="closeInvoiceModal"
-                  class="px-4 py-2 border rounded-lg hover:bg-gray-50"
-                >
-                  Fermer
-                </button>
-                <button
-                  @click="printCurrentInvoice"
-                  class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  🖨️ Imprimer
-                </button>
-              </div>
-            </div>
-
-            <!-- Contenu de la facture -->
-            <div id="invoice-print" class="p-8">
-              <!-- Facture Standard A4 -->
-              <div v-if="invoiceType === 'standard' && currentInvoice">
-                <!-- En-tête -->
-                <div class="flex justify-between items-start mb-8 border-b pb-6">
-                  <div>
-                    <h1 class="text-3xl font-bold text-blue-600">Entreprises KAMDEM</h1>
-                    <p class="text-gray-600 mt-1">Dépôt de boissons</p>
-                    <p class="text-sm text-gray-500 mt-2">Yaoundé, Cameroun</p>
-                    <p class="text-sm text-gray-500">Tél: +237 673 95 90 47</p>
-                  </div>
-                  <div class="text-right">
-                    <h2 class="text-2xl font-bold text-gray-800">FACTURE</h2>
-                    <p class="text-sm text-gray-600 mt-2">N° {{ currentInvoice.sale.invoice_number }}</p>
-                    <p class="text-sm text-gray-600">Date: {{ formatDate(currentInvoice.sale.created_at) }}</p>
-                  </div>
-                </div>
-
-                <!-- Informations client -->
-                <div class="mb-8 grid grid-cols-2 gap-6">
-                  <div>
-                    <h3 class="font-semibold text-gray-700 mb-2">Facturé à:</h3>
-                    <p class="font-medium">{{ currentInvoice.sale.customer_name || 'Client de passage' }}</p>
-                    <p v-if="currentInvoice.sale.customer_phone" class="text-sm text-gray-600">
-                      {{ currentInvoice.sale.customer_phone }}
-                    </p>
-                    <p v-if="currentInvoice.sale.customer_address" class="text-sm text-gray-600">
-                      {{ currentInvoice.sale.customer_address }}
-                    </p>
-                  </div>
-                  <div>
-                    <h3 class="font-semibold text-gray-700 mb-2">Détails:</h3>
-                    <p class="text-sm">Type: <span class="font-medium">{{ currentInvoice.sale.type === 'wholesale' ? 'Gros' : 'Comptoir' }}</span></p>
-                    <p class="text-sm">Paiement: <span class="font-medium">{{ getPaymentMethodLabel(currentInvoice.sale.payment_method) }}</span></p>
-                  </div>
-                </div>
-
-                <!-- Tableau des articles -->
-                <table class="w-full mb-8">
-                  <thead>
-                    <tr class="border-b-2 border-gray-300">
-                      <th class="text-left py-3 px-2">Produit</th>
-                      <th class="text-center py-3 px-2">Quantité</th>
-                      <th class="text-right py-3 px-2">Prix unitaire</th>
-                      <th class="text-right py-3 px-2">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="item in currentInvoice.items" :key="item.id" class="border-b border-gray-200">
-                      <td class="py-3 px-2">{{ item.product_name }}</td>
-                      <td class="text-center py-3 px-2">{{ item.quantity }}</td>
-                      <td class="text-right py-3 px-2">{{ formatCurrency(item.unit_price) }}</td>
-                      <td class="text-right py-3 px-2 font-medium">{{ formatCurrency(item.subtotal) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <!-- Totaux -->
-                <div class="flex justify-end mb-8">
-                  <div class="w-64">
-                    <div class="flex justify-between py-2 border-t">
-                      <span class="font-semibold">Sous-total:</span>
-                      <span>{{ formatCurrency(currentInvoice.sale.total_amount + currentInvoice.sale.discount_amount) }}</span>
-                    </div>
-                    <div v-if="currentInvoice.sale.discount_amount > 0" class="flex justify-between py-2 text-green-600">
-                      <span>Remise:</span>
-                      <span>-{{ formatCurrency(currentInvoice.sale.discount_amount) }}</span>
-                    </div>
-                    <div class="flex justify-between py-3 border-t-2 border-gray-800 text-xl font-bold">
-                      <span>TOTAL:</span>
-                      <span class="text-blue-600">{{ formatCurrency(currentInvoice.sale.total_amount) }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Pied de page -->
-                <div class="border-t pt-6 text-center text-sm text-gray-600">
-                  <p class="font-medium">Merci de votre confiance !</p>
-                  <p class="mt-2">Cette facture est valable comme reçu officiel</p>
-                </div>
-              </div>
-
-              <!-- Ticket Thermique 58mm -->
-              <div v-if="invoiceType === 'thermal' && currentInvoice" class="mx-auto" style="max-width: 220px;">
-                <div class="text-center mb-3 pb-2 border-b border-dashed border-gray-400">
-                  <h2 class="font-bold text-base">Entreprises KAMDEM</h2>
-                  <p class="text-xs">Dépôt de boissons</p>
-                  <p class="text-xs">Tel: +237 673 95 90 47</p>
+                  <label class="block text-sm font-medium mb-1">Nom du client *</label>
+                  <input 
+                    v-model="customerForm.name"
+                    type="text"
+                    required
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: Jean Dupont"
+                  >
                 </div>
                 
-                <div class="text-xs mb-3">
-                  <p>N°: {{ currentInvoice.sale.invoice_number }}</p>
-                  <p>{{ formatDate(currentInvoice.sale.created_at) }}</p>
-                  <p>Client: {{ currentInvoice.sale.customer_name || 'Client de passage' }}</p>
-                </div>
-
-                <div class="border-t border-b border-dashed border-gray-400 py-2 mb-2">
-                  <div v-for="item in currentInvoice.items" :key="item.id" class="mb-2">
-                    <div class="flex justify-between text-xs font-medium">
-                      <span>{{ item.product_name }}</span>
-                    </div>
-                    <div class="flex justify-between text-xs">
-                      <span>{{ item.quantity }} x {{ formatCurrency(item.unit_price) }}</span>
-                      <span class="font-medium">{{ formatCurrency(item.subtotal) }}</span>
-                    </div>
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Téléphone</label>
+                    <input 
+                      v-model="customerForm.phone"
+                      type="tel"
+                      class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="Ex: +237 6XX XXX XXX"
+                    >
+                  </div>
+                  
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Email</label>
+                    <input 
+                      v-model="customerForm.email"
+                      type="email"
+                      class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="Ex: client@email.com"
+                    >
                   </div>
                 </div>
-
-                <div class="text-xs mb-3">
-                  <div class="flex justify-between font-bold text-sm">
-                    <span>TOTAL</span>
-                    <span>{{ formatCurrency(currentInvoice.sale.total_amount) }}</span>
-                  </div>
-                  <div class="flex justify-between mt-1">
-                    <span>Paiement:</span>
-                    <span>{{ getPaymentMethodLabel(currentInvoice.sale.payment_method) }}</span>
-                  </div>
+                
+                <div>
+                  <label class="block text-sm font-medium mb-1">Adresse</label>
+                  <textarea 
+                    v-model="customerForm.address"
+                    rows="2"
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: Yaoundé, Cameroun"
+                  ></textarea>
                 </div>
 
-                <div class="text-center text-xs border-t border-dashed border-gray-400 pt-2">
-                  <p class="font-medium">Merci de votre visite !</p>
+                <div v-if="editingCustomer">
+                  <label class="block text-sm font-medium mb-1">Solde actuel</label>
+                  <input 
+                    v-model.number="customerForm.balance"
+                    type="number"
+                    step="0.01"
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                    readonly
+                  >
+                  <p class="text-xs text-gray-500 mt-1">Le solde est géré automatiquement via les ventes à crédit</p>
                 </div>
-              </div>
-
-              <!-- Facture Détaillée -->
-              <div v-if="invoiceType === 'detailed' && currentInvoice">
-                <div class="text-center mb-8">
-                  <h1 class="text-4xl font-bold text-blue-600 mb-2">Entreprises KAMDEM</h1>
-                  <p class="text-gray-600">Dépôt de boissons</p>
-                  <p class="text-sm text-gray-500 mt-2">Yaoundé, Cameroun • Tél: +237 673 95 90 47</p>
+                
+                <div class="flex justify-end gap-3 pt-4">
+                  <button 
+                    type="button"
+                    @click="closeCustomerModal"
+                    class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Annuler
+                  </button>
+                  <button 
+                    type="submit"
+                    class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    {{ editingCustomer ? 'Mettre à jour' : 'Créer' }}
+                  </button>
                 </div>
-
-                <div class="mb-6 p-4 bg-blue-50 rounded-lg">
-                  <h2 class="text-2xl font-bold mb-2">FACTURE DÉTAILLÉE</h2>
-                  <div class="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p><strong>N° Facture:</strong> {{ currentInvoice.sale.invoice_number }}</p>
-                      <p><strong>Date:</strong> {{ formatDate(currentInvoice.sale.created_at) }}</p>
-                    </div>
-                    <div>
-                      <p><strong>Type de vente:</strong> {{ currentInvoice.sale.type === 'wholesale' ? 'Gros' : 'Comptoir' }}</p>
-                      <p><strong>Paiement:</strong> {{ getPaymentMethodLabel(currentInvoice.sale.payment_method) }}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="mb-6 p-4 border rounded-lg">
-                  <h3 class="font-semibold mb-2">Client:</h3>
-                  <p class="text-lg font-medium">{{ currentInvoice.sale.customer_name || 'Client de passage' }}</p>
-                  <p v-if="currentInvoice.sale.customer_phone" class="text-sm text-gray-600">{{ currentInvoice.sale.customer_phone }}</p>
-                  <p v-if="currentInvoice.sale.customer_address" class="text-sm text-gray-600">{{ currentInvoice.sale.customer_address }}</p>
-                </div>
-
-                <table class="w-full mb-6">
-                  <thead>
-                    <tr class="bg-gray-100">
-                      <th class="text-left py-3 px-4">Produit</th>
-                      <th class="text-center py-3 px-4">Qté</th>
-                      <th class="text-right py-3 px-4">P.U.</th>
-                      <th class="text-right py-3 px-4">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="item in currentInvoice.items" :key="item.id" class="border-b">
-                      <td class="py-3 px-4">{{ item.product_name }}</td>
-                      <td class="text-center py-3 px-4">{{ item.quantity }}</td>
-                      <td class="text-right py-3 px-4">{{ formatCurrency(item.unit_price) }}</td>
-                      <td class="text-right py-3 px-4 font-medium">{{ formatCurrency(item.subtotal) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <div class="flex justify-end">
-                  <div class="w-80 space-y-2">
-                    <div class="flex justify-between text-lg">
-                      <span class="font-semibold">TOTAL À PAYER:</span>
-                      <span class="text-2xl font-bold text-blue-600">{{ formatCurrency(currentInvoice.sale.total_amount) }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="mt-8 pt-6 border-t text-center text-sm text-gray-600">
-                  <p class="font-bold text-lg mb-2">Merci de votre confiance !</p>
-                  <p>Document généré le {{ new Date().toLocaleDateString('fr-FR') }}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
-
-    <!-- ✅ MODAL CRÉER/MODIFIER PRODUIT - CORRIGÉE -->
-    <div v-if="showProductModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-xl font-bold">
-            {{ editingProduct ? 'Modifier le produit' : 'Nouveau produit' }}
-          </h3>
-          <button @click="closeProductModal" class="text-gray-500 hover:text-gray-700 text-2xl">✕</button>
-        </div>
-        
-        <form @submit.prevent="saveProduct" class="space-y-4">
-          <!-- Nom du produit -->
-          <div>
-            <label class="block text-sm font-medium mb-2">
-              Nom du produit <span class="text-red-500">*</span>
-            </label>
-            <input
-              v-model="productForm.name"
-              type="text"
-              class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              placeholder="Ex: Coca-Cola 33cl"
-              required
-            >
-          </div>
-
-          <!-- Code SKU -->
-          <div>
-            <label class="block text-sm font-medium mb-2">
-              Code SKU <span class="text-red-500">*</span>
-            </label>
-            <input
-              v-model="productForm.sku"
-              type="text"
-              class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              placeholder="Ex: COCA-33"
-              required
-            >
-          </div>
-
-          <!-- Catégorie et Sous-catégorie -->
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium mb-2">
-                Catégorie <span class="text-red-500">*</span>
-              </label>
-              <select
-                v-model="productForm.category_id"
-                @change="filterSubcategories"
-                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                required
-              >
-                <option :value="null">Sélectionner une catégorie</option>
-                <option v-for="category in categories" :key="category.id" :value="category.id">
-                  {{ category.name }}
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium mb-2">
-                Sous-catégorie
-              </label>
-              <select
-                v-model="productForm.subcategory_id"
-                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                :disabled="!productForm.category_id || filteredSubcategories.length === 0"
-              >
-                <option :value="null">Sélectionner une sous-catégorie</option>
-                <option v-for="subcategory in filteredSubcategories" :key="subcategory.id" :value="subcategory.id">
-                  {{ subcategory.name }}
-                </option>
-              </select>
-              <p v-if="productForm.category_id && filteredSubcategories.length === 0" class="text-xs text-gray-500 mt-1">
-                Aucune sous-catégorie disponible
-              </p>
+              </form>
             </div>
           </div>
 
-          <!-- Prix et Stock -->
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium mb-2">
-                Prix de vente (FCFA) <span class="text-red-500">*</span>
-              </label>
-              <input
-                v-model.number="productForm.unit_price"
-                type="number"
-                step="0.01"
-                min="0"
-                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="500"
-                required
-              >
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium mb-2">
-                Stock actuel <span class="text-red-500">*</span>
-              </label>
-              <input
-                v-model.number="productForm.stock"
-                type="number"
-                min="0"
-                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="0"
-                required
-              >
-            </div>
-          </div>
-
-          <!-- Stock minimum -->
-          <div>
-            <label class="block text-sm font-medium mb-2">
-              Stock minimum d'alerte
-            </label>
-            <input
-              v-model.number="productForm.min_stock"
-              type="number"
-              min="0"
-              class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              placeholder="10"
-            >
-            <p class="text-xs text-gray-500 mt-1">
-              Une alerte sera générée quand le stock atteint ce niveau
-            </p>
-          </div>
-
-          <!-- Boutons -->
-          <div class="flex justify-end space-x-4 pt-4 border-t">
-            <button
-              type="button"
-              @click="closeProductModal"
-              class="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-100 font-medium"
-            >
-              Annuler
-            </button>
-            <button
-              type="submit"
-              class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-              :disabled="savingProduct"
-            >
-              {{ savingProduct ? 'Enregistrement...' : editingProduct ? 'Modifier' : 'Créer' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- ✅ MODAL GÉRER LES CATÉGORIES - NOUVELLE -->
-    <div v-if="showCategoryModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-xl font-bold">🏷️ Gestion des catégories</h3>
-          <button @click="showCategoryModal = false" class="text-gray-500 hover:text-gray-700 text-2xl">✕</button>
-        </div>
-        
-        <!-- Formulaire de création de catégorie -->
-        <div class="mb-6 p-4 bg-blue-50 rounded-lg">
-          <h4 class="font-semibold mb-3">Nouvelle catégorie</h4>
-          <div class="flex gap-2">
-            <input 
-              v-model="newCategoryName"
-              type="text" 
-              placeholder="Nom de la catégorie"
-              class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              @keyup.enter="addCategory"
-            >
-            <button 
-              @click="addCategory"
-              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              ➕ Ajouter
-            </button>
-          </div>
-        </div>
-
-        <!-- Liste des catégories existantes -->
-        <div class="space-y-2">
-          <h4 class="font-semibold mb-2">Catégories existantes</h4>
-          <div v-if="categories.length === 0" class="text-gray-500 text-center py-4">
-            Aucune catégorie définie
-          </div>
-          <div 
-            v-for="category in categories" 
-            :key="category.id"
-            class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100"
-          >
-            <template v-if="editingCategoryId !== category.id">
-              <span class="font-medium">{{ category.name }}</span>
-              <div class="flex gap-2">
-                <button 
-                  @click="editCategory(category)"
-                  class="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm"
-                >
-                  ✏️ Modifier
-                </button>
-                <button 
-                  @click="deleteCategory(category)"
-                  class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-                >
-                  🗑️
-                </button>
-              </div>
-            </template>
-            <template v-else>
-              <input 
-                v-model="editingCategoryName"
-                class="flex-1 px-2 py-1 border rounded mr-2"
-                @keyup.enter="saveEditedCategory"
-              >
-              <div class="flex gap-2">
-                <button @click="saveEditedCategory" class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm">
-                  💾
-                </button>
-                <button @click="cancelEditCategory" class="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm">
-                  ✕
-                </button>
-              </div>
-            </template>
-          </div>
-        </div>
-
-        <!-- Bouton fermer -->
-        <div class="mt-6 flex justify-end">
-          <button 
-            @click="showCategoryModal = false"
-            class="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-          >
-            Fermer
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ✅ MODAL VOIR PRODUIT -->
-    <div v-if="showViewModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-xl font-bold">Détails du produit</h3>
-          <button @click="closeViewModal" class="text-gray-500 hover:text-gray-700 text-2xl">✕</button>
-        </div>
-        
-        <div v-if="viewingProduct" class="space-y-4">
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <p class="text-sm text-gray-500">Nom du produit</p>
-              <p class="font-semibold">{{ viewingProduct.name }}</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-500">SKU</p>
-              <p class="font-semibold">{{ viewingProduct.sku }}</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-500">Catégorie</p>
-              <p class="font-semibold">{{ viewingProduct.category?.name || 'N/A' }}</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-500">Prix unitaire</p>
-              <p class="font-semibold text-green-600">{{ formatCurrency(viewingProduct.unit_price) }}</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-500">Stock actuel</p>
-              <p class="font-semibold" :class="viewingProduct.stock <= viewingProduct.min_stock ? 'text-red-600' : 'text-green-600'">
-                {{ viewingProduct.stock }} unités
-              </p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-500">Stock minimum</p>
-              <p class="font-semibold">{{ viewingProduct.min_stock }} unités</p>
-            </div>
-          </div>
-
-          <div class="pt-4 border-t">
-            <p class="text-sm text-gray-500 mb-2">Valeur du stock</p>
-            <p class="text-2xl font-bold text-blue-600">
-              {{ formatCurrency(viewingProduct.stock * viewingProduct.unit_price) }}
-            </p>
-          </div>
-        </div>
-
-        <div class="mt-6 flex justify-end">
-          <button 
-            @click="closeViewModal"
-            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
-          >
-            Fermer
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ✅ MODAL ENTRÉE DE STOCK (Réapprovisionnement) -->
-    <div v-if="showRestockModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-        <h3 class="text-xl font-bold mb-4">Réapprovisionner</h3>
-        
-        <div class="mb-4">
-          <p class="text-gray-700 font-medium">{{ restockProduct?.name }}</p>
-          <p class="text-sm text-gray-500">Stock actuel: {{ restockProduct?.stock }} unités</p>
-        </div>
-
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Quantité à ajouter
-          </label>
-          <input 
-            v-model.number="restockQuantity"
-            type="number"
-            min="1"
-            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-            placeholder="Ex: 50"
-            @keyup.enter="submitStockIn"
-          >
-        </div>
-
-        <div class="mb-6">
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Raison (optionnel)
-          </label>
-          <input 
-            v-model="restockReason"
-            type="text"
-            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-            placeholder="Ex: Réapprovisionnement fournisseur"
-          >
-        </div>
-
-        <div class="flex space-x-3">
-          <button 
-            @click="closeStockInModal"
-            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-          >
-            Annuler
-          </button>
-          <button 
-            @click="submitStockIn"
-            :disabled="!restockQuantity || restockQuantity < 1"
-            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
-          >
-            Valider
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ✅ MODAL SORTIE DE STOCK -->
-    <div v-if="showStockOutModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-        <h3 class="text-xl font-bold mb-4 text-red-600">↘ Sortie de stock</h3>
-        
-        <div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p class="text-gray-700 font-medium">{{ stockOutProduct?.name }}</p>
-          <p class="text-sm text-gray-600">Stock actuel: {{ stockOutProduct?.stock }} unités</p>
-          <p class="text-xs text-red-600 mt-2">
-            ⚠️ Cette action va réduire le stock disponible
-          </p>
-        </div>
-
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Quantité à retirer *
-          </label>
-          <input 
-            v-model.number="stockOutQuantity"
-            type="number"
-            min="1"
-            :max="stockOutProduct?.stock"
-            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500"
-            placeholder="Ex: 10"
-            @keyup.enter="submitStockOut"
-          >
-          <p v-if="stockOutQuantity > stockOutProduct?.stock" class="text-xs text-red-600 mt-1">
-            ⚠️ Quantité supérieure au stock disponible !
-          </p>
-        </div>
-
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Type de sortie *
-          </label>
-          <select 
-            v-model="stockOutReasonType"
-            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500"
-          >
-            <option value="sale">Vente</option>
-            <option value="loss">Casse / Perte</option>
-            <option value="expiry">Péremption</option>
-            <option value="donation">Don</option>
-            <option value="return">Retour fournisseur</option>
-            <option value="other">Autre</option>
-          </select>
-        </div>
-
-        <div class="mb-6">
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Détails (optionnel)
-          </label>
-          <textarea 
-            v-model="stockOutReason"
-            rows="2"
-            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500"
-            placeholder="Ex: Vente client, Produit endommagé..."
-          ></textarea>
-        </div>
-
-        <div class="flex space-x-3">
-          <button 
-            @click="closeStockOutModal"
-            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-          >
-            Annuler
-          </button>
-          <button 
-            @click="submitStockOut"
-            :disabled="!stockOutQuantity || stockOutQuantity < 1 || stockOutQuantity > stockOutProduct?.stock"
-            class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
-          >
-            Confirmer la sortie
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ✅ MODAL PAIEMENT / CHECKOUT -->
-    <div v-if="showCheckoutModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-        <h3 class="text-xl font-bold mb-4">Finaliser la vente</h3>
-        
-        <div class="space-y-4">
-          <!-- Client -->
-          <div>
-            <label class="block text-sm font-medium mb-1">Client</label>
-            <div class="flex gap-2">
-              <select v-model="selectedCustomerId" class="flex-1 border rounded p-2">
-                <option :value="null">Client de passage</option>
-                <option v-for="c in customers" :key="c.id" :value="c.id">{{ c.name }}</option>
-              </select>
-              <button @click="addCustomer" class="px-3 bg-gray-200 rounded hover:bg-gray-300">+</button>
-            </div>
-          </div>
-
-          <!-- Mode de paiement -->
-          <div>
-            <label class="block text-sm font-medium mb-1">Paiement</label>
-            <div class="grid grid-cols-3 gap-2">
+          <!-- Suppliers View -->
+          <div v-if="currentView === 'suppliers'" class="space-y-6">
+            <div class="flex justify-between items-center">
+              <h2 class="text-3xl font-bold">Gestion des Fournisseurs</h2>
               <button 
-                v-for="method in ['cash', 'mobile', 'credit']" 
-                :key="method"
-                @click="paymentMethod = method"
-                :class="['py-2 border rounded capitalize', paymentMethod === method ? 'bg-blue-600 text-white' : 'bg-gray-50']"
+                @click="openSupplierModal(null)"
+                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
               >
-                {{ method === 'cash' ? 'Espèces' : method === 'mobile' ? 'Mobile' : 'Crédit (Dette)' }}
+                ➕ Nouveau fournisseur
               </button>
             </div>
-            <p v-if="paymentMethod === 'credit' && !selectedCustomerId" class="text-red-500 text-xs mt-1">
-              ⚠️ Sélectionnez un client pour la vente à crédit
-            </p>
+
+            <div class="bg-white rounded-lg shadow p-6">
+              <input 
+                v-model="supplierSearchQuery"
+                type="text"
+                placeholder="Rechercher un fournisseur..."
+                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+            </div>
+
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+              <table class="w-full">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Adresse</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="loading">
+                    <td colspan="4" class="px-6 py-8 text-center">
+                      <div class="flex justify-center items-center">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <span class="ml-3">Chargement...</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-else-if="filteredSuppliers?.length === 0">
+                    <td colspan="4" class="px-6 py-8 text-center text-gray-500">
+                      Aucun fournisseur trouvé
+                    </td>
+                  </tr>
+                  <tr v-for="supplier in filteredSuppliers" :key="supplier.id" class="border-t hover:bg-gray-50">
+                    <td class="px-6 py-4 font-medium">{{ supplier.name }}</td>
+                    <td class="px-6 py-4">
+                      <div v-if="supplier.phone || supplier.email">
+                        <div v-if="supplier.phone">📞 {{ supplier.phone }}</div>
+                        <div v-if="supplier.email" class="text-sm text-gray-500">✉️ {{ supplier.email }}</div>
+                      </div>
+                      <span v-else class="text-gray-400">N/A</span>
+                    </td>
+                    <td class="px-6 py-4">{{ supplier.address || 'N/A' }}</td>
+                    <td class="px-6 py-4">
+                      <div class="flex gap-2">
+                        <button 
+                          @click="openSupplierModal(supplier)"
+                          class="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm"
+                        >
+                          ✏️ Modifier
+                        </button>
+                        <button 
+                          @click="deleteSupplier(supplier.id)"
+                          class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                        >
+                          🗑️ Supprimer
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          <!-- Résumé -->
-          <div class="bg-gray-50 p-3 rounded text-center">
-            <p class="text-gray-500">Montant total</p>
-            <p class="text-3xl font-bold text-blue-600">{{ formatCurrency(finalTotal) }}</p>
+          <!-- Modal Nouveau/Modifier Fournisseur -->
+          <div 
+            v-if="showSupplierModal" 
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            @click.self="closeSupplierModal"
+          >
+            <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div class="flex justify-between items-center mb-4">
+                <h3 class="text-2xl font-bold">
+                  {{ editingSupplier ? 'Modifier le fournisseur' : 'Nouveau fournisseur' }}
+                </h3>
+                <button 
+                  @click="closeSupplierModal"
+                  class="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <form @submit.prevent="saveSupplier" class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium mb-1">Nom du fournisseur *</label>
+                  <input 
+                    v-model="supplierForm.name"
+                    type="text"
+                    required
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: SABC - Brasseries du Cameroun"
+                  >
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Téléphone</label>
+                    <input 
+                      v-model="supplierForm.phone"
+                      type="tel"
+                      class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="Ex: +237 233 XX XX XX"
+                    >
+                  </div>
+                  
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Email</label>
+                    <input 
+                      v-model="supplierForm.email"
+                      type="email"
+                      class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="Ex: contact@fournisseur.cm"
+                    >
+                  </div>
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium mb-1">Adresse</label>
+                  <textarea 
+                    v-model="supplierForm.address"
+                    rows="2"
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: Douala, Zone Industrielle"
+                  ></textarea>
+                </div>
+                
+                <div class="flex justify-end gap-3 pt-4">
+                  <button 
+                    type="button"
+                    @click="closeSupplierModal"
+                    class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Annuler
+                  </button>
+                  <button 
+                    type="submit"
+                    class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    {{ editingSupplier ? 'Mettre à jour' : 'Créer' }}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
 
-          <div class="flex gap-3 mt-6">
-            <button @click="showCheckoutModal = false" class="flex-1 py-2 border rounded hover:bg-gray-50">Annuler</button>
-            <button 
-              @click="processSale" 
-              :disabled="paymentMethod === 'credit' && !selectedCustomerId"
-              class="flex-1 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700 disabled:opacity-50"
-            >
-              Valider & Imprimer
-            </button>
+          <!-- Movements View -->
+          <div v-if="currentView === 'movements'" class="space-y-6">
+            <h2 class="text-3xl font-bold">Mouvements de Stock</h2>
+
+            <div class="bg-white rounded-lg shadow p-6">
+              <div class="grid grid-cols-3 gap-4">
+                <select v-model="movementFilters.type" class="px-4 py-2 border rounded-lg">
+                  <option value="">Tous les types</option>
+                  <option value="in">Entrées</option>
+                  <option value="out">Sorties</option>
+                </select>
+
+                <input 
+                  v-model="movementFilters.startDate"
+                  type="date"
+                  class="px-4 py-2 border rounded-lg"
+                >
+
+                <input 
+                  v-model="movementFilters.endDate"
+                  type="date"
+                  class="px-4 py-2 border rounded-lg"
+                >
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-6">
+              <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-sm text-gray-500 mb-1">Entrées totales</div>
+                <div class="text-2xl font-bold text-green-600">{{ movementStats.totalIn }}</div>
+              </div>
+
+              <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-sm text-gray-500 mb-1">Sorties totales</div>
+                <div class="text-2xl font-bold text-red-600">{{ movementStats.totalOut }}</div>
+              </div>
+
+              <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-sm text-gray-500 mb-1">Mouvements nets</div>
+                <div class="text-2xl font-bold text-blue-600">{{ movementStats.netMovement }}</div>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+              <table class="w-full">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produit</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Raison</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="loadingMovements">
+                    <td colspan="5" class="px-6 py-8 text-center">
+                      <div class="flex justify-center items-center">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <span class="ml-3">Chargement...</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-for="movement in filteredMovements" :key="movement.id" class="border-t hover:bg-gray-50">
+                    <td class="px-6 py-4">{{ formatDate(movement.created_at) }}</td>
+                    <td class="px-6 py-4 font-medium">{{ movement.product_name || movement.product?.name || 'Produit inconnu'}}</td>
+                    <td class="px-6 py-4">
+                      <span :class="['px-2 py-1 rounded text-sm',
+                                   movement.type === 'in' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800']">
+                        {{ movement.type === 'in' ? 'Entrée' : 'Sortie' }}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4">
+                      <span :class="movement.type === 'in' ? 'text-green-600' : 'text-red-600'">
+                        {{ movement.type === 'in' ? '+' : '-' }}{{ movement.quantity }}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4">{{ movement.reason || 'N/A' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+
+          <!-- Alerts View -->
+          <div v-if="currentView === 'alerts'" class="space-y-6">
+            <h2 class="text-3xl font-bold">Alertes Stock</h2>
+
+            <div v-if="flattenedAlerts.length === 0" class="bg-white rounded-lg shadow p-12 text-center">
+              <div class="text-6xl mb-4">✅</div>
+              <h3 class="text-2xl font-bold text-gray-700 mb-2">Aucune alerte</h3>
+              <p class="text-gray-500">Tous les produits ont un stock suffisant</p>
+            </div>
+
+            <div v-else class="space-y-4">
+              <div v-for="alert in flattenedAlerts" :key="alert.id" class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-start justify-between">
+                  <div class="flex items-start gap-4">
+                    <div :class="['w-12 h-12 rounded-lg flex items-center justify-center',
+                                alert.stock === 0 ? 'bg-red-100' : 'bg-orange-100']">
+                      <span class="text-2xl">{{ alert.stock === 0 ? '🚫' : '⚠️' }}</span>
+                    </div>
+                    <div>
+                      <h3 class="text-lg font-bold">{{ alert.name }}</h3>
+                      <p class="text-sm text-gray-500">SKU: {{ alert.sku }}</p>
+                      <div class="mt-2 space-y-1">
+                        <p :class="['text-sm font-medium',
+                                  alert.stock === 0 ? 'text-red-600' : 'text-orange-600']">
+                          Stock actuel: {{ alert.stock }} unités
+                        </p>
+                        <p class="text-sm text-gray-600">Stock minimum: {{ alert.min_stock }} unités</p>
+                      </div>
+                    </div>
+                  </div>
+                  <button 
+                    @click="openRestockModal(alert)"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                  >
+                    Réapprovisionner
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODAL RÉAPPROVISIONNEMENT -->
+          <div 
+            v-if="showRestockModal" 
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            @click.self="closeStockInModal"
+          >
+            <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+              <div class="flex justify-between items-center mb-4">
+                <h3 class="text-2xl font-bold">Réapprovisionner le stock</h3>
+                <button 
+                  @click="closeStockInModal"
+                  class="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div class="mb-4 p-4 bg-blue-50 rounded-lg">
+                <h4 class="font-bold text-lg">{{ restockProduct?.name }}</h4>
+                <p class="text-sm text-gray-600">SKU: {{ restockProduct?.sku }}</p>
+                <p class="text-sm text-gray-600 mt-2">
+                  Stock actuel: <span class="font-bold text-orange-600">{{ restockProduct?.stock }}</span> unités
+                </p>
+              </div>
+
+              <form @submit.prevent="submitStockIn" class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium mb-1">Quantité à ajouter *</label>
+                  <input 
+                    v-model.number="restockQuantity"
+                    type="number"
+                    required
+                    min="1"
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: 50"
+                    autofocus
+                  >
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium mb-1">Raison</label>
+                  <input 
+                    v-model="restockReason"
+                    type="text"
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: Réapprovisionnement fournisseur"
+                  >
+                </div>
+
+                <div v-if="restockQuantity > 0" class="p-3 bg-green-50 rounded-lg">
+                  <p class="text-sm text-green-800">
+                    Nouveau stock: <span class="font-bold">{{ (restockProduct?.stock || 0) + restockQuantity }}</span> unités
+                  </p>
+                </div>
+                
+                <div class="flex justify-end gap-2 pt-4">
+                  <button 
+                    type="button"
+                    @click="closeStockInModal"
+                    class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Annuler
+                  </button>
+                  <button 
+                    type="submit"
+                    :disabled="loading"
+                    class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {{ loading ? 'Ajout en cours...' : 'Ajouter au stock' }}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- Invoices View -->
+          <div v-if="currentView === 'invoices'" class="space-y-6">
+            <h2 class="text-3xl font-bold">Factures et Ventes</h2>
+
+            <div class="bg-white rounded-lg shadow p-6">
+              <div class="grid grid-cols-4 gap-4">
+                <input 
+                  v-model="salesSearch"
+                  type="text"
+                  placeholder="Rechercher..."
+                  class="px-4 py-2 border rounded-lg"
+                >
+
+                <select v-model="salesFilters.type" class="px-4 py-2 border rounded-lg">
+                  <option value="">Tous les types</option>
+                  <option value="cash">Comptant</option>
+                  <option value="credit">Crédit</option>
+                </select>
+
+                <input 
+                  v-model="salesFilters.startDate"
+                  type="date"
+                  class="px-4 py-2 border rounded-lg"
+                >
+
+                <input 
+                  v-model="salesFilters.endDate"
+                  type="date"
+                  class="px-4 py-2 border rounded-lg"
+                >
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-6">
+              <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-sm text-gray-500 mb-1">Ventes totales</div>
+                <div class="text-2xl font-bold text-blue-600">{{ formatCurrency(salesStats.totalAmount) }}</div>
+              </div>
+
+              <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-sm text-gray-500 mb-1">Nombre de ventes</div>
+                <div class="text-2xl font-bold text-green-600">{{ salesStats.totalSales }}</div>
+              </div>
+
+              <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-sm text-gray-500 mb-1">Montant moyen</div>
+                <div class="text-2xl font-bold text-purple-600">{{ formatCurrency(salesStats.averageAmount) }}</div>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+              <table class="w-full">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Facture</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Montant</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="loadingSales">
+                    <td colspan="6" class="px-6 py-8 text-center">
+                      <div class="flex justify-center items-center">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <span class="ml-3">Chargement...</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-for="sale in filteredSales" :key="sale.id" class="border-t hover:bg-gray-50">
+                    <td class="px-6 py-4 font-mono text-sm">{{ sale.invoice_number }}</td>
+                    <td class="px-6 py-4">{{ formatDate(sale.created_at) }}</td>
+                    <td class="px-6 py-4">{{ sale.customer?.name || 'Client comptant' }}</td>
+                    <td class="px-6 py-4">
+                      <span :class="['px-2 py-1 rounded text-sm',
+                                   sale.sale_type === 'cash' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800']">
+                        {{ sale.sale_type === 'cash' ? 'Comptant' : 'Crédit' }}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 font-bold">{{ formatCurrency(sale.total_amount) }}</td>
+                    <td class="px-6 py-4">
+                      <button 
+                        @click="viewInvoice(sale)"
+                        class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                      >
+                        👁 Voir
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
-
-  <!-- TICKET D'IMPRESSION THERMIQUE (Optionnel - pour impression directe après vente) -->
-  <div id="print-ticket" class="hidden print:block print:w-[58mm] print:text-xs print:font-mono">
-    <div class="text-center mb-2">
-      <h2 class="font-bold text-sm">Entreprises KAMDEM</h2>
-      <p>Dépôt de Boissons</p>
-      <p>{{ new Date().toLocaleString('fr-FR') }}</p>
-    </div>
-    <hr class="border-black my-1">
-    <div v-for="item in lastSaleItems" :key="item.id" class="flex justify-between">
-      <span>{{ item.quantity }}x {{ item.name }}</span>
-      <span>{{ formatCurrency(item.quantity * item.unit_price) }}</span>
-    </div>
-    <hr class="border-black my-1">
-    <div class="flex justify-between font-bold text-sm">
-      <span>TOTAL</span>
-      <span>{{ formatCurrency(lastSaleTotal) }}</span>
-    </div>
-    <div class="text-center mt-4">
-      <p>Merci de votre visite !</p>
-    </div>
-  </div>
-
-    <!-- ============================================ -->
-    <!-- MODAL GESTION CLIENT -->
-    <!-- ============================================ -->
-    <div v-if="showCustomerModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="p-6 border-b">
-          <h3 class="text-2xl font-bold">{{ editingCustomer ? 'Modifier le client' : 'Nouveau client' }}</h3>
-        </div>
-        
-        <div class="p-6 space-y-4">
-          <div>
-            <label class="block text-sm font-medium mb-2">Nom complet *</label>
-            <input 
-              v-model="customerForm.name"
-              type="text" 
-              placeholder="Ex: Jean Dupont"
-              class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              required
-            >
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium mb-2">Téléphone</label>
-              <input 
-                v-model="customerForm.phone"
-                type="tel" 
-                placeholder="Ex: +237 690 00 00 00"
-                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-2">Email</label>
-              <input 
-                v-model="customerForm.email"
-                type="email" 
-                placeholder="Ex: client@email.com"
-                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium mb-2">Adresse</label>
-            <textarea 
-              v-model="customerForm.address"
-              rows="3"
-              placeholder="Adresse complète du client"
-              class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-            ></textarea>
-          </div>
-
-          <div v-if="editingCustomer" class="bg-gray-50 p-4 rounded-lg">
-            <p class="text-sm text-gray-600">
-              <strong>Solde actuel:</strong> 
-              <span :class="editingCustomer.balance > 0 ? 'text-red-600' : 'text-green-600'">
-                {{ formatCurrency(editingCustomer.balance) }}
-              </span>
-            </p>
-          </div>
-        </div>
-
-        <div class="p-6 border-t flex justify-end gap-3">
-          <button 
-            @click="closeCustomerModal"
-            class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-          >
-            Annuler
-          </button>
-          <button 
-            @click="saveCustomer"
-            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
-            {{ editingCustomer ? 'Mettre à jour' : 'Créer' }}
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ============================================ -->
-    <!-- MODAL GESTION FOURNISSEUR -->
-    <!-- ============================================ -->
-    <div v-if="showSupplierModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="p-6 border-b">
-          <h3 class="text-2xl font-bold">{{ editingSupplier ? 'Modifier le fournisseur' : 'Nouveau fournisseur' }}</h3>
-        </div>
-        
-        <div class="p-6 space-y-4">
-          <div>
-            <label class="block text-sm font-medium mb-2">Nom de l'entreprise *</label>
-            <input 
-              v-model="supplierForm.name"
-              type="text" 
-              placeholder="Ex: SABC - Brasseries du Cameroun"
-              class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              required
-            >
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium mb-2">Téléphone</label>
-              <input 
-                v-model="supplierForm.phone"
-                type="tel" 
-                placeholder="Ex: +237 222 00 00 00"
-                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-2">Email</label>
-              <input 
-                v-model="supplierForm.email"
-                type="email" 
-                placeholder="Ex: contact@fournisseur.com"
-                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium mb-2">Adresse</label>
-            <textarea 
-              v-model="supplierForm.address"
-              rows="3"
-              placeholder="Adresse complète du fournisseur"
-              class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-            ></textarea>
-          </div>
-        </div>
-
-        <div class="p-6 border-t flex justify-end gap-3">
-          <button 
-            @click="closeSupplierModal"
-            class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-          >
-            Annuler
-          </button>
-          <button 
-            @click="saveSupplier"
-            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
-            {{ editingSupplier ? 'Mettre à jour' : 'Créer' }}
-          </button>
-        </div>
-      </div>
-    </div>
-
   </div>
 </template>
 
-<script setup>
-// ============================================
-// APP.VUE - SCRIPT SETUP COMPLET CORRIGÉ
-// ============================================
-// ✅ TOUS LES MODULES INCLUS (1 à 11)
-// ✅ TOUTES LES ERREURS CORRIGÉES
-
-import { onMounted } from 'vue';
-
-// ============================================
-// IMPORTS DES MODULES
-// ============================================
-
-// Module 1 : Configuration et API
-import { API_BASE_URL, api } from './modules/module-1-config.js';
-
-// Module 2 : États globaux
-import {
-  currentView, loading, connectionError, appInfo,
-  products, categories, subcategories, searchQuery,
-  productForm, editingProduct, viewingProduct, savingProduct,
-  showProductModal, showCategoryModal, showViewModal,
-  showRestockModal, showStockOutModal, showCheckoutModal,
-  showCustomerModal, showSupplierModal, showInvoiceModal,
-  newCategoryName, editingCategoryId, editingCategoryName,
-  restockProduct, restockQuantity, restockReason,
-  stockOutProduct, stockOutQuantity, stockOutReason, stockOutReasonType,
-  movements, loadingMovements, movementFilters, movementStats,
-  customers, customerSearchQuery, editingCustomer, customerForm,
-  suppliers, supplierSearchQuery, editingSupplier, supplierForm,
-  sales, loadingSales, salesSearch, salesFilters,
-  currentInvoice, invoiceType, salesStats,
-  cart, posSearch, saleType, selectedCustomerId, paymentMethod,
-  lastSaleItems, lastSaleTotal,
-  stats, alerts, alertsCount
-} from './modules/module-2-state.js';
-
-// Module 3 : Fonctions utilitaires
-import {
-  formatCurrency, formatDate, getPaymentMethodLabel,
-  getMovementTypeLabel, getStockStatusClass, generateInvoiceNumber,
-  isValidEmail, isValidPhone, truncate, calculatePercentage,
-  debounce, exportToCSV, showToast
-} from './modules/module-3-utils.js';
-
-// Module 4 : Computed Properties
+<script>
+import { ref, computed, onMounted, watch } from 'vue';
+import Login from './views/Login.vue';
+import { API_BASE_URL } from './modules/module-1-config.js';
+import * as stateModule from './modules/module-2-state.js';
+import * as utilsModule from './modules/module-3-utils.js';
 import { initComputedProperties } from './modules/module-4-computed.js';
-
-// Module 5 : Fonctions de chargement
 import { initDataLoaders } from './modules/module-5-data-loaders.js';
-
-// Module 6 : Gestion des produits
 import { initProductManagement } from './modules/module-6-products.js';
-
-// Module 7 : Gestion des catégories
 import { initCategoryManagement } from './modules/module-7-categories.js';
-
-// Module 8 : Gestion du stock
 import { initStockManagement } from './modules/module-8-stock.js';
-
-// Module 9 : Gestion de la caisse (POS)
 import { initPosManagement } from './modules/module-9-pos.js';
-
-// Module 10 : Clients & Fournisseurs
 import { initCustomersAndSuppliers } from './modules/module-10-customers-suppliers.js';
-
-// Module 11 : Factures et Ventes
 import { initInvoiceManagement } from './modules/module-11-invoices.js';
+import { initNavigation } from './modules/module-12-navigation.js';
 
-// ============================================
-// CRÉATION DE L'OBJET D'ÉTAT GLOBAL
-// ============================================
+export default {
+  name: 'App',
+  components: {
+    Login
+  },
+  setup() {
+    console.log('🔍 Setup() démarré...');
+    
+    // ====================================
+    // ÉTAT D'AUTHENTIFICATION
+    // ====================================
+    const isAuthenticated = ref(false);
+    const currentUser = ref(null);
+    const authToken = ref(null);
 
-const state = {
-  currentView, loading, connectionError, appInfo,
-  products, categories, subcategories, searchQuery,
-  productForm, editingProduct, viewingProduct, savingProduct,
-  showProductModal, showCategoryModal, showViewModal,
-  showRestockModal, showStockOutModal, showCheckoutModal,
-  showCustomerModal, showSupplierModal, showInvoiceModal,
-  newCategoryName, editingCategoryId, editingCategoryName,
-  restockProduct, restockQuantity, restockReason,
-  stockOutProduct, stockOutQuantity, stockOutReason, stockOutReasonType,
-  movements, loadingMovements, movementFilters, movementStats,
-  customers, customerSearchQuery, editingCustomer, customerForm,
-  suppliers, supplierSearchQuery, editingSupplier, supplierForm,
-  sales, loadingSales, salesSearch, salesFilters,
-  currentInvoice, invoiceType, salesStats,
-  cart, posSearch, saleType, selectedCustomerId, paymentMethod,
-  lastSaleItems, lastSaleTotal,
-  stats, alerts, alertsCount
+    const currentUserRole = computed(() => {
+      if (!currentUser.value?.roles || currentUser.value.roles.length === 0) {
+        return 'Utilisateur';
+      }
+      return currentUser.value.roles.map(r => r.display_name).join(', ');
+    });
+
+    const hasPermission = (permissionName) => {
+      if (!currentUser.value?.permissions) return false;
+      if (currentUser.value.roles?.some(r => r.name === 'admin')) return true;
+      return currentUser.value.permissions.some(p => p.name === permissionName);
+    };
+
+    const hasRole = (roleName) => {
+      if (!currentUser.value?.roles) return false;
+      return currentUser.value.roles.some(r => r.name === roleName);
+    };
+
+    const loadUserFromStorage = async () => {
+      try {
+        let token, userData;
+        
+        if (window.electron) {
+          token = await window.electron.store.get('auth_token');
+          userData = await window.electron.store.get('user');
+        } else {
+          token = localStorage.getItem('auth_token');
+          userData = localStorage.getItem('user');
+        }
+        
+        if (token && userData) {
+          authToken.value = token;
+          
+          // ✅ CORRECTION : Vérifier si userData est déjà un objet ou une chaîne
+          try {
+            currentUser.value = typeof userData === 'string' 
+              ? JSON.parse(userData) 
+              : userData;
+          } catch (parseError) {
+            console.error('❌ Données utilisateur corrompues:', parseError);
+            // Nettoyer les données corrompues
+            if (window.electron) {
+              await window.electron.store.delete('user');
+              await window.electron.store.delete('auth_token');
+            } else {
+              localStorage.removeItem('user');
+              localStorage.removeItem('auth_token');
+            }
+            return false;
+          }
+          
+          isAuthenticated.value = true;
+          console.log('✅ Session restaurée:', currentUser.value.name);
+          return true;
+        }
+        
+        console.log('ℹ️ Aucune session trouvée');
+        return false;
+      } catch (error) {
+        console.error('❌ Erreur chargement session:', error);
+        
+        // ✅ Nettoyer en cas d'erreur
+        if (window.electron) {
+          await window.electron.store.delete('user');
+          await window.electron.store.delete('auth_token');
+        } else {
+          localStorage.clear();
+        }
+        return false;
+      }
+    };
+
+    // État global
+    const state = {
+      ...stateModule
+    };
+
+    // Initialisation des modules
+    const loaders = initDataLoaders(state);
+    const computedProps = initComputedProperties(state);
+    const productMgmt = initProductManagement(state, loaders);
+    const categoryMgmt = initCategoryManagement(state, loaders);
+    const stockMgmt = initStockManagement(state, loaders);
+    const posMgmt = initPosManagement(state, loaders);
+    const customerSupplierMgmt = initCustomersAndSuppliers(state, loaders);
+    const invoiceMgmt = initInvoiceManagement(state, loaders);
+
+    // 🔍 DEBUG: Vérifier la recherche
+    console.log('📦 Module exports:');
+    console.log('- computedProps:', Object.keys(computedProps));
+    console.log('- searchQuery:', state.searchQuery);
+    
+    // Ajouter un watcher pour déboguer
+    watch(state.searchQuery, (newVal) => {
+      console.log('🔍 Recherche changée:', newVal);
+      console.log('📦 Produits filtrés:', computedProps.filteredProducts?.value?.length);
+    });
+
+    // Ref local pour le modal
+    const showProductModal = ref(false);
+    const openProductModal = (product) => {
+      if (product) {
+        state.editingProduct.value = product;
+        state.productForm.value = {
+          name: product.name,
+          sku: product.sku,
+          code: product.code || '',
+          category_id: product.category_id,
+          subcategory_id: product.subcategory_id || '',
+          unit_price: product.unit_price,
+          min_stock: product.min_stock,
+          stock: product.stock
+        };
+      } else {
+        state.editingProduct.value = null;
+        state.productForm.value = {
+          name: '',
+          sku: '',
+          code: '',
+          category_id: '',
+          subcategory_id: '',
+          unit_price: 0,
+          min_stock: 0,
+          stock: 0
+        };
+      }
+      
+      showProductModal.value = true;
+    };
+
+    const handleLoginSuccess = async ({ user, token }) => {
+      console.log('🎉 Login réussi, sauvegarde du token...');
+      
+      currentUser.value = user;
+      authToken.value = token;
+      isAuthenticated.value = true;
+      
+      // ✅ TOUJOURS stringifier avant de sauvegarder
+      if (window.electron) {
+        await window.electron.store.set('auth_token', token);
+        await window.electron.store.set('user', JSON.stringify(user)); // ✅ Correct
+      } else {
+        localStorage.setItem('auth_token', token);
+        localStorage.setItem('user', JSON.stringify(user)); // ✅ Correct
+      }
+      
+      window.authHeaders = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+      
+      await loaders.init();
+      console.log('✅ Application initialisée avec succès');
+    };
+
+    // Ref pour le champ input du modal de catégorie
+    const categoryInput = ref(null);
+
+    // Watch pour focus automatique
+    watch(state.showCategoryModal, (newValue) => {
+      if (newValue && categoryInput.value) {
+        // Petit délai pour laisser le DOM se mettre à jour
+        setTimeout(() => {
+          categoryInput.value?.focus();
+        }, 100);
+      }
+    });
+
+    // Ref pour le champ de recherche produits
+    const productSearchInput = ref(null);
+
+    // Ref pour le champ de recherche POS
+    const posSearchInput = ref(null);
+
+    // Watch pour focus automatique sur la vue Produits ET POS
+    watch(state.currentView, (newView) => {
+      // Focus sur recherche produits
+      if (newView === 'products' && productSearchInput.value) {
+        setTimeout(() => {
+          productSearchInput.value?.focus();
+        }, 100);
+      }
+      
+      // Focus sur recherche POS
+      if (newView === 'pos' && posSearchInput.value) {
+        setTimeout(() => {
+          posSearchInput.value?.focus();
+        }, 100);
+      }
+    });
+
+    // Fonction de déconnexion
+    const handleLogout = async () => {
+      if (!confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) return;
+
+      try {
+        const apiBase = window.electron 
+          ? await window.electron.getApiBase() 
+          : 'http://localhost:8000';
+
+        await fetch(`${apiBase}/api/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken.value}`,
+            'Content-Type': 'application/json',
+          }
+        });
+      } catch (error) {
+        console.error('Erreur déconnexion:', error);
+      } finally {
+        currentUser.value = null;
+        authToken.value = null;
+        isAuthenticated.value = false;
+
+        if (window.electron) {
+          await window.electron.store.delete('auth_token');
+          await window.electron.store.delete('user');
+        }
+      }
+    };
+
+    onMounted(async () => {
+      console.log('🎯 Démarrage de l\'application...');
+      
+      const wasAuthenticated = await loadUserFromStorage();
+      
+      if (wasAuthenticated) {
+        console.log('✅ Session existante trouvée');
+        window.authHeaders = {
+          'Authorization': `Bearer ${authToken.value}`,
+          'Content-Type': 'application/json',
+        };
+        await loaders.init();
+      } else {
+        console.log('⏳ En attente de connexion...');
+      }
+    });
+
+    // ⭐ RETURN - EXPOSE TOUT AU TEMPLATE
+    return {
+      // Auth
+      isAuthenticated,
+      currentUser,
+      authToken,
+      currentUserRole,
+      hasPermission,
+      hasRole,
+      handleLoginSuccess,
+      handleLogout,
+      
+      // State - Déstructurer explicitement
+      currentView: state.currentView,
+      loading: state.loading,
+      connectionError: state.connectionError,
+      products: state.products,
+      categories: state.categories,
+      subcategories: state.subcategories,
+      searchQuery: state.searchQuery,
+      productForm: state.productForm,
+      editingProduct: state.editingProduct,
+      viewingProduct: state.viewingProduct,
+      savingProduct: state.savingProduct,
+      showProductModal,
+      showCategoryModal: state.showCategoryModal,
+      showViewModal: state.showViewModal,
+      showRestockModal: state.showRestockModal,
+      showStockOutModal: state.showStockOutModal,
+      showCheckoutModal: state.showCheckoutModal,
+      showCustomerModal: state.showCustomerModal,
+      showSupplierModal: state.showSupplierModal,
+      showInvoiceModal: state.showInvoiceModal,
+      newCategoryName: state.newCategoryName,
+      editingCategoryId: state.editingCategoryId,
+      editingCategoryName: state.editingCategoryName,
+      restockProduct: state.restockProduct,
+      restockQuantity: state.restockQuantity,
+      restockReason: state.restockReason,
+      stockOutProduct: state.stockOutProduct,
+      stockOutQuantity: state.stockOutQuantity,
+      stockOutReason: state.stockOutReason,
+      stockOutReasonType: state.stockOutReasonType,
+      movements: state.movements,
+      loadingMovements: state.loadingMovements,
+      movementFilters: state.movementFilters,
+      filteredMovements: computedProps.filteredMovements,
+      customers: state.customers,
+      customerSearchQuery: state.customerSearchQuery,
+      editingCustomer: state.editingCustomer,
+      customerForm: state.customerForm,
+      suppliers: state.suppliers,
+      supplierSearchQuery: state.supplierSearchQuery,
+      editingSupplier: state.editingSupplier,
+      supplierForm: state.supplierForm,
+      sales: state.sales,
+      loadingSales: state.loadingSales,
+      salesSearch: state.salesSearch,
+      salesFilters: state.salesFilters,
+      currentInvoice: state.currentInvoice,
+      invoiceType: state.invoiceType,
+      salesStats: state.salesStats,
+      cart: state.cart,
+      posSearch: state.posSearch,
+      saleType: state.saleType,
+      selectedCustomerId: state.selectedCustomerId,
+      paymentMethod: state.paymentMethod,
+      lastSaleItems: state.lastSaleItems,
+      lastSaleTotal: state.lastSaleTotal,
+      stats: state.stats,
+      alerts: state.alerts,
+      alertsCount: state.alertsCount,
+      appInfo: state.appInfo,
+      
+      // Computed Properties
+      ...computedProps,
+      
+      // Utils
+      ...utilsModule,
+      
+      // Loaders
+      ...loaders,
+      
+      // Product Management
+      openProductModal,
+      closeProductModal: productMgmt.closeProductModal,
+      filterSubcategories: productMgmt.filterSubcategories,
+      saveProduct: productMgmt.saveProduct,
+      deleteProduct: productMgmt.deleteProduct,
+      viewProduct: productMgmt.viewProduct,
+      
+      // Category Management
+      ...categoryMgmt,
+      
+      // Stock Management
+      ...stockMgmt,
+      
+      // POS Management
+      ...posMgmt,
+      
+      // Customers & Suppliers
+      ...customerSupplierMgmt,
+      
+      // Invoice Management
+      ...invoiceMgmt,
+
+      // Navigation
+      ...navigation,
+
+      // Refs pour autofocus
+      categoryInput,
+      productSearchInput,
+      posSearchInput,
+    };
+  }
 };
-
-// ============================================
-// INITIALISATION DES MODULES
-// ============================================
-
-const loaders = initDataLoaders(state);
-const computed = initComputedProperties(state);
-const productMgmt = initProductManagement(state, loaders);
-const categoryMgmt = initCategoryManagement(state, loaders);
-const stockMgmt = initStockManagement(state, loaders);
-const posMgmt = initPosManagement(state, loaders);
-const customerSupplierMgmt = initCustomersAndSuppliers(state, loaders);
-const invoiceMgmt = initInvoiceManagement(state, loaders);
-
-// ============================================
-// EXTRACTION DES FONCTIONS
-// ============================================
-
-// Computed Properties
-const {
-  currentDate, filteredProducts, filteredSubcategories,
-  filteredPosProducts, cartTotal, finalTotal,
-  filteredCustomers, totalCustomerBalance, customersWithBalance,
-  filteredSuppliers, activeSuppliers, suppliersWithContact,
-  filteredSales, filteredMovements, totalAlerts,
-  dashboardStats, cartItemCount, isCartEmpty,
-  isProductFormValid, isCustomerFormValid, isSupplierFormValid
-} = computed;
-
-// Data Loaders
-const {
-  loadProducts, loadCategories, loadSubcategories,
-  loadCustomers, loadSuppliers, loadStats, loadAlerts,
-  loadMovements, loadSales, loadSalesStats,
-  retryConnection, init
-} = loaders;
-
-// Product Management
-const {
-  openProductModal, closeProductModal, filterSubcategories,
-  saveProduct, deleteProduct, viewProduct, closeViewModal
-} = productMgmt;
-
-// Category Management
-const {
-  addCategory, editCategory, saveEditedCategory,
-  cancelEditCategory, deleteCategory
-} = categoryMgmt;
-
-// Stock Management
-const {
-  openStockInModal, closeStockInModal, submitStockIn,
-  openStockOutModal, closeStockOutModal, submitStockOut,
-  resetFilters, exportMovements, switchToMovements
-} = stockMgmt;
-
-// POS Management
-const {
-  addToCart, removeFromCart, updateCartQty,
-  clearCart, openCheckoutModal, closeCheckoutModal, processSale
-} = posMgmt;
-
-// Customer & Supplier Management
-const {
-  switchToCustomers, openCustomerModal, closeCustomerModal,
-  saveCustomer, deleteCustomer, switchToSuppliers,
-  openSupplierModal, closeSupplierModal, saveSupplier, deleteSupplier
-} = customerSupplierMgmt;
-
-// Invoice Management
-const {
-  switchToInvoices, viewInvoice, closeInvoiceModal,
-  printCurrentInvoice, printInvoice, exportSales, generateSalesReport
-} = invoiceMgmt;
-
-// ============================================
-// LIFECYCLE
-// ============================================
-
-onMounted(async () => {
-  console.log('🎯 Démarrage de l\'application Vue...');
-  await init();
-  console.log('✅ Application Vue montée');
-});
-
 </script>
 
 <style>
 [v-cloak] {
   display: none;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.animate-spin {
-  animation: spin 1s linear infinite;
 }
 </style>

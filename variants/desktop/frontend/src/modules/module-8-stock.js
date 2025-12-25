@@ -56,7 +56,7 @@ const initStockManagement = (state, loaders) => {
     try {
       state.loading.value = true;
       
-      const response = await api.post('/stock/in', {
+      const response = await api.post('/movements/restock', {
         product_id: state.restockProduct.value.id,
         quantity: state.restockQuantity.value,
         reason: state.restockReason.value || 'Réapprovisionnement'
@@ -128,7 +128,7 @@ const initStockManagement = (state, loaders) => {
 
       const reason = state.stockOutReason.value || reasonLabels[state.stockOutReasonType.value];
 
-      const response = await api.post('/stock/out', {
+      const response = await api.post('/movements/stock-out', {
         product_id: state.stockOutProduct.value.id,
         quantity: state.stockOutQuantity.value,
         reason: reason
@@ -210,8 +210,11 @@ const initStockManagement = (state, loaders) => {
   return {
     switchToMovements,
     openStockInModal,
+    openRestockModal: openStockInModal, // ✅ Alias pour compatibilité
     closeStockInModal,
+    closeRestockModal: closeStockInModal, // ✅ Alias pour compatibilité
     submitStockIn,
+    submitRestock: submitStockIn, // ✅ Alias pour compatibilité
     openStockOutModal,
     closeStockOutModal,
     submitStockOut,

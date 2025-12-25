@@ -1,0 +1,58 @@
+directories:
+  output: ../../../dist/desktop
+  buildResources: resources
+appId: com.smartdrinkstore.desktop
+productName: SmartDrinkStore
+files:
+  - filter:
+      - src/**/*
+      - resources/**/*
+      - '!**/*.map'
+extraResources:
+  - from: php
+    to: php
+    filter:
+      - '**/*'
+  - from: ../../../core
+    to: core
+    filter:
+      - '**/*'
+      - '!node_modules'
+      - '!.git'
+      - '!storage'
+      - '!bootstrap/cache'
+  - from: ../frontend/dist
+    to: frontend
+    filter:
+      - '**/*'
+win:
+  target:
+    - target: portable
+      arch:
+        - x64
+    - target: nsis
+      arch:
+        - x64
+  icon: resources/icon.ico
+portable:
+  artifactName: SmartDrinkStore-Portable-${version}.exe
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: SmartDrinkStore
+  artifactName: SmartDrinkStore-Setup-${version}.exe
+mac:
+  target:
+    - dmg
+    - zip
+  icon: resources/icon.icns
+  category: public.app-category.business
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: resources/icon.png
+  category: Office
+electronVersion: 28.3.3

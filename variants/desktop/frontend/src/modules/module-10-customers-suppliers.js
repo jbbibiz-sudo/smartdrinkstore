@@ -114,7 +114,22 @@ const initCustomersAndSuppliers = (state, loaders) => {
   /**
    * Supprime un client
    */
-  const deleteCustomer = async (customer) => {
+  const deleteCustomer = async (customerId) => {
+    // Vérification de l'ID
+    if (!customerId) {
+      console.error('❌ ID client manquant');
+      alert('❌ Erreur: ID client invalide');
+      return;
+    }
+
+    // Trouver le client dans la liste
+    const customer = state.customers.value.find(c => c.id === customerId);
+    
+    if (!customer) {
+      alert('❌ Client introuvable');
+      return;
+    }
+
     if (!confirm(`⚠️ Êtes-vous sûr de vouloir supprimer le client "${customer.name}" ?\n\nCette action est irréversible.`)) {
       return;
     }
@@ -132,7 +147,9 @@ const initCustomersAndSuppliers = (state, loaders) => {
 
     try {
       state.loading.value = true;
-      const response = await api.delete(`/customers/${customer.id}`);
+      console.log('🗑️ Tentative de suppression du client:', customerId);
+      
+      const response = await api.delete(`/customers/${customerId}`);
       
       if (response.success) {
         alert('✅ Client supprimé avec succès');
@@ -140,7 +157,21 @@ const initCustomersAndSuppliers = (state, loaders) => {
       }
     } catch (error) {
       console.error('Erreur suppression client:', error);
-      alert('❌ Erreur: ' + (error.message || 'Impossible de supprimer le client'));
+      
+      // Gestion d'erreurs spécifiques
+      if (error.message.includes('405')) {
+        alert('❌ Erreur: La suppression de clients n\'est pas autorisée.\n' +
+              'Veuillez contacter l\'administrateur système pour activer cette fonctionnalité.');
+      } else if (error.message.includes('403')) {
+        alert('❌ Erreur: Vous n\'avez pas les permissions nécessaires pour supprimer un client.');
+      } else if (error.message.includes('404')) {
+        alert('❌ Erreur: Client introuvable.');
+      } else if (error.message.includes('400')) {
+        // Erreur 400 généralement pour un client avec solde impayé
+        alert('❌ Erreur: ' + (error.message || 'Impossible de supprimer ce client (solde impayé ?)'));
+      } else {
+        alert('❌ Erreur: ' + (error.message || 'Impossible de supprimer le client'));
+      }
     } finally {
       state.loading.value = false;
     }
@@ -161,10 +192,11 @@ const initCustomersAndSuppliers = (state, loaders) => {
   };
 
   /**
-   * Ouvre le modal de création/modification de fournisseur
+   * Ouvre le modal fournisseur (création ou édition)
    */
-  const openSupplierModal = (supplier = null) => {
+  const openSupplierModal = (supplier) => {
     if (supplier) {
+      // Mode édition
       state.editingSupplier.value = supplier;
       state.supplierForm.value = {
         name: supplier.name,
@@ -173,6 +205,7 @@ const initCustomersAndSuppliers = (state, loaders) => {
         address: supplier.address || ''
       };
     } else {
+      // Mode création
       state.editingSupplier.value = null;
       state.supplierForm.value = {
         name: '',
@@ -185,7 +218,7 @@ const initCustomersAndSuppliers = (state, loaders) => {
   };
 
   /**
-   * Ferme le modal de fournisseur
+   * Ferme le modal fournisseur
    */
   const closeSupplierModal = () => {
     state.showSupplierModal.value = false;
@@ -199,7 +232,7 @@ const initCustomersAndSuppliers = (state, loaders) => {
   };
 
   /**
-   * Sauvegarde un fournisseur (création ou modification)
+   * Sauvegarde un fournisseur (création ou mise à jour)
    */
   const saveSupplier = async () => {
     if (!state.supplierForm.value.name.trim()) {
@@ -210,27 +243,26 @@ const initCustomersAndSuppliers = (state, loaders) => {
     try {
       state.loading.value = true;
       
+      const supplierData = {
+        name: state.supplierForm.value.name,
+        phone: state.supplierForm.value.phone,
+        email: state.supplierForm.value.email,
+        address: state.supplierForm.value.address
+      };
+
+      let response;
       if (state.editingSupplier.value) {
         // Mise à jour
-        const response = await api.put(
-          `/suppliers/${state.editingSupplier.value.id}`, 
-          state.supplierForm.value
-        );
-        
-        if (response.success) {
-          alert('✅ Fournisseur mis à jour avec succès');
-          await loaders.loadSuppliers();
-          closeSupplierModal();
-        }
+        response = await api.put(`/suppliers/${state.editingSupplier.value.id}`, supplierData);
       } else {
         // Création
-        const response = await api.post('/suppliers', state.supplierForm.value);
-        
-        if (response.success) {
-          alert('✅ Fournisseur créé avec succès');
-          await loaders.loadSuppliers();
-          closeSupplierModal();
-        }
+        response = await api.post('/suppliers', supplierData);
+      }
+
+      if (response.success) {
+        alert(`✅ Fournisseur ${state.editingSupplier.value ? 'modifié' : 'créé'} avec succès !`);
+        closeSupplierModal();
+        await loaders.loadSuppliers();
       }
     } catch (error) {
       console.error('Erreur sauvegarde fournisseur:', error);
@@ -243,22 +275,45 @@ const initCustomersAndSuppliers = (state, loaders) => {
   /**
    * Supprime un fournisseur
    */
-  const deleteSupplier = async (supplier) => {
-    if (!confirm(`⚠️ Êtes-vous sûr de vouloir supprimer le fournisseur "${supplier.name}" ?\n\nCette action est irréversible.`)) {
+  const deleteSupplier = async (supplierId) => {
+    // Vérification de l'ID
+    if (!supplierId) {
+      console.error('❌ ID fournisseur manquant');
+      alert('❌ Erreur: ID fournisseur invalide');
+      return;
+    }
+
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce fournisseur ?')) {
       return;
     }
 
     try {
       state.loading.value = true;
-      const response = await api.delete(`/suppliers/${supplier.id}`);
+      
+      console.log('🗑️ Tentative de suppression du fournisseur:', supplierId);
+      const response = await api.delete(`/suppliers/${supplierId}`);
       
       if (response.success) {
-        alert('✅ Fournisseur supprimé avec succès');
+        alert('✅ Fournisseur supprimé avec succès !');
         await loaders.loadSuppliers();
       }
     } catch (error) {
       console.error('Erreur suppression fournisseur:', error);
-      alert('❌ Erreur: ' + (error.message || 'Impossible de supprimer le fournisseur'));
+      
+      // Gestion d'erreurs spécifiques
+      if (error.message.includes('405')) {
+        alert('❌ Erreur: La suppression de fournisseurs n\'est pas autorisée.\n' +
+              'Veuillez contacter l\'administrateur système pour activer cette fonctionnalité.');
+      } else if (error.message.includes('403')) {
+        alert('❌ Erreur: Vous n\'avez pas les permissions nécessaires pour supprimer un fournisseur.');
+      } else if (error.message.includes('404')) {
+        alert('❌ Erreur: Fournisseur introuvable.');
+      } else if (error.message.includes('400')) {
+        // Erreur 400 généralement pour produits associés
+        alert('❌ Erreur: ' + (error.message || 'Impossible de supprimer ce fournisseur (produits associés ?)'));
+      } else {
+        alert('❌ Erreur: ' + (error.message || 'Impossible de supprimer le fournisseur'));
+      }
     } finally {
       state.loading.value = false;
     }

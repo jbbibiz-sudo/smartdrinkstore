@@ -1,0 +1,422 @@
+// variants/desktop/electron/src/main.js
+const { app, BrowserWindow, ipcMain } = require('electron');
+const path = require('path');
+const http = require('http');
+
+// ================================
+// CONFIGURATION
+// ================================
+const IS_DEV = process.env.NODE_ENV !== 'production' || process.argv.includes('--dev');
+const VITE_PORT = 5173;
+const VITE_URL = `http://localhost:${VITE_PORT}`;
+const MAX_RETRIES = 30; // 30 secondes max
+const RETRY_INTERVAL = 1000; // 1 seconde entre chaque tentative
+
+let mainWindow = null;
+
+// ================================
+// LOGGING
+// ================================
+function log(message, type = 'info') {
+  const timestamp = new Date().toISOString();
+  const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+  console.log(`[${timestamp}] ${prefix} ${message}`);
+}
+
+// ================================
+// VÉRIFICATION DE VITE
+// ================================
+function checkViteServer(url) {
+  return new Promise((resolve) => {
+    const urlObj = new URL(url);
+    const options = {
+      hostname: urlObj.hostname,
+      port: urlObj.port,
+      path: '/',
+      method: 'GET',
+      timeout: 1000
+    };
+
+    const req = http.request(options, (res) => {
+      resolve(res.statusCode === 200);
+    });
+
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+
+    req.end();
+  });
+}
+
+async function waitForVite() {
+  log('Attente du serveur Vite...');
+  
+  for (let i = 0; i < MAX_RETRIES; i++) {
+    const isReady = await checkViteServer(VITE_URL);
+    
+    if (isReady) {
+      log('Serveur Vite prêt!', 'success');
+      return true;
+    }
+    
+    log(`Tentative ${i + 1}/${MAX_RETRIES} - Serveur Vite non disponible, nouvelle tentative...`);
+    await new Promise(resolve => setTimeout(resolve, RETRY_INTERVAL));
+  }
+  
+  log('Impossible de se connecter au serveur Vite après ' + MAX_RETRIES + ' tentatives', 'error');
+  return false;
+}
+
+// ================================
+// CRÉATION DE LA FENÊTRE
+// ================================
+function createWindow() {
+  log('Création de la fenêtre principale...');
+  
+  mainWindow = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    minWidth: 1024,
+    minHeight: 768,
+    backgroundColor: '#f8f9fa',
+    show: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+      webSecurity: true, // Sécurité activée
+      devTools: IS_DEV
+    }
+  });
+  
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    mainWindow.focus();
+    log('Fenêtre affichée', 'success');
+  });
+  
+  if (IS_DEV) {
+    mainWindow.webContents.openDevTools();
+  }
+  
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+  
+  return mainWindow;
+}
+
+// ================================
+// CHARGEMENT DE L'APPLICATION
+// ================================
+async function loadApplication() {
+  try {
+    if (IS_DEV) {
+      log('Mode développement - Vérification de Vite...');
+      
+      // Attendre que Vite soit prêt
+      const viteReady = await waitForVite();
+      
+      if (!viteReady) {
+        throw new Error('Le serveur Vite n\'a pas démarré. Assurez-vous que Vite tourne sur ' + VITE_URL);
+      }
+      
+      await mainWindow.loadURL(VITE_URL);
+      log('Application chargée depuis Vite', 'success');
+    } else {
+      log('Mode production - Chargement du build...');
+      const indexPath = path.join(__dirname, '../../frontend/dist/index.html');
+      await mainWindow.loadFile(indexPath);
+      log('Application chargée', 'success');
+    }
+  } catch (error) {
+    log(`Erreur chargement application: ${error.message}`, 'error');
+    
+    // Afficher une page d'erreur claire
+    mainWindow.loadURL(`data:text/html,
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body {
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              height: 100vh;
+              margin: 0;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+            }
+            .error-box {
+              background: rgba(255,255,255,0.1);
+              padding: 50px;
+              border-radius: 15px;
+              text-align: center;
+              backdrop-filter: blur(10px);
+              max-width: 600px;
+            }
+            h1 { 
+              margin: 0 0 20px 0;
+              font-size: 32px;
+            }
+            pre { 
+              background: rgba(0,0,0,0.3); 
+              padding: 20px; 
+              border-radius: 8px;
+              text-align: left;
+              overflow-x: auto;
+              font-size: 14px;
+            }
+            .instructions {
+              margin-top: 30px;
+              padding: 20px;
+              background: rgba(255,255,255,0.2);
+              border-radius: 8px;
+              text-align: left;
+            }
+            .instructions ol {
+              margin: 10px 0;
+              padding-left: 20px;
+            }
+            .instructions li {
+              margin: 8px 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="error-box">
+            <h1>⚠️ Erreur de démarrage</h1>
+            <p style="font-size: 18px;">L'application n'a pas pu démarrer correctement.</p>
+            <pre>${error.message}</pre>
+            
+            <div class="instructions">
+              <strong>Solution :</strong>
+              <ol>
+                <li>Ouvrez un terminal dans le dossier <code>variants/frontend</code></li>
+                <li>Exécutez <code>npm run dev</code></li>
+                <li>Attendez que Vite démarre sur <strong>${VITE_URL}</strong></li>
+                <li>Relancez Electron avec <code>npm run dev</code></li>
+              </ol>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+  }
+}
+
+// ================================
+// HANDLERS IPC
+// ================================
+const fs = require('fs').promises;
+const Store = require('electron-store');
+const store = new Store();
+
+// API Base URL
+ipcMain.handle('get-api-base', () => {
+  return 'http://localhost:8000/api/v1';
+});
+
+// App Info
+ipcMain.handle('get-app-info', () => {
+  return {
+    mode: IS_DEV ? 'development' : 'production',
+    platform: process.platform,
+    version: app.getVersion(),
+    userDataPath: app.getPath('userData')
+  };
+});
+
+// ================================
+// STORAGE HANDLERS (pour auth offline)
+// ================================
+ipcMain.handle('storage-get', async (event, key) => {
+  try {
+    return store.get(key);
+  } catch (error) {
+    log(`Erreur storage-get: ${error.message}`, 'error');
+    return null;
+  }
+});
+
+ipcMain.handle('storage-set', async (event, key, value) => {
+  try {
+    store.set(key, value);
+    return true;
+  } catch (error) {
+    log(`Erreur storage-set: ${error.message}`, 'error');
+    return false;
+  }
+});
+
+ipcMain.handle('storage-delete', async (event, key) => {
+  try {
+    store.delete(key);
+    return true;
+  } catch (error) {
+    log(`Erreur storage-delete: ${error.message}`, 'error');
+    return false;
+  }
+});
+
+ipcMain.handle('storage-clear', async () => {
+  try {
+    store.clear();
+    return true;
+  } catch (error) {
+    log(`Erreur storage-clear: ${error.message}`, 'error');
+    return false;
+  }
+});
+
+// ================================
+// FILE SYSTEM HANDLERS
+// ================================
+ipcMain.handle('fs-read-file', async (event, filePath) => {
+  try {
+    const fullPath = path.join(app.getPath('userData'), filePath);
+    const data = await fs.readFile(fullPath, 'utf8');
+    return data;
+  } catch (error) {
+    log(`Erreur fs-read-file: ${error.message}`, 'error');
+    throw error;
+  }
+});
+
+ipcMain.handle('fs-write-file', async (event, filePath, data) => {
+  try {
+    const fullPath = path.join(app.getPath('userData'), filePath);
+    await fs.writeFile(fullPath, data, 'utf8');
+    return true;
+  } catch (error) {
+    log(`Erreur fs-write-file: ${error.message}`, 'error');
+    throw error;
+  }
+});
+
+ipcMain.handle('fs-exists', async (event, filePath) => {
+  try {
+    const fullPath = path.join(app.getPath('userData'), filePath);
+    await fs.access(fullPath);
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+ipcMain.handle('fs-delete-file', async (event, filePath) => {
+  try {
+    const fullPath = path.join(app.getPath('userData'), filePath);
+    await fs.unlink(fullPath);
+    return true;
+  } catch (error) {
+    log(`Erreur fs-delete-file: ${error.message}`, 'error');
+    throw error;
+  }
+});
+
+// ================================
+// PRINT HANDLERS (pour factures)
+// ================================
+ipcMain.handle('print-invoice', async (event, html) => {
+  try {
+    if (!mainWindow) return false;
+    
+    // Créer une fenêtre invisible pour l'impression
+    const printWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+    
+    await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    
+    // Imprimer
+    await printWindow.webContents.print({
+      silent: false,
+      printBackground: true
+    });
+    
+    printWindow.close();
+    return true;
+  } catch (error) {
+    log(`Erreur print-invoice: ${error.message}`, 'error');
+    return false;
+  }
+});
+
+ipcMain.handle('print-receipt', async (event, html) => {
+  try {
+    if (!mainWindow) return false;
+    
+    const printWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+    
+    await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    
+    // Impression ticket thermique (58mm ou 80mm)
+    await printWindow.webContents.print({
+      silent: false,
+      printBackground: true,
+      pageSize: { width: 58000, height: 297000 } // 58mm de largeur
+    });
+    
+    printWindow.close();
+    return true;
+  } catch (error) {
+    log(`Erreur print-receipt: ${error.message}`, 'error');
+    return false;
+  }
+});
+
+// ================================
+// LIFECYCLE
+// ================================
+app.whenReady().then(async () => {
+  log('='.repeat(80));
+  log('SmartDrinkStore Desktop - Démarrage');
+  log('='.repeat(80));
+  
+  try {
+    createWindow();
+    await loadApplication();
+  } catch (error) {
+    log(`Échec du démarrage: ${error.message}`, 'error');
+    // Ne pas quitter automatiquement pour permettre de voir l'erreur
+  }
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});
+
+// Gestion des erreurs
+process.on('uncaughtException', (error) => {
+  log(`Exception non gérée: ${error.message}`, 'error');
+  console.error(error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  log(`Promise rejetée: ${reason}`, 'error');
+  console.error(reason);
+});
