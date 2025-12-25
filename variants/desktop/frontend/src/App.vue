@@ -113,17 +113,32 @@
             >
               🔄 Mouvements
             </button>
+            <button
+              v-if="consignedProducts.length > 0"
+              @click="currentView = 'deposits'"
+              :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition relative', 
+                      currentView === 'deposits' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
+            >
+              🍾 Consignes
+              <span v-if="totalEmptyContainers > 0" 
+                    class="absolute top-2 right-2 bg-green-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
+                {{ totalEmptyContainers }}
+              </span>
+            </button>
+
             <button 
               v-if="hasPermission('view_products')"
               @click="currentView = 'alerts'"
               :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition relative', 
                       currentView === 'alerts' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
             >
-              ⚠ Alertes
-              <span v-if="alertsCount > 0" class="absolute top-2 right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
+              ⚠️ Alertes
+              <span v-if="alertsCount > 0" 
+                    class="absolute top-2 right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
                 {{ alertsCount }}
               </span>
             </button>
+
             <button 
               v-if="hasPermission('view_sales')"
               @click="switchToInvoices"
@@ -1767,11 +1782,13 @@ import { initPosManagement } from './modules/module-9-pos.js';
 import { initCustomersAndSuppliers } from './modules/module-10-customers-suppliers.js';
 import { initInvoiceManagement } from './modules/module-11-invoices.js';
 import { initNavigation } from './modules/module-12-navigation.js';
+import CategoryHierarchyManager from './components/CategoryHierarchyManager.vue'; // ✅ Cette ligne doit exister
 
 export default {
   name: 'App',
   components: {
-    Login
+    Login,
+    CategoryHierarchyManager
   },
   setup() {
     console.log('🔍 Setup() démarré...');
@@ -1912,6 +1929,20 @@ export default {
       }
       
       showProductModal.value = true;
+    };
+
+    // Modal de gestion hiérarchique des catégories
+    const showHierarchicalCategoryModal = ref(false);
+
+    const openHierarchicalCategoryModal = () => {
+      console.log('📂 Ouverture du gestionnaire hiérarchique');
+      showHierarchicalCategoryModal.value = true;
+    };
+
+    const closeHierarchicalCategoryModal = () => {
+      console.log('❌ Fermeture du gestionnaire hiérarchique');
+      showHierarchicalCategoryModal.value = false;
+      loaders.loadCategories();
     };
 
     // ✅ VERSION CORRIGÉE avec gestion d'erreur
@@ -2149,6 +2180,12 @@ export default {
       categoryInput,
       productSearchInput,
       posSearchInput,
+
+      // Modal hiérarchique des catégories
+      showHierarchicalCategoryModal,
+      openHierarchicalCategoryModal,
+      closeHierarchicalCategoryModal,
+
     };
   }
 };
