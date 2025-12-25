@@ -119,6 +119,19 @@ const paymentMethod = ref('cash');
 const lastSaleItems = ref([]);
 const lastSaleTotal = ref(0);
 
+// États pour les consignes
+export const clientDeposits = ref([]);
+export const supplierDeposits = ref([]);
+export const loadingDeposits = ref(false);
+export const depositSearchQuery = ref('');
+export const depositFilters = ref({
+  status: '',
+  type: '',
+  date_from: '',
+  date_to: ''
+});
+export const depositTab = ref('products'); // 'products', 'client', 'supplier'
+
 // États dashboard
 const stats = ref({
   total_products: 0,
