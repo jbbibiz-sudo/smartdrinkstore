@@ -228,7 +228,7 @@
                   ref="productSearchInput" 
                   v-model="searchQuery"
                   type="text" 
-                  placeholder="Rechercher un produit..."
+                  placeholder="🔍 Rechercher un produit..."
                   class="flex-1 min-w-[200px] px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   autofocus
                 >
@@ -903,7 +903,7 @@
               <input 
                 v-model="customerSearchQuery"
                 type="text"
-                placeholder="Rechercher un client..."
+                placeholder="🔍 Rechercher un client..."
                 class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
               >
             </div>
@@ -1064,7 +1064,7 @@
               <input 
                 v-model="supplierSearchQuery"
                 type="text"
-                placeholder="Rechercher un fournisseur..."
+                placeholder="🔍 Rechercher un fournisseur..."
                 class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
               >
             </div>
