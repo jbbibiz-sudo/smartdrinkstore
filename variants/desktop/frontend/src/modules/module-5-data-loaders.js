@@ -1,5 +1,6 @@
 // Chemin: C:\smartdrinkstore\desktop-app\src\modules\module-5-data-loaders.js
 // Module 5: Loaders de donnees avec gestion du BOM
+// ✅ VERSION CORRIGÉE - Alertes unifiées via loadStats()
 
 import { api } from './module-1-config.js';
 
@@ -55,9 +56,12 @@ const initDataLoaders = (state) => {
     try {
       state.loading.value = true;
       const response = await safeApiGet('/products');
-      if (response.success) state.products.value = response.data || [];
+      if (response.success) {
+        state.products.value = response.data || [];
+        console.log(`✅ ${state.products.value.length} produits chargés`);
+      }
     } catch (err) {
-      console.error('Erreur chargement produits:', err);
+      console.error('❌ Erreur chargement produits:', err);
       state.connectionError.value = true;
     } finally { 
       state.loading.value = false; 
@@ -68,9 +72,12 @@ const initDataLoaders = (state) => {
   const loadCategories = async () => {
     try {
       const response = await safeApiGet('/categories');
-      if (response.success) state.categories.value = response.data || [];
+      if (response.success) {
+        state.categories.value = response.data || [];
+        console.log(`✅ ${state.categories.value.length} catégories chargées`);
+      }
     } catch (err) { 
-      console.error('Erreur chargement categories:', err); 
+      console.error('❌ Erreur chargement categories:', err); 
     }
   };
 
@@ -78,9 +85,12 @@ const initDataLoaders = (state) => {
   const loadSubcategories = async () => {
     try {
       const response = await safeApiGet('/subcategories');
-      if (response.success) state.subcategories.value = response.data || [];
+      if (response.success) {
+        state.subcategories.value = response.data || [];
+        console.log(`✅ ${state.subcategories.value.length} sous-catégories chargées`);
+      }
     } catch (err) { 
-      console.error('Erreur chargement sous-categories:', err); 
+      console.error('❌ Erreur chargement sous-categories:', err); 
     }
   };
 
@@ -89,9 +99,12 @@ const initDataLoaders = (state) => {
     try {
       state.loading.value = true;
       const response = await safeApiGet('/customers');
-      if (response.success) state.customers.value = response.data || [];
+      if (response.success) {
+        state.customers.value = response.data || [];
+        console.log(`✅ ${state.customers.value.length} clients chargés`);
+      }
     } catch (err) {
-      console.error('Erreur chargement clients:', err);
+      console.error('❌ Erreur chargement clients:', err);
       state.connectionError.value = true;
     } finally { 
       state.loading.value = false; 
@@ -103,32 +116,41 @@ const initDataLoaders = (state) => {
     try {
       state.loading.value = true;
       const response = await safeApiGet('/suppliers');
-      if (response.success) state.suppliers.value = response.data || [];
+      if (response.success) {
+        state.suppliers.value = response.data || [];
+        console.log(`✅ ${state.suppliers.value.length} fournisseurs chargés`);
+      }
     } catch (err) {
-      console.error('Erreur chargement fournisseurs:', err);
+      console.error('❌ Erreur chargement fournisseurs:', err);
       state.connectionError.value = true;
     } finally { 
       state.loading.value = false; 
     }
   };
 
-  /** Charge les statistiques du dashboard */
+  /** Charge les statistiques du dashboard ET les alertes */
   const loadStats = async () => {
     try {
       const response = await safeApiGet('/stats');
       if (response.success) {
         state.stats.value = response.data || {};
         
-        // Extraire les alertes si elles sont dans les stats
+        // ✅ UNIQUE SOURCE DE VÉRITÉ pour les alertes
         if (response.data?.alerts) {
           state.alerts.value = response.data.alerts;
-          state.alertsCount.value = 
-            (response.data.alerts?.low_stock?.length || 0) +
-            (response.data.alerts?.out_of_stock?.length || 0);
+          
+          // Calculer le nombre total d'alertes
+          const lowStockCount = response.data.alerts?.low_stock?.length || 0;
+          const outOfStockCount = response.data.alerts?.out_of_stock?.length || 0;
+          state.alertsCount.value = lowStockCount + outOfStockCount;
+          
+          console.log(`✅ Statistiques chargées - ${state.alertsCount.value} alertes (${lowStockCount} stock faible + ${outOfStockCount} rupture)`);
+        } else {
+          console.log('✅ Statistiques chargées');
         }
       }
     } catch (err) { 
-      console.error('Erreur chargement stats:', err);
+      console.error('❌ Erreur chargement stats:', err);
       // Ne pas bloquer l'application si les stats echouent
       state.stats.value = {
         total_products: 0,
@@ -136,38 +158,22 @@ const initDataLoaders = (state) => {
         out_of_stock: 0,
         total_stock_value: 0
       };
+      state.alerts.value = {
+        low_stock: [],
+        out_of_stock: []
+      };
+      state.alertsCount.value = 0;
     }
   };
 
-  /** Charge les alertes de stock */
+  /** 
+   * ⚠️ FONCTION OBSOLÈTE - Ne plus utiliser
+   * Les alertes sont maintenant chargées via loadStats()
+   * Gardée uniquement pour la compatibilité
+   */
   const loadAlerts = async () => {
-    try {
-      const lowStockResponse = await safeApiGet('/products/low-stock');
-      const outOfStockProducts = state.products.value.filter(p => p.stock === 0);
-      
-      state.alerts.value = {
-        low_stock: lowStockResponse.success ? lowStockResponse.data : [],
-        out_of_stock: outOfStockProducts
-      };
-      
-      state.alertsCount.value =
-        (state.alerts.value.low_stock?.length || 0) +
-        (state.alerts.value.out_of_stock?.length || 0);
-    } catch (err) { 
-      console.error('Erreur chargement alertes:', err);
-      // Fallback : calculer depuis les produits charges
-      if (state.products.value.length > 0) {
-        const lowStock = state.products.value.filter(p => p.stock <= p.min_stock && p.stock > 0);
-        const outOfStock = state.products.value.filter(p => p.stock === 0);
-        
-        state.alerts.value = {
-          low_stock: lowStock,
-          out_of_stock: outOfStock
-        };
-        
-        state.alertsCount.value = lowStock.length + outOfStock.length;
-      }
-    }
+    console.warn('⚠️ loadAlerts() est obsolète. Les alertes sont chargées via loadStats()');
+    // Ne rien faire - les alertes sont déjà chargées par loadStats()
   };
 
   /** Charge les mouvements de stock */
@@ -183,14 +189,22 @@ const initDataLoaders = (state) => {
       const response = await safeApiGet('/movements?' + params.toString());
       if (response.success) {
         state.movements.value = response.data || [];
-        console.log('DEBUG - Nombre de mouvements:', state.movements.value.length);
+        console.log(`✅ ${state.movements.value.length} mouvements chargés`);
+        
+        // ⚠️ VÉRIFICATION: La relation 'product' est-elle chargée ?
         if (state.movements.value.length > 0) {
-          console.log('DEBUG - Premier mouvement complet:', JSON.stringify(state.movements.value[0], null, 2));
-          console.log('DEBUG - Structure product du premier:', state.movements.value[0]?.product);
+          const firstMovement = state.movements.value[0];
+          
+          if (!firstMovement.product) {
+            console.warn('⚠️ Les mouvements ne contiennent pas les infos produits.');
+            console.warn('⚠️ Vérifiez que le backend charge la relation ->with("product")');
+          } else {
+            console.log('✅ Relation product chargée correctement');
+          }
         }
       }
     } catch (err) { 
-      console.error('Erreur chargement mouvements:', err);
+      console.error('❌ Erreur chargement mouvements:', err);
       state.movements.value = [];
     } finally { 
       state.loadingMovements.value = false; 
@@ -211,9 +225,12 @@ const initDataLoaders = (state) => {
       if (state.salesSearch.value?.trim() !== '') params.append('search', state.salesSearch.value.trim());
 
       const response = await safeApiGet(`/sales?${params.toString()}`);
-      if (response.success) state.sales.value = response.data || [];
+      if (response.success) {
+        state.sales.value = response.data || [];
+        console.log(`✅ ${state.sales.value.length} ventes chargées`);
+      }
     } catch (err) {
-      console.error('Erreur chargement ventes:', err);
+      console.error('❌ Erreur chargement ventes:', err);
       state.sales.value = [];
     } finally { 
       state.loadingSales.value = false; 
@@ -241,9 +258,10 @@ const initDataLoaders = (state) => {
           this_month: { count: 0, total: 0 },
           total_credit: 0
         };
+        console.log('✅ Statistiques ventes chargées');
       }
     } catch (err) { 
-      console.error('Erreur chargement stats ventes:', err);
+      console.error('❌ Erreur chargement stats ventes:', err);
       state.salesStats.value = {
         today: { count: 0, total: 0, cash: 0, mobile: 0, credit: 0 },
         this_week: { count: 0, total: 0 },
@@ -261,7 +279,7 @@ const initDataLoaders = (state) => {
 
   /** Initialise toutes les donnees au demarrage */
   const init = async () => {
-    console.log('Initialisation de l\'application...');
+    console.log('🚀 Initialisation de l\'application...');
     
     try {
       // Charger en parallele les donnees de base (ne bloque pas si erreur)
@@ -275,17 +293,17 @@ const initDataLoaders = (state) => {
       // Charger les produits (important)
       await loadProducts();
       
-      // Charger les donnees dependantes des produits
+      // ✅ CORRECTION: loadStats charge AUSSI les alertes
+      // Ne plus appeler loadAlerts() séparément
       await Promise.allSettled([
-        loadStats(),
-        loadAlerts(),
+        loadStats(),        // ✅ Charge stats + alertes en une seule fois
         loadMovements(),
         loadSalesStats()
       ]);
       
-      console.log('Application initialisee avec succes');
+      console.log('✅ Application initialisée avec succès');
     } catch (error) {
-      console.error('Erreur lors de l\'initialisation:', error);
+      console.error('❌ Erreur lors de l\'initialisation:', error);
       state.connectionError.value = true;
     }
   };
@@ -298,7 +316,7 @@ const initDataLoaders = (state) => {
     loadCustomers,
     loadSuppliers,
     loadStats,
-    loadAlerts,
+    loadAlerts,        // Gardé pour compatibilité mais ne fait plus rien
     loadMovements,
     loadSales,
     loadSalesStats,
