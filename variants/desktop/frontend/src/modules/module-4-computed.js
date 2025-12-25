@@ -288,18 +288,79 @@ const initComputedProperties = (state) => {
     return state.supplierForm.value.name.trim() !== '';
   });
 
-  // ✅ AJOUT: Produits consignés (bouteilles/casiers retournables)
+  // ============================================
+  // COMPUTED PROPERTIES POUR LES CONSIGNES
+  // ============================================
+
+  // Produits consignés
   const consignedProducts = computed(() => {
-    return state.products.value.filter(p => 
-      p.is_consigned === true || p.is_consigned === 1
+    return state.products.value?.filter(p => p.is_consigned) || [];
+  });
+
+  // Total des emballages vides en stock
+  const totalEmptyContainers = computed(() => {
+    return consignedProducts.value.reduce((sum, p) => 
+      sum + (p.empty_containers_stock || 0), 0
     );
   });
 
-  // ✅ AJOUT: Nombre total d'emballages vides en stock
-  const totalEmptyContainers = computed(() => {
+  // Valeur totale des emballages vides
+  const totalEmptyContainersValue = computed(() => {
     return consignedProducts.value.reduce((sum, p) => 
-      sum + (parseInt(p.empty_containers_stock) || 0), 0
+      sum + ((p.empty_containers_stock || 0) * (p.consignment_price || 0)), 0
     );
+  });
+
+  // Consignes clients en attente (emballages prêtés aux clients)
+  const pendingClientDeposits = computed(() => {
+    return state.clientDeposits.value?.filter(d => d.status === 'pending') || [];
+  });
+
+  // Nombre total d'emballages prêtés aux clients
+  const totalLentContainers = computed(() => {
+    return pendingClientDeposits.value.reduce((sum, d) => 
+      sum + d.quantity, 0
+    );
+  });
+
+  // Valeur totale des consignes clients en attente
+  const totalClientDepositsValue = computed(() => {
+    return pendingClientDeposits.value.reduce((sum, d) => 
+      sum + d.total_amount, 0
+    );
+  });
+
+  // Consignes fournisseurs en attente (emballages empruntés aux fournisseurs)
+  const pendingSupplierDeposits = computed(() => {
+    return state.supplierDeposits.value?.filter(d => d.status === 'pending') || [];
+  });
+
+  // Nombre total d'emballages empruntés aux fournisseurs
+  const totalBorrowedContainers = computed(() => {
+    return pendingSupplierDeposits.value.reduce((sum, d) => 
+      sum + d.quantity, 0
+    );
+  });
+
+  // Valeur totale des consignes fournisseurs en attente
+  const totalSupplierDepositsValue = computed(() => {
+    return pendingSupplierDeposits.value.reduce((sum, d) => 
+      sum + d.total_amount, 0
+    );
+  });
+
+  // Statistiques globales des consignes
+  const depositsStats = computed(() => {
+    return {
+      emptyInStock: totalEmptyContainers.value,
+      emptyValue: totalEmptyContainersValue.value,
+      lentToClients: totalLentContainers.value,
+      clientDepositsValue: totalClientDepositsValue.value,
+      borrowedFromSuppliers: totalBorrowedContainers.value,
+      supplierDepositsValue: totalSupplierDepositsValue.value,
+      netContainers: totalEmptyContainers.value + totalBorrowedContainers.value - totalLentContainers.value,
+      netValue: totalEmptyContainersValue.value + totalSupplierDepositsValue.value - totalClientDepositsValue.value
+    };
   });
 
   // Return all computed properties
@@ -317,19 +378,25 @@ const initComputedProperties = (state) => {
     activeSuppliers,
     suppliersWithContact,
     filteredSales,
-    salesStats,
     filteredMovements,
-    movementStats,
     totalAlerts,
-    flattenedAlerts,
     dashboardStats,
     cartItemCount,
     isCartEmpty,
     isProductFormValid,
     isCustomerFormValid,
     isSupplierFormValid,
-    consignedProducts,      // ✅ AJOUTÉ
-    totalEmptyContainers    // ✅ AJOUTÉ
+    // Consignes
+    consignedProducts,
+    totalEmptyContainers,
+    totalEmptyContainersValue,
+    pendingClientDeposits,
+    totalLentContainers,
+    totalClientDepositsValue,
+    pendingSupplierDeposits,
+    totalBorrowedContainers,
+    totalSupplierDepositsValue,
+    depositsStats
   };
 };
 
