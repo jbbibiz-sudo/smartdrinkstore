@@ -1,4 +1,5 @@
 <?php
+// Chemin: C:\smartdrinkstore\core\app\Http\Middleware\VerifyCsrfToken.php
 
 namespace App\Http\Middleware;
 
@@ -12,6 +13,6 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        //
+        'api/*',  // Exclure toutes les routes API (protégées par Sanctum tokens)
     ];
 }

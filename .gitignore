@@ -17,4 +17,5 @@ yarn-error.log
 /.fleet
 /.idea
 
-../variants/desktop
+variants/desktop
+variants/desktop/electron/dist/win-unpacked/chrome_100_percent.pak

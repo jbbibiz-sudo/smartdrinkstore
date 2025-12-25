@@ -1,26 +1,21 @@
-// Chemin: C:\smartdrinkstore\variants\frontend\src\router\index.js
-import { createRouter, createWebHistory } from 'vue-router';
-import Login from '../views/Login.vue';
+import { createRouter, createWebHashHistory } from 'vue-router'
+import Login from '../views/Login.vue'
 
 const routes = [
   {
-    path: '/',
-    name: 'app',
-    component: { template: '<div></div>' } // Composant vide, App.vue gère tout
-  },
-  {
     path: '/login',
-    redirect: '/' // Toujours rediriger vers la racine
+    name: 'Login',
+    component: Login
   },
   {
-    path: '/dashboard',
-    redirect: '/' // Toujours rediriger vers la racine
+    path: '/',
+    redirect: '/login'
   }
-];
+]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(), // Important pour Electron !
   routes
-});
+})
 
-export default router;
+export default router

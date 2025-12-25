@@ -1,34 +1,29 @@
-﻿import { createApp } from 'vue'
-import { createPinia } from 'pinia'
+// Chemin: C:\smartdrinkstore\variants\desktop\frontend\src\main.js
+import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
-import axios from 'axios'
 import './style.css'
 
+// Créer et monter l'application Vue
 const app = createApp(App)
 
-// Configuration de Pinia (state management)
-const pinia = createPinia()
-app.use(pinia)
+// Utilisation du router
 app.use(router)
 
-// Configuration d'axios pour Electron
-if (window.electron) {
-  axios.interceptors.request.use(async (config) => {
-    // Récupérer l'URL de base de l'API depuis Electron
-    const apiBase = await window.electron.getApiBase()
-    if (!config.url.startsWith('http')) {
-      config.baseURL = apiBase
-    }
-    
-    // Ajouter le token si disponible
-    const token = await window.electron.store.get('auth_token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    
-    return config
-  })
-}
-
+// Montage de l'application
 app.mount('#app')
+
+// Log de confirmation
+console.log('✅ Application Vue montée avec succès')
+
+// Vérifier si on est dans Electron
+if (window.electron) {
+  console.log('🖥️ Application en cours d\'exécution dans Electron')
+  
+  // Optionnel : Récupérer les infos de l'app
+  window.electron.getAppInfo().then(info => {
+    console.log('📱 Infos app:', info)
+  })
+} else {
+  console.log('🌐 Application en cours d\'exécution dans le navigateur')
+}

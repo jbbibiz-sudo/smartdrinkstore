@@ -305,7 +305,7 @@
                 </tbody>
               </table>
             </div>
-            <!-- MODAL PRODUIT -->
+            <!-- ✅ MODAL PRODUIT (SANS le modal hiérarchique dedans) -->
             <div 
               v-if="showProductModal" 
               class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
@@ -395,6 +395,102 @@
                       class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                   </div>
+
+                  <!-- Section Consigne -->
+                  <div class="form-group">
+                    <label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                      <input
+                        v-model="productForm.is_consigned"
+                        type="checkbox"
+                        class="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                      <div class="flex items-center gap-2">
+                        <span class="font-medium text-gray-700">🍾 Produit consigné</span>
+                        <span class="text-xs text-gray-500">(bouteilles/casiers retournables)</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  <!-- Champs additionnels si consigne activée -->
+                  <div v-if="productForm.is_consigned" class="space-y-4 pl-6 border-l-4 border-green-300 bg-green-50 p-4 rounded-r">
+                    <div class="flex items-center gap-2 text-sm text-green-700 mb-3">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span class="font-medium">Configuration de la consigne</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                      <!-- Montant de la consigne -->
+                      <div class="form-group">
+                        <label class="block text-sm font-medium mb-1 flex items-center gap-1">
+                          <span>💰 Montant de la consigne</span>
+                          <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                          <input
+                            v-model.number="productForm.consignment_price"
+                            type="number"
+                            step="50"
+                            min="0"
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pr-16"
+                            placeholder="500"
+                            :required="productForm.is_consigned"
+                          />
+                          <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">
+                            FCFA
+                          </span>
+                        </div>
+                        <p class="text-xs text-gray-600 mt-1">
+                          Prix à payer pour l'emballage
+                        </p>
+                      </div>
+                      
+                      <!-- Stock d'emballages vides -->
+                      <div class="form-group">
+                        <label class="block text-sm font-medium mb-1 flex items-center gap-1">
+                          <span>📦 Emballages vides en stock</span>
+                        </label>
+                        <input
+                          v-model.number="productForm.empty_containers_stock"
+                          type="number"
+                          min="0"
+                          class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="0"
+                        />
+                        <p class="text-xs text-gray-600 mt-1">
+                          Nombre de vides actuellement disponibles
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <!-- Calcul automatique de la valeur des vides -->
+                    <div v-if="productForm.consignment_price > 0 && productForm.empty_containers_stock > 0" 
+                        class="bg-white border border-green-200 rounded p-3">
+                      <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-700">Valeur totale des vides :</span>
+                        <span class="text-lg font-bold text-green-600">
+                          {{ formatCurrency(productForm.consignment_price * productForm.empty_containers_stock) }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Note informative -->
+                  <div v-if="!productForm.is_consigned" class="bg-blue-50 border border-blue-200 rounded p-3">
+                    <div class="flex items-start gap-2">
+                      <svg class="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div class="text-sm text-blue-700">
+                        <p class="font-medium mb-1">Qu'est-ce qu'un produit consigné ?</p>
+                        <p class="text-blue-600">
+                          Les bouteilles en verre, casiers et fûts qui doivent être retournés au fournisseur.
+                          Le client paie une caution qui lui sera remboursée lors du retour.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                   
                   <div class="flex justify-end gap-2 pt-4">
                     <button 
@@ -413,6 +509,37 @@
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+
+            <!-- ✅ MODAL GESTIONNAIRE HIÉRARCHIQUE (DÉPLACÉ EN DEHORS DU MODAL PRODUIT) -->
+            <div 
+              v-if="showHierarchicalCategoryModal" 
+              class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+              @click.self="closeHierarchicalCategoryModal"
+            >
+              <div class="bg-white rounded-lg shadow-xl max-w-5xl w-full mx-4 max-h-[95vh] overflow-hidden">
+                <!-- Header avec bouton fermer -->
+                <div class="flex justify-between items-center p-4 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-700">
+                  <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                    <span>🏷️</span>
+                    <span>Gestion Hiérarchique des Catégories</span>
+                  </h3>
+                  <button 
+                    @click="closeHierarchicalCategoryModal"
+                    class="text-white hover:text-gray-200 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded hover:bg-blue-800 transition"
+                  >
+                    ×
+                  </button>
+                </div>
+                
+                <!-- Contenu scrollable -->
+                <div class="overflow-y-auto" style="max-height: calc(95vh - 80px);">
+                  <CategoryHierarchyManager 
+                    @close="closeHierarchicalCategoryModal"
+                    @category-updated="loaders.loadCategories"
+                  />
+                </div>
               </div>
             </div>
 
@@ -865,7 +992,7 @@
                       v-model="customerForm.phone"
                       type="tel"
                       class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="Ex: +237 6XX XXX XXX"
+                      placeholder="Ex: +237 699 956 376"
                     >
                   </div>
                   
@@ -1289,27 +1416,47 @@
                 <input 
                   v-model="salesSearch"
                   type="text"
-                  placeholder="Rechercher..."
+                  placeholder="🔍 Rechercher facture ou client..."
                   class="px-4 py-2 border rounded-lg"
                 >
 
-                <select v-model="salesFilters.type" class="px-4 py-2 border rounded-lg">
-                  <option value="">Tous les types</option>
-                  <option value="cash">Comptant</option>
+                <select v-model="salesFilters.payment_method" class="px-4 py-2 border rounded-lg">
+                  <option value="">💳 Tous les paiements</option>
+                  <option value="cash">Espèces</option>
+                  <option value="mobile_money">Mobile Money</option>
                   <option value="credit">Crédit</option>
                 </select>
 
                 <input 
-                  v-model="salesFilters.startDate"
+                  v-model="salesFilters.date_from"
                   type="date"
+                  placeholder="Date début"
                   class="px-4 py-2 border rounded-lg"
                 >
 
                 <input 
-                  v-model="salesFilters.endDate"
+                  v-model="salesFilters.date_to"
                   type="date"
+                  placeholder="Date fin"
                   class="px-4 py-2 border rounded-lg"
                 >
+              </div>
+              
+              <!-- Résumé des filtres et bouton reset -->
+              <div class="mt-4 flex justify-between items-center">
+                <div class="text-sm text-gray-600">
+                  {{ filteredSales.length }} vente(s) trouvée(s)
+                  <span v-if="salesSearch || salesFilters.payment_method || salesFilters.date_from || salesFilters.date_to">
+                    ({{ sales.length }} au total)
+                  </span>
+                </div>
+                <button
+                  v-if="salesSearch || salesFilters.payment_method || salesFilters.date_from || salesFilters.date_to"
+                  @click="resetSalesFilters"
+                  class="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+                >
+                  🔄 Réinitialiser les filtres
+                </button>
               </div>
             </div>
 
@@ -1375,6 +1522,230 @@
               </table>
             </div>
           </div>
+
+          <!-- MODAL FACTURE -->
+          <div 
+            v-if="showInvoiceModal && currentInvoice" 
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            @click.self="closeInvoiceModal"
+          >
+            <div class="bg-white rounded-lg shadow-xl p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold">Facture {{ currentInvoice.sale.invoice_number }}</h3>
+                <button 
+                  @click="closeInvoiceModal"
+                  class="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              <!-- Sélection du type de facture -->
+              <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+                <label class="block text-sm font-medium mb-2">Type de facture:</label>
+                <div class="grid grid-cols-3 gap-3">
+                  <button
+                    @click="invoiceType = 'standard'"
+                    :class="['px-4 py-3 rounded-lg border-2 transition', 
+                             invoiceType === 'standard' 
+                               ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold' 
+                               : 'border-gray-300 hover:border-blue-400']"
+                  >
+                    📄 Standard
+                  </button>
+                  <button
+                    @click="invoiceType = 'a4'"
+                    :class="['px-4 py-3 rounded-lg border-2 transition', 
+                             invoiceType === 'a4' 
+                               ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold' 
+                               : 'border-gray-300 hover:border-blue-400']"
+                  >
+                    📋 A4 Professionnel
+                  </button>
+                  <button
+                    @click="invoiceType = 'thermal'"
+                    :class="['px-4 py-3 rounded-lg border-2 transition', 
+                             invoiceType === 'thermal' 
+                               ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold' 
+                               : 'border-gray-300 hover:border-blue-400']"
+                  >
+                    🧾 Ticket Thermique
+                  </button>
+                </div>
+              </div>
+
+              <!-- Aperçu de la facture selon le format -->
+              <div class="mb-6">
+                <h4 class="text-sm font-medium text-gray-700 mb-3">Aperçu :</h4>
+                
+                <!-- Aperçu format THERMIQUE (80mm) -->
+                <div v-if="invoiceType === 'thermal'" class="flex justify-center">
+                  <div class="border-2 border-gray-300 rounded-lg overflow-hidden shadow-lg" style="width: 80mm; background: white;">
+                    <div class="p-2" style="font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.3;">
+                      <div class="text-center font-bold" style="font-size: 13px;">ENTREPRISES KAMDEM</div>
+                      <div class="text-center" style="font-size: 10px;">Dépôt de boissons</div>
+                      <div class="text-center" style="font-size: 10px;">Tél: +237 699 956 376</div>
+                      <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+                      
+                      <div class="text-center font-bold">FACTURE {{ currentInvoice.sale.invoice_number }}</div>
+                      <div class="text-center" style="font-size: 10px;">{{ formatDate(currentInvoice.sale.created_at) }}</div>
+                      <div v-if="currentInvoice.sale.customer_name" style="font-size: 10px;">Client: {{ currentInvoice.sale.customer_name }}</div>
+                      <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+                      
+                      <table style="width: 100%; font-size: 10px;">
+                        <thead>
+                          <tr>
+                            <th style="text-align: left; padding: 2px 0;">Article</th>
+                            <th style="text-align: right; padding: 2px 0;">Qté</th>
+                            <th style="text-align: right; padding: 2px 0;">P.U</th>
+                            <th style="text-align: right; padding: 2px 0;">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="item in currentInvoice.items" :key="item.id">
+                            <td style="padding: 2px 0; font-size: 9px;">{{ item.product_name?.substring(0, 15) }}</td>
+                            <td style="text-align: right; padding: 2px 0;">{{ item.quantity }}</td>
+                            <td style="text-align: right; padding: 2px 0; font-size: 9px;">{{ formatCurrency(item.unit_price) }}</td>
+                            <td style="text-align: right; padding: 2px 0; font-size: 9px;">{{ formatCurrency(item.subtotal) }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      
+                      <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+                      <div class="font-bold text-right" style="font-size: 13px;">TOTAL: {{ formatCurrency(currentInvoice.sale.total_amount) }} FCFA</div>
+                      <div class="text-right" style="font-size: 10px;">Paiement: {{ currentInvoice.sale.payment_method }}</div>
+                      <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+                      
+                      <div class="text-center" style="font-size: 10px;">Merci de votre visite!</div>
+                      <div class="text-center" style="font-size: 10px;">À bientôt</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Aperçu format A4 -->
+                <div v-else-if="invoiceType === 'a4'" class="border-2 border-gray-300 rounded-lg p-6 bg-white shadow-lg max-w-3xl mx-auto">
+                  <div class="flex justify-between mb-6 pb-4 border-b-2 border-blue-600">
+                    <div>
+                      <div class="text-xl font-bold text-blue-600">ENTREPRISES KAMDEM</div>
+                      <div class="text-sm">Dépôt de boissons</div>
+                      <div class="text-sm">Yaoundé, Cameroun</div>
+                      <div class="text-sm">Tél: +237 699 956 376</div>
+                    </div>
+                    <div class="text-right">
+                      <div class="text-lg font-bold text-blue-600">FACTURE</div>
+                      <div class="text-lg font-bold text-blue-600">{{ currentInvoice.sale.invoice_number }}</div>
+                      <div class="text-sm mt-2">Date: {{ formatDate(currentInvoice.sale.created_at) }}</div>
+                    </div>
+                  </div>
+                  
+                  <div v-if="currentInvoice.sale.customer_name" class="mb-4">
+                    <div class="font-bold text-blue-600 mb-1">CLIENT</div>
+                    <div>{{ currentInvoice.sale.customer_name }}</div>
+                  </div>
+                  
+                  <table class="w-full mb-4">
+                    <thead>
+                      <tr class="bg-blue-600 text-white">
+                        <th class="px-4 py-2 text-left">Désignation</th>
+                        <th class="px-4 py-2 text-right">Quantité</th>
+                        <th class="px-4 py-2 text-right">Prix unitaire</th>
+                        <th class="px-4 py-2 text-right">Montant</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="item in currentInvoice.items" :key="item.id" class="border-b">
+                        <td class="px-4 py-2">{{ item.product_name }}</td>
+                        <td class="px-4 py-2 text-right">{{ item.quantity }}</td>
+                        <td class="px-4 py-2 text-right">{{ formatCurrency(item.unit_price) }} FCFA</td>
+                        <td class="px-4 py-2 text-right">{{ formatCurrency(item.subtotal) }} FCFA</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  
+                  <div class="flex justify-end">
+                    <div class="w-64">
+                      <div class="flex justify-between py-2 border-b">
+                        <span>Sous-total:</span>
+                        <span>{{ formatCurrency(currentInvoice.sale.total_amount) }} FCFA</span>
+                      </div>
+                      <div class="flex justify-between py-3 bg-blue-600 text-white px-3 mt-2 font-bold text-lg">
+                        <span>TOTAL:</span>
+                        <span>{{ formatCurrency(currentInvoice.sale.total_amount) }} FCFA</span>
+                      </div>
+                      <div class="text-right mt-2 text-sm">
+                        Mode de paiement: <strong>{{ currentInvoice.sale.payment_method }}</strong>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="text-center mt-8 text-gray-500 text-sm">
+                    <p>Merci de votre confiance !</p>
+                  </div>
+                </div>
+
+                <!-- Aperçu format STANDARD -->
+                <div v-else class="border-2 border-gray-300 rounded-lg p-6 bg-white shadow-lg max-w-2xl mx-auto">
+                  <div class="text-center mb-4 pb-3 border-b-2 border-gray-800">
+                    <div class="text-xl font-bold">ENTREPRISES KAMDEM</div>
+                    <div class="text-sm">Dépôt de boissons - Yaoundé</div>
+                    <div class="text-sm">Tél: +237 699 956 376</div>
+                  </div>
+                  
+                  <div class="text-lg font-bold mb-3">FACTURE {{ currentInvoice.sale.invoice_number }}</div>
+                  
+                  <div class="mb-4 text-sm">
+                    <div>Date: {{ formatDate(currentInvoice.sale.created_at) }}</div>
+                    <div v-if="currentInvoice.sale.customer_name">Client: {{ currentInvoice.sale.customer_name }}</div>
+                    <div>Mode de paiement: {{ currentInvoice.sale.payment_method }}</div>
+                  </div>
+                  
+                  <table class="w-full mb-4">
+                    <thead class="bg-gray-800 text-white">
+                      <tr>
+                        <th class="px-3 py-2 text-left">Article</th>
+                        <th class="px-3 py-2 text-right">Qté</th>
+                        <th class="px-3 py-2 text-right">Prix unitaire</th>
+                        <th class="px-3 py-2 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="item in currentInvoice.items" :key="item.id" class="border-b">
+                        <td class="px-3 py-2">{{ item.product_name }}</td>
+                        <td class="px-3 py-2 text-right">{{ item.quantity }}</td>
+                        <td class="px-3 py-2 text-right">{{ formatCurrency(item.unit_price) }} FCFA</td>
+                        <td class="px-3 py-2 text-right">{{ formatCurrency(item.subtotal) }} FCFA</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  
+                  <div class="text-right font-bold text-lg pt-3 border-t-2 border-gray-800">
+                    TOTAL À PAYER: {{ formatCurrency(currentInvoice.sale.total_amount) }} FCFA
+                  </div>
+                  
+                  <div class="text-center mt-6 text-sm">
+                    <p>Merci de votre visite !</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Actions -->
+              <div class="flex justify-end gap-3">
+                <button 
+                  @click="closeInvoiceModal"
+                  class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Fermer
+                </button>
+                <button 
+                  @click="printCurrentInvoice"
+                  class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                >
+                  🖨️ Imprimer
+                </button>
+              </div>
+            </div>
+          </div>
+
         </main>
       </div>
     </div>
@@ -1498,6 +1869,7 @@ export default {
     const posMgmt = initPosManagement(state, loaders);
     const customerSupplierMgmt = initCustomersAndSuppliers(state, loaders);
     const invoiceMgmt = initInvoiceManagement(state, loaders);
+    const navigation = initNavigation(state, loaders);
 
     // 🔍 DEBUG: Vérifier la recherche
     console.log('📦 Module exports:');
@@ -1542,29 +1914,43 @@ export default {
       showProductModal.value = true;
     };
 
+    // ✅ VERSION CORRIGÉE avec gestion d'erreur
     const handleLoginSuccess = async ({ user, token }) => {
-      console.log('🎉 Login réussi, sauvegarde du token...');
+      console.log('🎉 App.vue - Login réussi!', user.name);
+      console.log('🔑 Token reçu:', token);
       
-      currentUser.value = user;
-      authToken.value = token;
-      isAuthenticated.value = true;
-      
-      // ✅ TOUJOURS stringifier avant de sauvegarder
-      if (window.electron) {
-        await window.electron.store.set('auth_token', token);
-        await window.electron.store.set('user', JSON.stringify(user)); // ✅ Correct
-      } else {
-        localStorage.setItem('auth_token', token);
-        localStorage.setItem('user', JSON.stringify(user)); // ✅ Correct
+      try {
+        // 1. Sauvegarder les données d'authentification
+        currentUser.value = user;
+        authToken.value = token;
+        
+        // 2. ✅ PASSER IMMÉDIATEMENT isAuthenticated à true
+        // Cela affichera le dashboard TOUT DE SUITE
+        isAuthenticated.value = true;
+        console.log('✅ isAuthenticated = true, redirection vers Dashboard');
+        
+        // 3. Configurer les headers pour les requêtes futures
+        window.authHeaders = {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        };
+        
+        // 4. ⚠️ Initialiser les données EN ARRIÈRE-PLAN (avec gestion d'erreur)
+        try {
+          console.log('📊 Chargement des données en arrière-plan...');
+          await loaders.init();
+          console.log('✅ Données chargées avec succès');
+        } catch (initError) {
+          console.error('⚠️ Erreur lors du chargement des données:', initError);
+          // ⚠️ NE PAS BLOQUER - l'utilisateur est déjà dans le dashboard
+          // Les données se chargeront au fur et à mesure de la navigation
+        }
+        
+      } catch (error) {
+        console.error('❌ Erreur critique dans handleLoginSuccess:', error);
+        // En cas d'erreur, on affiche quand même le dashboard
+        // L'utilisateur pourra réessayer via les boutons de l'interface
       }
-      
-      window.authHeaders = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
-      
-      await loaders.init();
-      console.log('✅ Application initialisée avec succès');
     };
 
     // Ref pour le champ input du modal de catégorie
