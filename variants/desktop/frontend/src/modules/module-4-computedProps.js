@@ -111,143 +111,35 @@ const initComputedProperties = (state) => {
     ).length;
   });
 
-  // Ventes filtrées par recherche, type et dates
+  // Ventes filtrées par recherche
   const filteredSales = computed(() => {
-    let filtered = [...state.sales.value];
-    
-    // Filtre par recherche
-    if (state.salesSearch.value) {
-      const query = state.salesSearch.value.toLowerCase();
-      filtered = filtered.filter(sale =>
-        (sale.invoice_number && sale.invoice_number.toLowerCase().includes(query)) ||
-        (sale.customer_name && sale.customer_name.toLowerCase().includes(query))
-      );
-    }
-    
-    // Filtre par type de paiement
-    if (state.salesFilters.value.payment_method) {
-      filtered = filtered.filter(sale => 
-        sale.payment_method === state.salesFilters.value.payment_method
-      );
-    }
-    
-    // Filtre par type de vente
-    if (state.salesFilters.value.sale_type) {
-      filtered = filtered.filter(sale => 
-        sale.type === state.salesFilters.value.sale_type
-      );
-    }
-    
-    // Filtre par date de début
-    if (state.salesFilters.value.date_from) {
-      filtered = filtered.filter(sale => 
-        new Date(sale.created_at) >= new Date(state.salesFilters.value.date_from)
-      );
-    }
-    
-    // Filtre par date de fin
-    if (state.salesFilters.value.date_to) {
-      filtered = filtered.filter(sale => 
-        new Date(sale.created_at) <= new Date(state.salesFilters.value.date_to + 'T23:59:59')
-      );
-    }
-    
-    return filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  });
-
-  // Statistiques des ventes calculées à partir des ventes filtrées
-  const salesStats = computed(() => {
-    const sales = filteredSales.value || [];
-    
-    const totalAmount = sales.reduce((sum, sale) => 
-      sum + (parseFloat(sale.total_amount) || 0), 0
+    if (!state.salesSearch.value) return state.sales.value;
+    const query = state.salesSearch.value.toLowerCase();
+    return state.sales.value.filter(sale =>
+      (sale.invoice_number && sale.invoice_number.toLowerCase().includes(query)) ||
+      (sale.customer_name && sale.customer_name.toLowerCase().includes(query))
     );
-    
-    const totalSales = sales.length;
-    
-    const averageAmount = totalSales > 0 ? totalAmount / totalSales : 0;
-    
-    // Calcul par mode de paiement
-    const cash = sales
-      .filter(s => s.payment_method === 'cash')
-      .reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0);
-    
-    const mobile = sales
-      .filter(s => s.payment_method === 'mobile_money')
-      .reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0);
-    
-    const credit = sales
-      .filter(s => s.payment_method === 'credit')
-      .reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0);
-    
-    return {
-      totalAmount,
-      totalSales,
-      averageAmount,
-      cash,
-      mobile,
-      credit
-    };
   });
 
   // Mouvements filtrés
   const filteredMovements = computed(() => {
-    if (!state.movements.value) return [];
+    let result = state.movements.value;
     
-    let filtered = [...state.movements.value];
-    
-    // Filtre par type
     if (state.movementFilters.value.type) {
-      filtered = filtered.filter(m => m.type === state.movementFilters.value.type);
+      result = result.filter(m => m.type === state.movementFilters.value.type);
     }
     
-    // Filtre par date de début
-    if (state.movementFilters.value.startDate) {
-      filtered = filtered.filter(m => 
-        new Date(m.created_at) >= new Date(state.movementFilters.value.startDate)
-      );
+    if (state.movementFilters.value.product_id) {
+      result = result.filter(m => m.product_id === state.movementFilters.value.product_id);
     }
     
-    // Filtre par date de fin
-    if (state.movementFilters.value.endDate) {
-      filtered = filtered.filter(m => 
-        new Date(m.created_at) <= new Date(state.movementFilters.value.endDate + 'T23:59:59')
-      );
-    }
-    
-    return filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  });
-
-  // Statistiques des mouvements (basées sur les mouvements filtrés)
-  const movementStats = computed(() => {
-    const movements = filteredMovements.value || [];
-    
-    const totalIn = movements
-      .filter(m => m.type === 'in')
-      .reduce((sum, m) => sum + (m.quantity || 0), 0);
-    
-    const totalOut = movements
-      .filter(m => m.type === 'out')
-      .reduce((sum, m) => sum + Math.abs(m.quantity || 0), 0);
-    
-    return {
-      totalIn,
-      totalOut,
-      netMovement: totalIn - totalOut
-    };
+    return result;
   });
 
   // Nombre total d'alertes
   const totalAlerts = computed(() => {
     return (state.alerts.value.low_stock?.length || 0) +
            (state.alerts.value.out_of_stock?.length || 0);
-  });
-
-  // ✅ Alertes aplaties en un seul tableau pour l'affichage
-  const flattenedAlerts = computed(() => {
-    const lowStock = state.alerts.value.low_stock || [];
-    const outOfStock = state.alerts.value.out_of_stock || [];
-    return [...lowStock, ...outOfStock];
   });
 
   // Statistiques du tableau de bord
@@ -302,11 +194,8 @@ const initComputedProperties = (state) => {
     activeSuppliers,
     suppliersWithContact,
     filteredSales,
-    salesStats,
     filteredMovements,
-    movementStats,
     totalAlerts,
-    flattenedAlerts,
     dashboardStats,
     cartItemCount,
     isCartEmpty,

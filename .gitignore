@@ -16,3 +16,7 @@ yarn-error.log
 /.fleet
 /.idea
 /.vscode
+dist/
+variants/desktop/electron/backup
+variants/desktop/electron/build
+

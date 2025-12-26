@@ -1,0 +1,54 @@
+appId: com.kamdem.smartdrinkstore
+productName: SmartDrinkStore
+copyright: Copyright © 2024 BANG NEME Jean-Baptiste
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - src/**/*
+  - public/**/*
+  - package.json
+  - "!**/*.map"
+  - "!**/node_modules/**/{CHANGELOG.md,README.md,README,readme.md,readme}"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: build/icon.ico
+  publisherName: BANG NTEME Jean-Baptiste
+  verifyUpdateCodeSignature: false
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: SmartDrinkStore
+  perMachine: false
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  
+  # Textes en français
+  installerHeader: Installation de SmartDrinkStore
+  installerSidebar: build/installer-sidebar.bmp
+  uninstallerSidebar: build/uninstaller-sidebar.bmp
+  
+  license: LICENSE.txt
+  language: 1036
+  
+  # Installation directory
+  artifactName: ${productName}-Setup-${version}.${ext}
+
+portable:
+  artifactName: ${productName}-Portable-${version}.${ext}
+
+compression: maximum
+publish: null

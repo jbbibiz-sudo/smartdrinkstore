@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test jsPDF Hors Ligne</title>
+</head>
+<body>
+    <h1>Test jsPDF en mode hors ligne</h1>
+    <button onclick="testPDF()">Générer un PDF de test</button>
+    
+    <script type="module">
+        import { jsPDF } from './node_modules/jspdf/dist/jspdf.es.min.js';
+        
+        window.testPDF = function() {
+            const doc = new jsPDF();
+            doc.text('Test PDF hors ligne', 10, 10);
+            doc.save('test-offline.pdf');
+            alert('PDF généré avec succès !');
+        }
+    </script>
+</body>
+</html>

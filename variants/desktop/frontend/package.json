@@ -1,25 +1,88 @@
 {
-  "name": "@smartdrinkstore/desktop-frontend",
-  "private": true,
+  "name": "smartdrinkstore-desktop",
   "version": "1.0.0",
   "type": "module",
+  "description": "SmartDrinkStore - Application de gestion de dépôt de boissons",
+  "main": "../electron/src/main.js",
+  "author": {
+    "name": "BANG NTEME Jean-Baptiste",
+    "email": "jbbibiz@gmail.com"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron:dev": "electron ../electron/src/main.js --dev",
+    "electron:build": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.kamdem.smartdrinkstore",
+    "productName": "SmartDrinkStore Manager",
+    "copyright": "Copyright © 2025 BANG NTEME Jean-Baptiste",
+    "directories": {
+      "output": "release",
+      "buildResources": "../electron/build"
+    },
+    "files": [
+      "dist/**/*",
+      "../electron/src/**/*",
+      "!../electron/node_modules",
+      "!**/*.map"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "../electron/build/icon.ico",
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "publisherName": "Entreprises KAMDEM",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SmartDrinkStore",
+      "installerIcon": "../electron/build/icon.ico",
+      "uninstallerIcon": "../electron/build/icon.ico",
+      "installerHeaderIcon": "../electron/build/icon.ico",
+      "license": "../electron/LICENSE.txt",
+      "language": "1036",
+      "installerLanguages": [
+        "fr_FR",
+        "en_US"
+      ],
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.3",
+    "autoprefixer": "^10.4.23",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.9.1",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
+    "vite": "^7.3.0",
+    "vue": "^3.4.0"
   },
   "dependencies": {
     "axios": "^1.13.2",
-    "pinia": "^3.0.4",
-    "vue": "^3.4.0",
     "vue-router": "^4.6.4"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-vue": "^5.0.0",
-    "autoprefixer": "^10.4.16",
-    "postcss": "^8.4.32",
-    "tailwindcss": "^3.4.0",
-    "typescript": "^5.3.3",
-    "vite": "^5.0.10"
   }
 }
