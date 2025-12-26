@@ -80,63 +80,6 @@
                       currentView === 'products' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
             >
               📦 Produits
-<<<<<<< HEAD
-            </button>
-            <button 
-              v-if="hasPermission('create_sale')"
-              @click="currentView = 'pos'"
-              :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
-                      currentView === 'pos' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-            >
-              🛒 Caisse / Vente
-            </button>
-            <button 
-              v-if="hasPermission('view_clients')"
-              @click="switchToCustomers"
-              :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
-                      currentView === 'customers' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-            >
-              👥 Clients
-            </button>
-            <button
-              v-if="hasPermission('view_suppliers')" 
-              @click="switchToSuppliers"
-              :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
-                      currentView === 'suppliers' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-            >
-              🏭 Fournisseurs
-            </button>
-            <button
-              v-if="hasPermission('view_stock_movements')" 
-              @click="switchToMovements"
-              :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
-                      currentView === 'movements' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-            >
-              🔄 Mouvements
-            </button>
-            <button 
-              v-if="hasPermission('view_products')"
-              @click="currentView = 'alerts'"
-              :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition relative', 
-                      currentView === 'alerts' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-            >
-              ⚠ Alertes
-              <span v-if="alertsCount > 0" class="absolute top-2 right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
-                {{ alertsCount }}
-              </span>
-            </button>
-            <button 
-              v-if="hasPermission('view_sales')"
-              @click="switchToInvoices"
-              :class="['w-full text-left px-4 py-3 rounded-lg font-medium transition', 
-                      currentView === 'invoices' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100']"
-            >
-              📄 Factures
-            </button>
-          </nav>
-        </aside>
-
-=======
             </button>
             <button 
               v-if="hasPermission('create_sale')"
@@ -207,7 +150,6 @@
           </nav>
         </aside>
 
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
         <!-- Main Content -->
         <main class="flex-1 p-6 bg-gray-50">
           <!-- Dashboard View -->
@@ -301,11 +243,7 @@
                   ref="productSearchInput" 
                   v-model="searchQuery"
                   type="text" 
-<<<<<<< HEAD
-                  placeholder="Rechercher un produit..."
-=======
                   placeholder="🔍 Rechercher un produit..."
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
                   class="flex-1 min-w-[200px] px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   autofocus
                 >
@@ -382,11 +320,7 @@
                 </tbody>
               </table>
             </div>
-<<<<<<< HEAD
-            <!-- MODAL PRODUIT -->
-=======
             <!-- ✅ MODAL PRODUIT (SANS le modal hiérarchique dedans) -->
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
             <div 
               v-if="showProductModal" 
               class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
@@ -476,369 +410,6 @@
                       class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                   </div>
-<<<<<<< HEAD
-                  
-                  <div class="flex justify-end gap-2 pt-4">
-                    <button 
-                      type="button"
-                      @click="showProductModal = false"
-                      class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                    >
-                      Annuler
-                    </button>
-                    <button 
-                      type="submit"
-                      :disabled="savingProduct"
-                      class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {{ savingProduct ? 'Enregistrement...' : 'Enregistrer' }}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-
-            <!-- MODAL CATÉGORIES -->
-            <div 
-              v-if="showCategoryModal" 
-              class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-              @click.self="showCategoryModal = false"
-            >
-              <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-                <div class="flex justify-between items-center mb-4">
-                  <h3 class="text-2xl font-bold">Gestion des catégories</h3>
-                  <button 
-                    @click="showCategoryModal = false"
-                    class="text-gray-500 hover:text-gray-700 text-2xl"
-                  >
-                    ×
-                  </button>
-                </div>
-                
-                <!-- Formulaire ajout catégorie -->
-                <div class="mb-6 p-4 bg-gray-50 rounded-lg">
-                  <form @submit.prevent="addCategory" class="flex gap-2">
-                    <input 
-                      ref="categoryInput"
-                      v-model="newCategoryName"
-                      type="text"
-                      placeholder="Nouvelle catégorie..."
-                      class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                      required
-                      autofocus
-                    >
-                    <button 
-                      type="submit"
-                      class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      ➕ Ajouter
-                    </button>
-                  </form>
-                </div>
-                
-                <!-- Liste des catégories -->
-                <div class="space-y-2">
-                  <div 
-                    v-for="category in categories" 
-                    :key="category.id"
-                    class="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
-                  >
-                    <div v-if="editingCategoryId === category.id" class="flex-1 flex gap-2">
-                      <input 
-                        v-model="editingCategoryName"
-                        type="text"
-                        class="flex-1 px-3 py-1 border rounded focus:ring-2 focus:ring-blue-500"
-                        @keyup.enter="saveCategory(category.id)"
-                        @keyup.esc="cancelEditCategory"
-                      >
-                      <button 
-                        @click="saveCategory(category.id)"
-                        class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-                      >
-                        ✓
-                      </button>
-                      <button 
-                        @click="cancelEditCategory"
-                        class="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    <div v-else class="flex-1 flex items-center justify-between">
-                      <span class="font-medium">{{ category.name }}</span>
-                      <div class="flex gap-2">
-                        <button 
-                          @click="editCategory(category)"
-                          class="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm"
-                        >
-                          ✏️
-                        </button>
-                        <button 
-                          @click="deleteCategory(category.id)"
-                          class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- MODAL VISUALISATION PRODUIT -->
-          <div 
-            v-if="showViewModal && viewingProduct" 
-            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-            @click.self="showViewModal = false"
-          >
-            <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div class="flex justify-between items-center mb-6">
-                <h3 class="text-2xl font-bold">Détails du produit</h3>
-                <button 
-                  @click="showViewModal = false"
-                  class="text-gray-500 hover:text-gray-700 text-2xl"
-                >
-                  ×
-                </button>
-              </div>
-              
-              <div class="space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <label class="block text-sm font-medium text-gray-500 mb-1">Nom du produit</label>
-                    <p class="text-lg font-semibold">{{ viewingProduct.name }}</p>
-                  </div>
-                  
-                  <div>
-                    <label class="block text-sm font-medium text-gray-500 mb-1">SKU</label>
-                    <p class="text-lg font-mono">{{ viewingProduct.sku }}</p>
-                  </div>
-                </div>
-                
-                <div>
-                  <label class="block text-sm font-medium text-gray-500 mb-1">Catégorie</label>
-                  <span class="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-lg">
-                    {{ viewingProduct.category?.name || 'N/A' }}
-                  </span>
-                </div>
-                
-                <div class="grid grid-cols-3 gap-4">
-                  <div>
-                    <label class="block text-sm font-medium text-gray-500 mb-1">Prix unitaire</label>
-                    <p class="text-xl font-bold text-green-600">{{ formatCurrency(viewingProduct.unit_price) }}</p>
-                  </div>
-                  
-                  <div>
-                    <label class="block text-sm font-medium text-gray-500 mb-1">Stock actuel</label>
-                    <p :class="['text-xl font-bold',
-                              viewingProduct.stock === 0 ? 'text-red-600' :
-                              viewingProduct.stock <= viewingProduct.min_stock ? 'text-orange-600' :
-                              'text-green-600']">
-                      {{ viewingProduct.stock }} unités
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label class="block text-sm font-medium text-gray-500 mb-1">Stock minimum</label>
-                    <p class="text-xl font-bold text-gray-600">{{ viewingProduct.min_stock }} unités</p>
-                  </div>
-                </div>
-                
-                <div v-if="viewingProduct.stock <= viewingProduct.min_stock" class="bg-orange-50 border-l-4 border-orange-500 p-4 rounded">
-                  <div class="flex items-center">
-                    <span class="text-2xl mr-3">⚠️</span>
-                    <div>
-                      <p class="font-bold text-orange-800">Alerte stock faible</p>
-                      <p class="text-sm text-orange-700">Ce produit nécessite un réapprovisionnement</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="pt-4 flex justify-end gap-2">
-                  <button 
-                    @click="showViewModal = false"
-                    class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Fermer
-                  </button>
-                  <button 
-                    @click="() => { showViewModal = false; openProductModal(viewingProduct); }"
-                    class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    ✏️ Modifier
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- POS View -->
-          <div v-if="currentView === 'pos'" class="space-y-6">
-            <h2 class="text-3xl font-bold">Point de Vente</h2>
-            
-            <div class="grid grid-cols-3 gap-6">
-              <div class="col-span-2 space-y-4">
-                <div class="bg-white rounded-lg shadow p-6">
-                  <input
-                    ref="posSearchInput" 
-                    v-model="posSearch"
-                    type="text"
-                    placeholder="🔍 Rechercher un produit par nom ou SKU..."
-                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                </div>
-
-                <div class="bg-white rounded-lg shadow overflow-hidden max-h-[600px] overflow-y-auto">
-                  <div v-if="!filteredPosProducts || filteredPosProducts.length === 0" class="p-8 text-center text-gray-500">
-                    <p class="text-lg">Aucun produit disponible</p>
-                    <p class="text-sm">{{ products?.length || 0 }} produits chargés</p>
-                  </div>
-                  <div class="grid grid-cols-2 gap-4 p-4">
-                    <div 
-                      v-for="product in filteredPosProducts" 
-                      :key="product.id"
-                      @click="addToCart(product)"
-                      class="border rounded-lg p-4 cursor-pointer hover:bg-blue-50 transition"
-                    >
-                      <h3 class="font-medium">{{ product.name }}</h3>
-                      <p class="text-sm text-gray-500">{{ product.sku }}</p>
-                      <div class="flex justify-between items-center mt-2">
-                        <span class="text-lg font-bold text-blue-600">{{ formatCurrency(product.unit_price) }}</span>
-                        <span :class="['text-sm px-2 py-1 rounded',
-                                     product.stock === 0 ? 'bg-red-100 text-red-800' :
-                                     product.stock <= 5 ? 'bg-orange-100 text-orange-800' :
-                                     'bg-green-100 text-green-800']">
-                          {{ product.stock }} en stock
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- ============================================ -->
-              <!-- SECTION PANIER (POS) - CODE CORRIGÉ -->
-              <!-- ============================================ -->
-
-              <div class="space-y-4">
-                <div class="bg-white rounded-lg shadow p-6">
-                  <h3 class="text-xl font-bold mb-4">Panier</h3>
-                  
-                  <div v-if="cart.length === 0" class="text-center text-gray-500 py-8">
-                    Panier vide
-                  </div>
-
-                  <div v-else class="space-y-3 max-h-[400px] overflow-y-auto">
-                    <div v-for="item in cart" :key="item.product_id" class="border rounded p-3">
-                      <div class="flex justify-between items-start mb-2">
-                        <span class="font-medium">{{ item.name }}</span>
-                        <button @click="removeFromCart(cart.indexOf(item))" class="text-red-500 hover:text-red-700">
-                          ×
-                        </button>
-                      </div>
-                      <div class="flex items-center gap-2 mb-2">
-                        <button 
-                          @click="decreaseQuantity(item.product_id)"
-                          class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
-                        >
-                          -
-                        </button>
-                        <input 
-                          v-model.number="item.quantity"
-                          type="number"
-                          min="1"
-                          :max="item.stock"
-                          class="w-16 px-2 py-1 border rounded text-center"
-                          @change="updateCartQty(cart.indexOf(item), 0)"
-                        >
-                        <button 
-                          @click="increaseQuantity(item.product_id)"
-                          class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
-                        >
-                          +
-                        </button>
-                      </div>
-                      <div class="text-sm text-gray-600">
-                        {{ formatCurrency(item.unit_price) }} × {{ item.quantity }} = 
-                        <span class="font-bold">{{ formatCurrency(item.quantity * item.unit_price) }}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="mt-6 pt-4 border-t space-y-3">
-                    <!-- Affichage du sous-total -->
-                    <div class="flex justify-between text-lg">
-                      <span class="text-gray-600">Sous-total:</span>
-                      <span class="font-semibold">{{ formatCurrency(cartTotal) }}</span>
-                    </div>
-
-                    <!-- Type de vente -->
-                    <div>
-                      <label class="block text-sm font-medium text-gray-700 mb-2">Type de vente</label>
-                      <select v-model="saleType" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                        <option value="counter">Vente au comptoir</option>
-                        <option value="wholesale">Vente en gros (-5%)</option>
-                      </select>
-                    </div>
-
-                    <!-- Affichage de la remise si vente en gros -->
-                    <div v-if="saleType === 'wholesale'" class="flex justify-between text-sm text-green-600">
-                      <span>Remise (5%):</span>
-                      <span class="font-semibold">- {{ formatCurrency(cartTotal * 0.05) }}</span>
-                    </div>
-
-                    <!-- Total final -->
-                    <div class="flex justify-between text-2xl font-bold border-t pt-3">
-                      <span>Total:</span>
-                      <span class="text-blue-600">{{ formatCurrency(finalTotal) }}</span>
-                    </div>
-
-                    <!-- Mode de paiement -->
-                    <div>
-                      <label class="block text-sm font-medium text-gray-700 mb-2">Mode de paiement</label>
-                      <div class="space-y-2">
-                        <select v-model="paymentMethod" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                          <option value="cash">💵 Espèces</option>
-                          <option value="mobile_money">📱 Mobile Money</option>
-                          <option value="bank_transfer">🏦 Virement bancaire</option>
-                          <option value="credit">📝 À crédit</option>
-                        </select>
-
-                        <!-- Sélection du client si paiement à crédit -->
-                        <select 
-                          v-if="paymentMethod === 'credit'"
-                          v-model="selectedCustomerId"
-                          class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                          required
-                        >
-                          <option value="">Sélectionner un client</option>
-                          <option v-for="customer in customers" :key="customer.id" :value="customer.id">
-                            {{ customer.name }}
-                          </option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <!-- Boutons d'action -->
-                    <button 
-                      @click="processSale"
-                      :disabled="cart.length === 0 || (paymentMethod === 'credit' && !selectedCustomerId)"
-                      class="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
-                    >
-                      ✅ Valider la vente
-                    </button>
-
-                    <button 
-                      @click="clearCart"
-                      class="w-full py-2 border border-red-600 text-red-600 rounded-lg hover:bg-red-50 transition"
-                    >
-                      🗑️ Vider le panier
-                    </button>
-                  </div>
-                </div>
-=======
 
                   <!-- Section Consigne -->
                   <div class="form-group">
@@ -1072,93 +643,10 @@
                     </div>
                   </div>
                 </div>
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
               </div>
             </div>
           </div>
 
-<<<<<<< HEAD
-          <!-- Customers View -->
-          <div v-if="currentView === 'customers'" class="space-y-6">
-            <div class="flex justify-between items-center">
-              <h2 class="text-3xl font-bold">Gestion des Clients</h2>
-              <button 
-                @click="openCustomerModal(null)"
-                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
-              >
-                ➕ Nouveau client
-              </button>
-            </div>
-
-            <div class="bg-white rounded-lg shadow p-6">
-              <input 
-                v-model="customerSearchQuery"
-                type="text"
-                placeholder="Rechercher un client..."
-                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-            </div>
-
-            <div class="bg-white rounded-lg shadow overflow-hidden">
-              <table class="w-full">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Adresse</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Solde</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="customer in filteredCustomers" :key="customer.id" class="border-t hover:bg-gray-50">
-                    <td class="px-6 py-4 font-medium">{{ customer.name }}</td>
-                    <td class="px-6 py-4">
-                      <div>{{ customer.phone }}</div>
-                      <div class="text-sm text-gray-500">{{ customer.email }}</div>
-                    </td>
-                    <td class="px-6 py-4">{{ customer.address || 'N/A' }}</td>
-                    <td class="px-6 py-4">
-                      <span :class="['font-semibold', customer.balance > 0 ? 'text-red-600' : 'text-green-600']">
-                        {{ formatCurrency(customer.balance || 0) }}
-                      </span>
-                    </td>
-                    <td class="px-6 py-4">
-                      <div class="flex gap-2">
-                        <button 
-                          @click="openCustomerModal(customer)"
-                          class="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm"
-                        >
-                          ✏️ Modifier
-                        </button>
-                        <button 
-                          @click="deleteCustomer(customer.id)"
-                          class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-                        >
-                          🗑️ Supprimer
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Modal Nouveau/Modifier Client -->
-          <div 
-            v-if="showCustomerModal" 
-            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-            @click.self="closeCustomerModal"
-          >
-            <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div class="flex justify-between items-center mb-4">
-                <h3 class="text-2xl font-bold">
-                  {{ editingCustomer ? 'Modifier le client' : 'Nouveau client' }}
-                </h3>
-                <button 
-                  @click="closeCustomerModal"
-=======
           <!-- MODAL VISUALISATION PRODUIT -->
           <div 
             v-if="showViewModal && viewingProduct" 
@@ -1170,46 +658,12 @@
                 <h3 class="text-2xl font-bold">Détails du produit</h3>
                 <button 
                   @click="showViewModal = false"
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
                   class="text-gray-500 hover:text-gray-700 text-2xl"
                 >
                   ×
                 </button>
               </div>
               
-<<<<<<< HEAD
-              <form @submit.prevent="saveCustomer" class="space-y-4">
-                <div>
-                  <label class="block text-sm font-medium mb-1">Nom du client *</label>
-                  <input 
-                    v-model="customerForm.name"
-                    type="text"
-                    required
-                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Ex: Jean Dupont"
-                  >
-                </div>
-                
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <label class="block text-sm font-medium mb-1">Téléphone</label>
-                    <input 
-                      v-model="customerForm.phone"
-                      type="tel"
-                      class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="Ex: +237 699 956 376"
-                    >
-                  </div>
-                  
-                  <div>
-                    <label class="block text-sm font-medium mb-1">Email</label>
-                    <input 
-                      v-model="customerForm.email"
-                      type="email"
-                      class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="Ex: client@email.com"
-                    >
-=======
               <div class="space-y-4">
                 <div class="grid grid-cols-2 gap-4">
                   <div>
@@ -1220,62 +674,10 @@
                   <div>
                     <label class="block text-sm font-medium text-gray-500 mb-1">SKU</label>
                     <p class="text-lg font-mono">{{ viewingProduct.sku }}</p>
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
                   </div>
                 </div>
                 
                 <div>
-<<<<<<< HEAD
-                  <label class="block text-sm font-medium mb-1">Adresse</label>
-                  <textarea 
-                    v-model="customerForm.address"
-                    rows="2"
-                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Ex: Yaoundé, Cameroun"
-                  ></textarea>
-                </div>
-
-                <div v-if="editingCustomer">
-                  <label class="block text-sm font-medium mb-1">Solde actuel</label>
-                  <input 
-                    v-model.number="customerForm.balance"
-                    type="number"
-                    step="0.01"
-                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50"
-                    readonly
-                  >
-                  <p class="text-xs text-gray-500 mt-1">Le solde est géré automatiquement via les ventes à crédit</p>
-                </div>
-                
-                <div class="flex justify-end gap-3 pt-4">
-                  <button 
-                    type="button"
-                    @click="closeCustomerModal"
-                    class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Annuler
-                  </button>
-                  <button 
-                    type="submit"
-                    class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    {{ editingCustomer ? 'Mettre à jour' : 'Créer' }}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-
-          <!-- Suppliers View -->
-          <div v-if="currentView === 'suppliers'" class="space-y-6">
-            <div class="flex justify-between items-center">
-              <h2 class="text-3xl font-bold">Gestion des Fournisseurs</h2>
-              <button 
-                @click="openSupplierModal(null)"
-                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
-              >
-                ➕ Nouveau fournisseur
-=======
                   <label class="block text-sm font-medium text-gray-500 mb-1">Catégorie</label>
                   <span class="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-lg">
                     {{ viewingProduct.category?.name || 'N/A' }}
@@ -1509,21 +911,14 @@
                 class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
               >
                 ➕ Nouveau client
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
               </button>
             </div>
 
             <div class="bg-white rounded-lg shadow p-6">
               <input 
-<<<<<<< HEAD
-                v-model="supplierSearchQuery"
-                type="text"
-                placeholder="Rechercher un fournisseur..."
-=======
                 v-model="customerSearchQuery"
                 type="text"
                 placeholder="🔍 Rechercher un client..."
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
                 class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
               >
             </div>
@@ -1535,43 +930,11 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Adresse</th>
-<<<<<<< HEAD
-=======
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Solde</th>
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-<<<<<<< HEAD
-                  <tr v-if="loading">
-                    <td colspan="4" class="px-6 py-8 text-center">
-                      <div class="flex justify-center items-center">
-                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                        <span class="ml-3">Chargement...</span>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr v-else-if="filteredSuppliers?.length === 0">
-                    <td colspan="4" class="px-6 py-8 text-center text-gray-500">
-                      Aucun fournisseur trouvé
-                    </td>
-                  </tr>
-                  <tr v-for="supplier in filteredSuppliers" :key="supplier.id" class="border-t hover:bg-gray-50">
-                    <td class="px-6 py-4 font-medium">{{ supplier.name }}</td>
-                    <td class="px-6 py-4">
-                      <div v-if="supplier.phone || supplier.email">
-                        <div v-if="supplier.phone">📞 {{ supplier.phone }}</div>
-                        <div v-if="supplier.email" class="text-sm text-gray-500">✉️ {{ supplier.email }}</div>
-                      </div>
-                      <span v-else class="text-gray-400">N/A</span>
-                    </td>
-                    <td class="px-6 py-4">{{ supplier.address || 'N/A' }}</td>
-                    <td class="px-6 py-4">
-                      <div class="flex gap-2">
-                        <button 
-                          @click="openSupplierModal(supplier)"
-=======
                   <tr v-for="customer in filteredCustomers" :key="customer.id" class="border-t hover:bg-gray-50">
                     <td class="px-6 py-4 font-medium">{{ customer.name }}</td>
                     <td class="px-6 py-4">
@@ -1588,205 +951,12 @@
                       <div class="flex gap-2">
                         <button 
                           @click="openCustomerModal(customer)"
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
                           class="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm"
                         >
                           ✏️ Modifier
                         </button>
                         <button 
-<<<<<<< HEAD
-                          @click="deleteSupplier(supplier.id)"
-=======
                           @click="deleteCustomer(customer.id)"
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
-                          class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-                        >
-                          🗑️ Supprimer
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-<<<<<<< HEAD
-          <!-- Modal Nouveau/Modifier Fournisseur -->
-          <div 
-            v-if="showSupplierModal" 
-            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-            @click.self="closeSupplierModal"
-=======
-          <!-- Modal Nouveau/Modifier Client -->
-          <div 
-            v-if="showCustomerModal" 
-            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-            @click.self="closeCustomerModal"
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
-          >
-            <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div class="flex justify-between items-center mb-4">
-                <h3 class="text-2xl font-bold">
-<<<<<<< HEAD
-                  {{ editingSupplier ? 'Modifier le fournisseur' : 'Nouveau fournisseur' }}
-                </h3>
-                <button 
-                  @click="closeSupplierModal"
-=======
-                  {{ editingCustomer ? 'Modifier le client' : 'Nouveau client' }}
-                </h3>
-                <button 
-                  @click="closeCustomerModal"
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
-                  class="text-gray-500 hover:text-gray-700 text-2xl"
-                >
-                  ×
-                </button>
-              </div>
-              
-<<<<<<< HEAD
-=======
-              <form @submit.prevent="saveCustomer" class="space-y-4">
-                <div>
-                  <label class="block text-sm font-medium mb-1">Nom du client *</label>
-                  <input 
-                    v-model="customerForm.name"
-                    type="text"
-                    required
-                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Ex: Jean Dupont"
-                  >
-                </div>
-                
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <label class="block text-sm font-medium mb-1">Téléphone</label>
-                    <input 
-                      v-model="customerForm.phone"
-                      type="tel"
-                      class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="Ex: +237 699 956 376"
-                    >
-                  </div>
-                  
-                  <div>
-                    <label class="block text-sm font-medium mb-1">Email</label>
-                    <input 
-                      v-model="customerForm.email"
-                      type="email"
-                      class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="Ex: client@email.com"
-                    >
-                  </div>
-                </div>
-                
-                <div>
-                  <label class="block text-sm font-medium mb-1">Adresse</label>
-                  <textarea 
-                    v-model="customerForm.address"
-                    rows="2"
-                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Ex: Yaoundé, Cameroun"
-                  ></textarea>
-                </div>
-
-                <div v-if="editingCustomer">
-                  <label class="block text-sm font-medium mb-1">Solde actuel</label>
-                  <input 
-                    v-model.number="customerForm.balance"
-                    type="number"
-                    step="0.01"
-                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50"
-                    readonly
-                  >
-                  <p class="text-xs text-gray-500 mt-1">Le solde est géré automatiquement via les ventes à crédit</p>
-                </div>
-                
-                <div class="flex justify-end gap-3 pt-4">
-                  <button 
-                    type="button"
-                    @click="closeCustomerModal"
-                    class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Annuler
-                  </button>
-                  <button 
-                    type="submit"
-                    class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    {{ editingCustomer ? 'Mettre à jour' : 'Créer' }}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-
-          <!-- Suppliers View -->
-          <div v-if="currentView === 'suppliers'" class="space-y-6">
-            <div class="flex justify-between items-center">
-              <h2 class="text-3xl font-bold">Gestion des Fournisseurs</h2>
-              <button 
-                @click="openSupplierModal(null)"
-                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
-              >
-                ➕ Nouveau fournisseur
-              </button>
-            </div>
-
-            <div class="bg-white rounded-lg shadow p-6">
-              <input 
-                v-model="supplierSearchQuery"
-                type="text"
-                placeholder="🔍 Rechercher un fournisseur..."
-                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-            </div>
-
-            <div class="bg-white rounded-lg shadow overflow-hidden">
-              <table class="w-full">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Adresse</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-if="loading">
-                    <td colspan="4" class="px-6 py-8 text-center">
-                      <div class="flex justify-center items-center">
-                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                        <span class="ml-3">Chargement...</span>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr v-else-if="filteredSuppliers?.length === 0">
-                    <td colspan="4" class="px-6 py-8 text-center text-gray-500">
-                      Aucun fournisseur trouvé
-                    </td>
-                  </tr>
-                  <tr v-for="supplier in filteredSuppliers" :key="supplier.id" class="border-t hover:bg-gray-50">
-                    <td class="px-6 py-4 font-medium">{{ supplier.name }}</td>
-                    <td class="px-6 py-4">
-                      <div v-if="supplier.phone || supplier.email">
-                        <div v-if="supplier.phone">📞 {{ supplier.phone }}</div>
-                        <div v-if="supplier.email" class="text-sm text-gray-500">✉️ {{ supplier.email }}</div>
-                      </div>
-                      <span v-else class="text-gray-400">N/A</span>
-                    </td>
-                    <td class="px-6 py-4">{{ supplier.address || 'N/A' }}</td>
-                    <td class="px-6 py-4">
-                      <div class="flex gap-2">
-                        <button 
-                          @click="openSupplierModal(supplier)"
-                          class="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm"
-                        >
-                          ✏️ Modifier
-                        </button>
-                        <button 
-                          @click="deleteSupplier(supplier.id)"
                           class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
                         >
                           🗑️ Supprimer
@@ -1818,7 +988,6 @@
                 </button>
               </div>
               
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
               <form @submit.prevent="saveSupplier" class="space-y-4">
                 <div>
                   <label class="block text-sm font-medium mb-1">Nom du fournisseur *</label>
@@ -2442,20 +1611,13 @@ import { initPosManagement } from './modules/module-9-pos.js';
 import { initCustomersAndSuppliers } from './modules/module-10-customers-suppliers.js';
 import { initInvoiceManagement } from './modules/module-11-invoices.js';
 import { initNavigation } from './modules/module-12-navigation.js';
-<<<<<<< HEAD
-=======
 import CategoryHierarchyManager from './components/CategoryHierarchyManager.vue'; // ✅ Cette ligne doit exister
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
 
 export default {
   name: 'App',
   components: {
-<<<<<<< HEAD
-    Login
-=======
     Login,
     CategoryHierarchyManager
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
   },
   setup() {
     console.log('🔍 Setup() démarré...');
@@ -2598,8 +1760,6 @@ export default {
       showProductModal.value = true;
     };
 
-<<<<<<< HEAD
-=======
     // Modal de gestion hiérarchique des catégories
     const showHierarchicalCategoryModal = ref(false);
 
@@ -2614,7 +1774,6 @@ export default {
       loaders.loadCategories();
     };
 
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
     // ✅ VERSION CORRIGÉE avec gestion d'erreur
     const handleLoginSuccess = async ({ user, token }) => {
       console.log('🎉 App.vue - Login réussi!', user.name);
@@ -2850,15 +2009,12 @@ export default {
       categoryInput,
       productSearchInput,
       posSearchInput,
-<<<<<<< HEAD
-=======
 
       // Modal hiérarchique des catégories
       showHierarchicalCategoryModal,
       openHierarchicalCategoryModal,
       closeHierarchicalCategoryModal,
 
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
     };
   }
 };

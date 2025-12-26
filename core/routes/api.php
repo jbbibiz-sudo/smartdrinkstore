@@ -393,42 +393,6 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     // MOUVEMENTS DE STOCK
     // ====================================
     
-<<<<<<< HEAD
-    Route::get('/movements', function (Request $request) {
-        try {
-            $query = DB::table('stock_movements')
-                ->join('products', 'stock_movements.product_id', '=', 'products.id')
-                ->select(
-                    'stock_movements.*',
-                    'products.name as product_name',
-                    'products.sku as product_sku'
-                )
-                ->orderBy('stock_movements.created_at', 'desc');
-
-            if ($request->has('type')) {
-                $query->where('stock_movements.type', $request->type);
-            }
-            if ($request->has('product_id')) {
-                $query->where('stock_movements.product_id', $request->product_id);
-            }
-
-            $movements = $query->limit(100)->get();
-
-            return response()->json([
-                'success' => true,
-                'data' => $movements
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors du chargement',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    });
-
-=======
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
     Route::post('/movements/restock', function (Request $request) {
         try {
             $validated = $request->validate([
@@ -958,21 +922,9 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     
     Route::get('/movements', function (Request $request) {
         try {
-<<<<<<< HEAD
-            $query = DB::table('stock_movements')
-                ->join('products', 'stock_movements.product_id', '=', 'products.id')
-                ->select(
-                    'stock_movements.*',
-                    'products.name as product_name',
-                    'products.sku as product_sku'
-                )
-                ->orderBy('stock_movements.created_at', 'desc');
-            
-=======
             $query = \App\Models\StockMovement::with('product')
                 ->orderBy('created_at', 'desc');
                             
->>>>>>> be7de6966e5c36c31094a308498c58310e093f27
             if ($request->has('product_id')) {
                 $query->where('stock_movements.product_id', $request->product_id);
             }
