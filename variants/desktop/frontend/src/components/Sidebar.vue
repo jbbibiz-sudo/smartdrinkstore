@@ -21,7 +21,6 @@
         href="#"
       >
         📦 Produits
-
       </a>
       <a 
         @click.prevent="$emit('navigate', 'pos')"

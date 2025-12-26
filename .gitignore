@@ -16,6 +16,5 @@ npm-debug.log
 yarn-error.log
 /.fleet
 /.idea
-
-variants/desktop
+variants/desktop/electron/dist/
 variants/desktop/electron/dist/win-unpacked/chrome_100_percent.pak
