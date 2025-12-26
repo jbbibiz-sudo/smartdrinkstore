@@ -38,6 +38,9 @@ const productForm = ref({
   category_id: null,
   subcategory_id: null,
   description: '',
+  is_consigned: false,
+  consignment_price: 0,
+  empty_containers_stock: 0,
   image: null
 });
 const editingProduct = ref(null);

@@ -1,6 +1,7 @@
 // ============================================
 // MODULE 4 : COMPUTED PROPERTIES
 // ============================================
+// ✅ VERSION CORRIGÉE - Ajout de consignedProducts et totalEmptyContainers
 
 import { computed } from 'vue';
 
@@ -287,6 +288,20 @@ const initComputedProperties = (state) => {
     return state.supplierForm.value.name.trim() !== '';
   });
 
+  // ✅ AJOUT: Produits consignés (bouteilles/casiers retournables)
+  const consignedProducts = computed(() => {
+    return state.products.value.filter(p => 
+      p.is_consigned === true || p.is_consigned === 1
+    );
+  });
+
+  // ✅ AJOUT: Nombre total d'emballages vides en stock
+  const totalEmptyContainers = computed(() => {
+    return consignedProducts.value.reduce((sum, p) => 
+      sum + (parseInt(p.empty_containers_stock) || 0), 0
+    );
+  });
+
   // Return all computed properties
   return {
     currentDate,
@@ -312,7 +327,9 @@ const initComputedProperties = (state) => {
     isCartEmpty,
     isProductFormValid,
     isCustomerFormValid,
-    isSupplierFormValid
+    isSupplierFormValid,
+    consignedProducts,      // ✅ AJOUTÉ
+    totalEmptyContainers    // ✅ AJOUTÉ
   };
 };
 

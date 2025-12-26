@@ -1,6 +1,7 @@
 /.phpunit.cache
 /node_modules
 /public/build
+/dist/desktop
 /public/hot
 /public/storage
 /storage/*.key
@@ -15,8 +16,6 @@ npm-debug.log
 yarn-error.log
 /.fleet
 /.idea
-/.vscode
-dist/
-variants/desktop/electron/backup
-variants/desktop/electron/build
 
+variants/desktop
+variants/desktop/electron/dist/win-unpacked/chrome_100_percent.pak
