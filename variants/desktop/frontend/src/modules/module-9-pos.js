@@ -78,6 +78,26 @@ const initPosManagement = (state, loaders) => {
   };
 
   /**
+   * Augmenter la quantité d'un produit dans le panier
+   */
+  const increaseQuantity = (productId) => {
+    const index = state.cart.value.findIndex(item => item.product_id === productId);
+    if (index !== -1) {
+      updateCartQty(index, 1);
+    }
+  };
+
+  /**
+   * Diminuer la quantité d'un produit dans le panier
+   */
+  const decreaseQuantity = (productId) => {
+    const index = state.cart.value.findIndex(item => item.product_id === productId);
+    if (index !== -1) {
+      updateCartQty(index, -1);
+    }
+  };
+
+  /**
    * Vide le panier
    */
   const clearCart = () => {
@@ -191,6 +211,8 @@ const initPosManagement = (state, loaders) => {
     addToCart,
     removeFromCart,
     updateCartQty,
+    increaseQuantity,
+    decreaseQuantity,
     clearCart,
     openCheckoutModal,
     closeCheckoutModal,

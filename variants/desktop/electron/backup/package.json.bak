@@ -1,0 +1,91 @@
+{
+  "name": "@smartdrinkstore/desktop-electron",
+  "version": "1.0.0",
+  "description": "SmartDrinkStore Desktop Application",
+  "main": "src/main.js",
+  "author": "BANG NTEME JB",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env NODE_ENV=development electron .",
+    "build": "npm run build:frontend && electron-builder",
+    "build:frontend": "cd ../frontend && npm run build",
+    "build:win": "npm run build:frontend && electron-builder --win",
+    "build:mac": "npm run build:frontend && electron-builder --mac",
+    "build:linux": "npm run build:frontend && electron-builder --linux",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "fs-extra": "^11.1.1",
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.smartdrinkstore.desktop",
+    "productName": "SmartDrinkStore",
+    "directories": {
+      "output": "../../../dist/desktop",
+      "buildResources": "resources"
+    },
+    "files": [
+      "src/**/*",
+      "resources/**/*",
+      "!**/*.map"
+    ],
+    "extraResources": [
+      {
+        "from": "php",
+        "to": "php",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../../../core",
+        "to": "core",
+        "filter": ["**/*", "!node_modules", "!.git", "!storage", "!bootstrap/cache"]
+      },
+      {
+        "from": "../frontend/dist",
+        "to": "frontend",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        },
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "resources/icon.ico"
+    },
+    "portable": {
+      "artifactName": "SmartDrinkStore-Portable-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SmartDrinkStore",
+      "artifactName": "SmartDrinkStore-Setup-${version}.exe"
+    },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "icon": "resources/icon.icns",
+      "category": "public.app-category.business"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "resources/icon.png",
+      "category": "Office"
+    }
+  }
+}

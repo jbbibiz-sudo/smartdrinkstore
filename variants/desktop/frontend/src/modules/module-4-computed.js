@@ -123,23 +123,62 @@ const initComputedProperties = (state) => {
 
   // Mouvements filtrés
   const filteredMovements = computed(() => {
-    let result = state.movements.value;
+    if (!state.movements.value) return [];
     
+    let filtered = [...state.movements.value];
+    
+    // Filtre par type
     if (state.movementFilters.value.type) {
-      result = result.filter(m => m.type === state.movementFilters.value.type);
+      filtered = filtered.filter(m => m.type === state.movementFilters.value.type);
     }
     
-    if (state.movementFilters.value.product_id) {
-      result = result.filter(m => m.product_id === state.movementFilters.value.product_id);
+    // Filtre par date de début
+    if (state.movementFilters.value.startDate) {
+      filtered = filtered.filter(m => 
+        new Date(m.created_at) >= new Date(state.movementFilters.value.startDate)
+      );
     }
     
-    return result;
+    // Filtre par date de fin
+    if (state.movementFilters.value.endDate) {
+      filtered = filtered.filter(m => 
+        new Date(m.created_at) <= new Date(state.movementFilters.value.endDate + 'T23:59:59')
+      );
+    }
+    
+    return filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  });
+
+  // Statistiques des mouvements (basées sur les mouvements filtrés)
+  const movementStats = computed(() => {
+    const movements = filteredMovements.value || [];
+    
+    const totalIn = movements
+      .filter(m => m.type === 'in')
+      .reduce((sum, m) => sum + (m.quantity || 0), 0);
+    
+    const totalOut = movements
+      .filter(m => m.type === 'out')
+      .reduce((sum, m) => sum + Math.abs(m.quantity || 0), 0);
+    
+    return {
+      totalIn,
+      totalOut,
+      netMovement: totalIn - totalOut
+    };
   });
 
   // Nombre total d'alertes
   const totalAlerts = computed(() => {
     return (state.alerts.value.low_stock?.length || 0) +
            (state.alerts.value.out_of_stock?.length || 0);
+  });
+
+  // ✅ Alertes aplaties en un seul tableau pour l'affichage
+  const flattenedAlerts = computed(() => {
+    const lowStock = state.alerts.value.low_stock || [];
+    const outOfStock = state.alerts.value.out_of_stock || [];
+    return [...lowStock, ...outOfStock];
   });
 
   // Statistiques du tableau de bord
@@ -195,7 +234,9 @@ const initComputedProperties = (state) => {
     suppliersWithContact,
     filteredSales,
     filteredMovements,
+    movementStats,
     totalAlerts,
+    flattenedAlerts,
     dashboardStats,
     cartItemCount,
     isCartEmpty,

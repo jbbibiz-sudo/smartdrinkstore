@@ -1,4 +1,6 @@
 <?php
+// Chemin: C:\smartdrinkstore\core\database\seeders\DatabaseSeeder.php
+// Seeder principal - Inclut l'authentification + vos autres seeders
 
 namespace Database\Seeders;
 
@@ -10,15 +12,17 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
+            // ⚠️ IMPORTANT: Le seeder d'authentification doit être en PREMIER
+            // car les autres seeders pourraient avoir besoin des utilisateurs
+            RolesAndPermissionsSeeder::class,
+            
+            // Vos seeders existants
             CategorySeeder::class,
             SubcategorySeeder::class,
             ProductSeeder::class,
             StockMovementSeeder::class,
-            // Puis les clients
             CustomerSeeder::class,
-            // Et les fournisseurs
             SupplierSeeder::class,            
-            // Enfin les ventes
             SalesSeeder::class,
         ]);
     }    

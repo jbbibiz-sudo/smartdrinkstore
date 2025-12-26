@@ -16,3 +16,8 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+
+// Route login pour les futures utilisations web
+Route::get('/login', function () {
+    return response()->json(['message' => 'Please login via API'], 401);
+})->name('login');
