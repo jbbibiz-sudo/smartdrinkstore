@@ -1,223 +1,155 @@
-// ============================================
-// MODULE 2 : ÉTATS GLOBAUX (STATE)
-// ============================================
-// ✅ TOUTES LES VALEURS INITIALISÉES CORRECTEMENT
+// Chemin: C:\smartdrinkstore\desktop-app\src\modules\module-2-state.js
+// Module 2: État global de l'application - AVEC PAGINATION
+// ✅ Ajout de la pagination pour les ventes
 
 import { ref } from 'vue';
 
-// États globaux
-const currentView = ref('dashboard');
-const loading = ref(false);
-const connectionError = ref(false);
+// ====================================
+// ÉTAT GLOBAL
+// ====================================
 
-// États produits
-const products = ref([]);
-const categories = ref([]);
-const subcategories = ref([]);
-const searchQuery = ref('');
+// Chargement
+export const loading = ref(false);
+export const connectionError = ref(false);
 
-// États modals
-const showProductModal = ref(false);
-const showCategoryModal = ref(false);
-const showViewModal = ref(false);
-const showRestockModal = ref(false);
-const showStockOutModal = ref(false);
-const showCheckoutModal = ref(false);
-const showCustomerModal = ref(false);
-const showSupplierModal = ref(false);
-const showInvoiceModal = ref(false);
+// Données principales
+export const products = ref([]);
+export const categories = ref([]);
+export const subcategories = ref([]);
+export const customers = ref([]);
+export const suppliers = ref([]);
+export const movements = ref([]);
+export const sales = ref([]);
 
-// États formulaires produits
-const productForm = ref({
+// Vue courante
+export const currentView = ref('dashboard');
+
+// Recherche et filtres
+export const searchQuery = ref('');
+export const customerSearchQuery = ref('');
+export const supplierSearchQuery = ref('');
+export const salesSearch = ref('');
+
+// ✅ PAGINATION DES VENTES
+export const salesCurrentPage = ref(1);
+export const salesPerPage = ref(3);
+
+export const movementFilters = ref({
+  type: '',
+  reason: '',
+  date: '',
+  product_id: '',
+  date_from: '',
+  date_to: ''
+});
+
+export const salesFilters = ref({
+  period: 'all',
+  date_from: '',
+  date_to: ''
+});
+
+// Modals
+export const showProductModal = ref(false);
+export const showCategoryModal = ref(false);
+export const showViewModal = ref(false);
+export const showRestockModal = ref(false);
+export const showStockOutModal = ref(false);
+export const showCheckoutModal = ref(false);
+export const showCustomerModal = ref(false);
+export const showSupplierModal = ref(false);
+export const showInvoiceModal = ref(false);
+
+// Formulaires produits
+export const productForm = ref({
   name: '',
   sku: '',
   code: '',
+  category_id: '',
+  subcategory_id: '',
   unit_price: 0,
-  stock: 0,
   min_stock: 0,
-  category_id: null,
-  subcategory_id: null,
-  description: '',
-  is_consigned: false,
-  consignment_price: 0,
-  empty_containers_stock: 0,
-  image: null
-});
-const editingProduct = ref(null);
-const viewingProduct = ref(null);
-const savingProduct = ref(false);
-
-// États catégories
-const newCategoryName = ref('');
-const editingCategoryId = ref(null);
-const editingCategoryName = ref('');
-
-// États stock
-const restockProduct = ref(null);
-const restockQuantity = ref(null);
-const restockReason = ref('');
-const stockOutProduct = ref(null);
-const stockOutQuantity = ref(null);
-const stockOutReason = ref('');
-const stockOutReasonType = ref('sale');
-
-// États mouvements
-const movements = ref([]);
-const loadingMovements = ref(false);
-const movementFilters = ref({
-  type: '',
-  startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 jours avant
-  endDate: new Date().toISOString().split('T')[0] // aujourd'hui
+  stock: 0
 });
 
-// États clients
-const customers = ref([]);
-const customerSearchQuery = ref('');
-const editingCustomer = ref(null);
-const customerForm = ref({
+export const editingProduct = ref(null);
+export const viewingProduct = ref(null);
+export const savingProduct = ref(false);
+
+// Gestion des catégories
+export const newCategoryName = ref('');
+export const editingCategoryId = ref(null);
+export const editingCategoryName = ref('');
+
+// Gestion du stock
+export const restockProduct = ref(null);
+export const restockQuantity = ref(0);
+export const restockReason = ref('');
+
+export const stockOutProduct = ref(null);
+export const stockOutQuantity = ref(0);
+export const stockOutReason = ref('');
+export const stockOutReasonType = ref('damage');
+
+export const loadingMovements = ref(false);
+
+// Clients et fournisseurs
+export const customerForm = ref({
   name: '',
   phone: '',
   email: '',
   address: ''
 });
 
-// États fournisseurs
-const suppliers = ref([]);
-const supplierSearchQuery = ref('');
-const editingSupplier = ref(null);
-const supplierForm = ref({
+export const supplierForm = ref({
   name: '',
   phone: '',
   email: '',
   address: ''
 });
 
-// États ventes et factures
-const sales = ref([]);
-const loadingSales = ref(false);
-const salesSearch = ref('');
-const salesFilters = ref({
-  date_from: '',
-  date_to: '',
-  payment_method: ''
-});
-const currentInvoice = ref(null);
-const invoiceType = ref('standard');
-const salesStats = ref({
-  today: { count: 0, total: 0, cash: 0, mobile: 0, credit: 0 },
-  this_week: { count: 0, total: 0 },
-  this_month: { count: 0, total: 0 },
-  total_credit: 0
+export const editingCustomer = ref(null);
+export const editingSupplier = ref(null);
+
+// Point de vente (POS)
+export const cart = ref([]);
+export const posSearch = ref('');
+export const saleType = ref('counter');
+export const selectedCustomerId = ref('');
+export const paymentMethod = ref('cash');
+
+// Dernière vente
+export const lastSaleItems = ref([]);
+export const lastSaleTotal = ref(0);
+
+// Factures
+export const currentInvoice = ref(null);
+export const invoiceType = ref('standard');
+export const loadingSales = ref(false);
+export const salesStats = ref({
+  total: 0,
+  count: 0,
+  average: 0
 });
 
-// États caisse (POS)
-const cart = ref([]);
-const posSearch = ref('');
-const saleType = ref('counter');
-const selectedCustomerId = ref(null);
-const paymentMethod = ref('cash');
-const lastSaleItems = ref([]);
-const lastSaleTotal = ref(0);
-
-// États dashboard
-const stats = ref({
-  total_products: 0,
-  low_stock_count: 0,
-  out_of_stock: 0,
-  total_stock_value: 0
-});
-const alerts = ref({
-  low_stock: [],
-  out_of_stock: []
-});
-const alertsCount = ref(0);
-
-// Informations application
-const appInfo = ref({
-  mode: 'Desktop',
-  platform: 'Windows/Mac/Linux'
+// Statistiques
+export const stats = ref({
+  totalProducts: 0,
+  totalStock: 0,
+  totalValue: 0,
+  lowStock: 0,
+  outOfStock: 0,
+  todayRevenue: 0,
+  todaySalesCount: 0,
+  totalCustomers: 0
 });
 
-// Export pour utilisation
-export {
-  // Globaux
-  currentView,
-  loading,
-  connectionError,
-  appInfo,
-  
-  // Produits
-  products,
-  categories,
-  subcategories,
-  searchQuery,
-  productForm,
-  editingProduct,
-  viewingProduct,
-  savingProduct,
-  
-  // Modals
-  showProductModal,
-  showCategoryModal,
-  showViewModal,
-  showRestockModal,
-  showStockOutModal,
-  showCheckoutModal,
-  showCustomerModal,
-  showSupplierModal,
-  showInvoiceModal,
-  
-  // Catégories
-  newCategoryName,
-  editingCategoryId,
-  editingCategoryName,
-  
-  // Stock
-  restockProduct,
-  restockQuantity,
-  restockReason,
-  stockOutProduct,
-  stockOutQuantity,
-  stockOutReason,
-  stockOutReasonType,
-  
-  // Mouvements
-  movements,
-  loadingMovements,
-  movementFilters,
-  
-  // Clients
-  customers,
-  customerSearchQuery,
-  editingCustomer,
-  customerForm,
-  
-  // Fournisseurs
-  suppliers,
-  supplierSearchQuery,
-  editingSupplier,
-  supplierForm,
-  
-  // Ventes
-  sales,
-  loadingSales,
-  salesSearch,
-  salesFilters,
-  currentInvoice,
-  invoiceType,
-  salesStats,
-  
-  // Caisse
-  cart,
-  posSearch,
-  saleType,
-  selectedCustomerId,
-  paymentMethod,
-  lastSaleItems,
-  lastSaleTotal,
-  
-  // Dashboard
-  stats,
-  alerts,
-  alertsCount
-};
+export const alerts = ref([]);
+export const alertsCount = ref(0);
+
+// Informations app
+export const appInfo = ref({
+  name: 'SmartDrinkStore',
+  version: '1.0.0',
+  company: 'Entreprises KAMDEM'
+});

@@ -1,11 +1,13 @@
 // ============================================
-// MODULE 9 : GESTION DE LA CAISSE (POS)
+// MODULE 9 : GESTION DE LA CAISSE (POS) - VERSION CORRIGÉE FINALE
 // ============================================
-// Gestion complète du processus de vente et du panier
-// ✅ Ce module permet d'ajouter/retirer des produits du panier et de finaliser les ventes
+// ✅ TOUS LES CHAMPS REQUIS PAR LARAVEL INCLUS
+// ✅ Validation complète des données
+// ✅ Logs détaillés pour le débogage
+// ✅ Gestion d'erreur robuste
 
 import { api } from './module-1-config.js';
-import { generateInvoiceNumber } from './module-3-utils.js';
+import { generateInvoiceNumber, formatCurrency } from './module-3-utils.js';
 
 /**
  * Initialise toutes les fonctions de gestion de la caisse
@@ -130,57 +132,131 @@ const initPosManagement = (state, loaders) => {
   };
 
   /**
-   * Traite la vente
+   * ✅ FONCTION FINALE: Traite la vente - TOUS LES CHAMPS LARAVEL INCLUS
    */
   const processSale = async () => {
-    if (state.cart.value.length === 0) {
+    console.log('🛒 Début du processus de vente...');
+    
+    // ✅ VALIDATION 1: Panier non vide
+    if (!state.cart.value || state.cart.value.length === 0) {
       alert('⚠️ Le panier est vide');
+      console.warn('⚠️ Tentative de vente avec panier vide');
       return;
     }
 
-    // Vérification pour les ventes à crédit
+    // ✅ VALIDATION 2: Vérification crédit
     if (state.paymentMethod.value === 'credit' && !state.selectedCustomerId.value) {
       alert('⚠️ Veuillez sélectionner un client pour une vente à crédit');
+      console.warn('⚠️ Vente à crédit sans client sélectionné');
       return;
+    }
+
+    // ✅ VALIDATION 3: Vérifier le stock en temps réel
+    console.log('🔍 Vérification du stock...');
+    for (const item of state.cart.value) {
+      const product = state.products.value.find(p => p.id === item.product_id);
+      
+      if (!product) {
+        alert(`❌ Le produit "${item.name}" n'existe plus !`);
+        console.error(`❌ Produit ${item.product_id} introuvable`);
+        return;
+      }
+      
+      if (product.stock < item.quantity) {
+        alert(`❌ Stock insuffisant pour "${item.name}".\nDisponible: ${product.stock}, Demandé: ${item.quantity}`);
+        console.error(`❌ Stock insuffisant: ${item.name} (Dispo: ${product.stock}, Demandé: ${item.quantity})`);
+        return;
+      }
     }
 
     try {
       state.loading.value = true;
+      console.log('📊 Calcul du total...');
 
-      // Calculer le total
+      // Calculer le sous-total
       const subtotal = state.cart.value.reduce((sum, item) => 
         sum + (item.quantity * item.unit_price), 0
       );
 
       // Appliquer remise gros si applicable (-5%)
       const discount = state.saleType.value === 'wholesale' ? subtotal * 0.05 : 0;
-      const total = subtotal - discount;
+      const totalAmount = subtotal - discount;
 
-      // Préparer les données de la vente
+      console.log(`💰 Sous-total: ${subtotal} FCFA`);
+      console.log(`💸 Remise: ${discount} FCFA`);
+      console.log(`✅ Total: ${totalAmount} FCFA`);
+
+      // ✅ VALIDATION 4: Total > 0
+      if (totalAmount <= 0) {
+        alert('❌ Le montant total doit être supérieur à 0');
+        console.error('❌ Montant total invalide:', totalAmount);
+        return;
+      }
+
+      // ✅ VALIDATION 5: Mode de paiement valide
+      const validPaymentMethods = ['cash', 'mobile', 'credit'];
+      if (!validPaymentMethods.includes(state.paymentMethod.value)) {
+        alert('❌ Mode de paiement invalide');
+        console.error('❌ Mode de paiement invalide:', state.paymentMethod.value);
+        return;
+      }
+
+      // ✅ VALIDATION 6: Type de vente valide
+      const validSaleTypes = ['counter', 'wholesale'];
+      if (!validSaleTypes.includes(state.saleType.value)) {
+        alert('❌ Type de vente invalide');
+        console.error('❌ Type de vente invalide:', state.saleType.value);
+        return;
+      }
+
+      // Générer le numéro de facture
+      const invoiceNumber = generateInvoiceNumber();
+      
+      // ✅ STRUCTURE COMPLÈTE selon migration Laravel (table sales)
       const saleData = {
+        invoice_number: invoiceNumber,                    // ✅ REQUIS par Laravel (UNIQUE)
         customer_id: state.selectedCustomerId.value || null,
-        payment_method: state.paymentMethod.value,
-        type: state.saleType.value,
+        type: state.saleType.value,                       // 'counter' ou 'wholesale'
+        payment_method: state.paymentMethod.value,        // 'cash', 'mobile', 'credit'
+        total_amount: Math.round(totalAmount * 100) / 100,// Arrondi 2 décimales
+        discount: Math.round(discount * 100) / 100, // ✅ REQUIS par Laravel
+        paid_amount: state.paymentMethod.value === 'credit' ? 0 : Math.round(totalAmount * 100) / 100, // ✅ REQUIS
         items: state.cart.value.map(item => ({
           product_id: item.product_id,
           quantity: item.quantity,
-          unit_price: item.unit_price,
-          subtotal: item.quantity * item.unit_price
-        })),
-        total_amount: total,
-        discount_amount: discount,
-        invoice_number: generateInvoiceNumber()
+          unit_price: Math.round(item.unit_price * 100) / 100,
+          subtotal: Math.round((item.quantity * item.unit_price) * 100) / 100
+        }))
       };
 
+      // ✅ LOG DÉTAILLÉ POUR DÉBOGAGE
+      console.log('📤 Envoi de la vente au serveur:');
+      console.log('  Facture:', saleData.invoice_number);
+      console.log('  Type:', saleData.type);
+      console.log('  Client ID:', saleData.customer_id || 'Vente comptoir');
+      console.log('  Paiement:', saleData.payment_method);
+      console.log('  Total:', saleData.total_amount, 'FCFA');
+      console.log('  Remise:', saleData.discount, 'FCFA');
+      console.log('  Payé:', saleData.paid_amount, 'FCFA');
+      console.log('  Articles:', saleData.items.length);
+      console.table(saleData.items);
+
       // Envoyer la vente à l'API
+      console.log('🌐 Requête POST /sales...');
       const response = await api.post('/sales', saleData);
 
-      if (response.success) {
+      // ✅ VÉRIFIER LA RÉPONSE
+      console.log('📥 Réponse du serveur:', response);
+
+      if (response && response.success) {
+        console.log('✅ Vente enregistrée avec succès !');
+        console.log('📄 ID de vente:', response.data?.id);
+        
         // Sauvegarder les informations de la dernière vente pour impression
         state.lastSaleItems.value = [...state.cart.value];
-        state.lastSaleTotal.value = total;
+        state.lastSaleTotal.value = totalAmount;
         
-        alert(`✅ Vente enregistrée avec succès !\nNuméro de facture: ${saleData.invoice_number}`);
+        alert(`✅ Vente enregistrée avec succès !\n\nNuméro de facture: ${invoiceNumber}\nMontant: ${formatCurrency(totalAmount)}`);
         
         // Vider le panier et fermer le modal
         state.cart.value = [];
@@ -189,20 +265,101 @@ const initPosManagement = (state, loaders) => {
         state.saleType.value = 'counter';
         closeCheckoutModal();
 
-        // Recharger les données
-        await loaders.loadProducts();
-        await loaders.loadStats();
-        await loaders.loadSales();
-        await loaders.loadSalesStats();
+        console.log('🔄 Rechargement des données...');
         
-        // Rediriger vers les factures si souhaité
-        // state.currentView.value = 'invoices';
+        // Recharger les données en parallèle
+        await Promise.allSettled([
+          loaders.loadProducts(),
+          loaders.loadStats(),
+          loaders.loadSales(),
+          loaders.calculateAlerts()
+        ]);
+        
+        console.log('✅ Processus de vente terminé avec succès !');
+        
+      } else {
+        // Réponse sans succès
+        const errorMsg = response?.message || 'Réponse invalide du serveur';
+        console.error('❌ Échec de la vente:', errorMsg);
+        console.error('Réponse complète:', response);
+        alert(`❌ Erreur: ${errorMsg}`);
       }
+
     } catch (error) {
-      console.error('Erreur lors de la vente:', error);
-      alert('❌ Erreur: ' + (error.message || 'Impossible d\'enregistrer la vente'));
+      console.error('❌ ERREUR CRITIQUE lors de la vente:', error);
+      
+      // ✅ GESTION D'ERREUR DÉTAILLÉE
+      let errorMessage = 'Impossible d\'enregistrer la vente';
+      let errorDetails = '';
+
+      if (error.response) {
+        // Le serveur a répondu avec un code d'erreur
+        const status = error.response.status;
+        const data = error.response.data;
+        
+        console.error('📛 Erreur HTTP:', status);
+        console.error('📛 Détails:', data);
+        
+        if (status === 500) {
+          errorMessage = 'Erreur du serveur (500)';
+          errorDetails = data?.message || 'Le serveur a rencontré une erreur interne';
+          
+          // Afficher les détails de l'erreur Laravel si disponibles
+          if (data?.exception) {
+            console.error('📛 Exception Laravel:', data.exception);
+            console.error('📛 Fichier:', data.file);
+            console.error('📛 Ligne:', data.line);
+          }
+        } else if (status === 422) {
+          errorMessage = 'Données invalides (422)';
+          
+          // Afficher les erreurs de validation Laravel
+          if (data?.errors) {
+            errorDetails = Object.entries(data.errors)
+              .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
+              .join('\n');
+            console.error('📛 Erreurs de validation:', data.errors);
+          } else {
+            errorDetails = data?.message || 'Validation échouée';
+          }
+        } else if (status === 404) {
+          errorMessage = 'Endpoint introuvable (404)';
+          errorDetails = 'Vérifiez que la route POST /api/v1/sales existe';
+        } else if (status === 401) {
+          errorMessage = 'Non autorisé (401)';
+          errorDetails = 'Authentification requise';
+        } else {
+          errorMessage = `Erreur HTTP ${status}`;
+          errorDetails = data?.message || '';
+        }
+        
+      } else if (error.request) {
+        // La requête a été envoyée mais pas de réponse
+        console.error('📛 Pas de réponse du serveur');
+        console.error('📛 Requête:', error.request);
+        errorMessage = 'Le serveur ne répond pas';
+        errorDetails = 'Vérifiez que le serveur Laravel est démarré (php artisan serve)';
+        
+      } else {
+        // Erreur lors de la configuration de la requête
+        console.error('📛 Erreur de configuration:', error.message);
+        errorMessage = error.message;
+      }
+      
+      alert(`❌ ${errorMessage}\n\n${errorDetails}`);
+      
+      // Log complet de l'erreur pour le support
+      console.group('🔍 DÉBOGAGE COMPLET');
+      console.log('État du panier:', state.cart.value);
+      console.log('Mode de paiement:', state.paymentMethod.value);
+      console.log('Type de vente:', state.saleType.value);
+      console.log('Client ID:', state.selectedCustomerId.value);
+      console.log('Erreur complète:', error);
+      console.groupEnd();
+      
     } finally {
       state.loading.value = false;
+      console.log('🏁 Fin du processus de vente');
     }
   };
 

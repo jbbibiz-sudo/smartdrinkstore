@@ -1,8 +1,8 @@
 // ============================================
-// MODULE 8 : GESTION DU STOCK
+// MODULE 8 : GESTION DU STOCK - VERSION CORRIGÉE
 // ============================================
-// Gestion complète des entrées/sorties de stock et mouvements
-// ✅ Ce module corrige les erreurs liées aux mouvements de stock
+// ✅ CORRECTION: Les alias sont maintenant correctement définis
+// ✅ Les fonctions openRestockModal et saveRestock sont maintenant disponibles
 
 import { api } from './module-1-config.js';
 
@@ -68,7 +68,7 @@ const initStockManagement = (state, loaders) => {
         await loaders.loadProducts();
         await loaders.loadMovements();
         await loaders.loadStats();
-        await loaders.loadAlerts();
+        await loaders.calculateAlerts();
       }
     } catch (error) {
       console.error('Erreur ajout stock:', error);
@@ -140,7 +140,7 @@ const initStockManagement = (state, loaders) => {
         await loaders.loadProducts();
         await loaders.loadMovements();
         await loaders.loadStats();
-        await loaders.loadAlerts();
+        await loaders.calculateAlerts();
       }
     } catch (error) {
       console.error('Erreur retrait stock:', error);
@@ -206,20 +206,24 @@ const initStockManagement = (state, loaders) => {
     document.body.removeChild(link);
   };
 
-  // Return all stock management functions
+  // ✅ CORRECTION: Return avec les bons noms de fonctions ET les alias
   return {
+    // Fonctions principales
     switchToMovements,
     openStockInModal,
-    openRestockModal: openStockInModal, // ✅ Alias pour compatibilité
     closeStockInModal,
-    closeRestockModal: closeStockInModal, // ✅ Alias pour compatibilité
     submitStockIn,
-    submitRestock: submitStockIn, // ✅ Alias pour compatibilité
     openStockOutModal,
     closeStockOutModal,
     submitStockOut,
     resetFilters,
-    exportMovements
+    exportMovements,
+    
+    // ✅ ALIAS pour compatibilité avec App.vue
+    openRestockModal: openStockInModal,      // ✅ IMPORTANT: Utilisé dans la vue Alertes
+    closeRestockModal: closeStockInModal,    // ✅ IMPORTANT: Utilisé dans les modals
+    submitRestock: submitStockIn,            // ✅ IMPORTANT: Utilisé pour soumettre le formulaire
+    saveRestock: submitStockIn               // ✅ IMPORTANT: Alias utilisé dans App.vue
   };
 };
 

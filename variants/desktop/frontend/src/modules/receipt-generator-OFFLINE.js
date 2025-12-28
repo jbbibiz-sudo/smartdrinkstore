@@ -143,11 +143,11 @@ export const generateReceiptPDF = (saleData, format = 'thermal') => {
   yPos += 5;
 
   // Remise (si applicable)
-  if (saleData.discount_amount > 0) {
+  if (saleData.discount > 0) {
     const discountPercent = saleData.type === 'wholesale' ? '5%' : 
                            saleData.custom_discount ? `${saleData.custom_discount}%` : '';
     doc.text(`Remise ${discountPercent}:`, config.margin, yPos);
-    doc.text(`-${formatCurrency(saleData.discount_amount)}`, config.width - config.margin, yPos, { align: 'right' });
+    doc.text(`-${formatCurrency(saleData.discount)}`, config.width - config.margin, yPos, { align: 'right' });
     yPos += 5;
   }
 

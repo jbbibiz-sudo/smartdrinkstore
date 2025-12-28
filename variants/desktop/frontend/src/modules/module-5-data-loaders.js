@@ -1,49 +1,46 @@
 // Chemin: C:\smartdrinkstore\desktop-app\src\modules\module-5-data-loaders.js
-// Module 5: Loaders de donnees avec gestion du BOM
-// ✅ VERSION CORRIGÉE - Alertes unifiées via loadStats()
+// Module 5: Loaders de données avec gestion du BOM
+// ⚡ VERSION OPTIMISÉE - PERFORMANCES AMÉLIORÉES
 
 import { api } from './module-1-config.js';
+import { watch } from 'vue';
 
 // ====================================
 // HELPER: GESTION DU BOM
 // ====================================
 
-/**
- * Parse une reponse API en gerant le BOM UTF-8
- * Si la reponse est une string (a cause du BOM), on la parse manuellement
- */
 function parseApiResponse(data) {
   if (typeof data !== 'string') {
     return data;
   }
-  // Retirer le BOM UTF-8 (caractere invisible \uFEFF)
   const cleanedData = data.replace(/^\uFEFF/, '');
   return JSON.parse(cleanedData);
 }
 
-/**
- * Wrapper pour les appels API qui gere automatiquement le BOM
- */
 async function safeApiGet(endpoint) {
   try {
     const response = await api.get(endpoint);
-    
-    // Si la reponse est une string (a cause du BOM), la parser
     if (typeof response === 'string') {
       return parseApiResponse(response);
     }
-    
     return response;
   } catch (error) {
-    // Si erreur de parsing JSON, tenter de parser avec gestion BOM
     if (error instanceof SyntaxError && error.message.includes('JSON')) {
-      console.warn('Erreur de parsing JSON detectee, tentative avec gestion BOM...');
-      // La reponse brute devrait etre dans l'erreur ou accessible autrement
+      console.warn('Erreur de parsing JSON détectée, tentative avec gestion BOM...');
       throw error;
     }
     throw error;
   }
 }
+
+// ====================================
+// ⚡ OPTIMISATION: CACHE ET MÉMOÏZATION
+// ====================================
+
+// Cache pour éviter les recalculs inutiles
+let productsHash = null;
+let lastAlertCalculation = 0;
+const ALERT_CACHE_DURATION = 5000; // 5 secondes
 
 // ====================================
 // INITIALISATION DES LOADERS
@@ -59,6 +56,8 @@ const initDataLoaders = (state) => {
       if (response.success) {
         state.products.value = response.data || [];
         console.log(`✅ ${state.products.value.length} produits chargés`);
+        calculateStats();
+        calculateAlerts();
       }
     } catch (err) {
       console.error('❌ Erreur chargement produits:', err);
@@ -68,7 +67,7 @@ const initDataLoaders = (state) => {
     }
   };
 
-  /** Charge toutes les categories */
+  /** Charge toutes les catégories */
   const loadCategories = async () => {
     try {
       const response = await safeApiGet('/categories');
@@ -77,11 +76,11 @@ const initDataLoaders = (state) => {
         console.log(`✅ ${state.categories.value.length} catégories chargées`);
       }
     } catch (err) { 
-      console.error('❌ Erreur chargement categories:', err); 
+      console.error('❌ Erreur chargement catégories:', err); 
     }
   };
 
-  /** Charge toutes les sous-categories */
+  /** Charge toutes les sous-catégories */
   const loadSubcategories = async () => {
     try {
       const response = await safeApiGet('/subcategories');
@@ -90,7 +89,7 @@ const initDataLoaders = (state) => {
         console.log(`✅ ${state.subcategories.value.length} sous-catégories chargées`);
       }
     } catch (err) { 
-      console.error('❌ Erreur chargement sous-categories:', err); 
+      console.error('❌ Erreur chargement sous-catégories:', err); 
     }
   };
 
@@ -102,6 +101,7 @@ const initDataLoaders = (state) => {
       if (response.success) {
         state.customers.value = response.data || [];
         console.log(`✅ ${state.customers.value.length} clients chargés`);
+        calculateStats();
       }
     } catch (err) {
       console.error('❌ Erreur chargement clients:', err);
@@ -114,7 +114,6 @@ const initDataLoaders = (state) => {
   /** Charge tous les fournisseurs */
   const loadSuppliers = async () => {
     try {
-      state.loading.value = true;
       const response = await safeApiGet('/suppliers');
       if (response.success) {
         state.suppliers.value = response.data || [];
@@ -128,52 +127,36 @@ const initDataLoaders = (state) => {
     }
   };
 
-  /** Charge les statistiques du dashboard ET les alertes */
+  /** Charge les statistiques du dashboard */
   const loadStats = async () => {
     try {
       const response = await safeApiGet('/stats');
       if (response.success) {
         state.stats.value = response.data || {};
+        console.log('✅ Statistiques chargées');
         
-        // ✅ UNIQUE SOURCE DE VÉRITÉ pour les alertes
-        if (response.data?.alerts) {
-          state.alerts.value = response.data.alerts;
-          
-          // Calculer le nombre total d'alertes
-          const lowStockCount = response.data.alerts?.low_stock?.length || 0;
-          const outOfStockCount = response.data.alerts?.out_of_stock?.length || 0;
-          state.alertsCount.value = lowStockCount + outOfStockCount;
-          
-          console.log(`✅ Statistiques chargées - ${state.alertsCount.value} alertes (${lowStockCount} stock faible + ${outOfStockCount} rupture)`);
+        if (!response.data?.total_products) {
+          calculateStats();
+        }
+        
+        // ⚡ OPTIMISATION: Ne pas recalculer les alertes si elles sont récentes
+        const now = Date.now();
+        if (now - lastAlertCalculation > ALERT_CACHE_DURATION) {
+          calculateAlerts();
         } else {
-          console.log('✅ Statistiques chargées');
+          console.log('⚡ Alertes en cache, skip recalcul');
         }
       }
     } catch (err) { 
       console.error('❌ Erreur chargement stats:', err);
-      // Ne pas bloquer l'application si les stats echouent
-      state.stats.value = {
-        total_products: 0,
-        low_stock_count: 0,
-        out_of_stock: 0,
-        total_stock_value: 0
-      };
-      state.alerts.value = {
-        low_stock: [],
-        out_of_stock: []
-      };
-      state.alertsCount.value = 0;
+      calculateStats();
+      calculateAlerts();
     }
   };
 
-  /** 
-   * ⚠️ FONCTION OBSOLÈTE - Ne plus utiliser
-   * Les alertes sont maintenant chargées via loadStats()
-   * Gardée uniquement pour la compatibilité
-   */
+  /** Fonction obsolète pour compatibilité */
   const loadAlerts = async () => {
-    console.warn('⚠️ loadAlerts() est obsolète. Les alertes sont chargées via loadStats()');
-    // Ne rien faire - les alertes sont déjà chargées par loadStats()
+    console.warn('⚠️ loadAlerts() est obsolète');
   };
 
   /** Charge les mouvements de stock */
@@ -190,18 +173,6 @@ const initDataLoaders = (state) => {
       if (response.success) {
         state.movements.value = response.data || [];
         console.log(`✅ ${state.movements.value.length} mouvements chargés`);
-        
-        // ⚠️ VÉRIFICATION: La relation 'product' est-elle chargée ?
-        if (state.movements.value.length > 0) {
-          const firstMovement = state.movements.value[0];
-          
-          if (!firstMovement.product) {
-            console.warn('⚠️ Les mouvements ne contiennent pas les infos produits.');
-            console.warn('⚠️ Vérifiez que le backend charge la relation ->with("product")');
-          } else {
-            console.log('✅ Relation product chargée correctement');
-          }
-        }
       }
     } catch (err) { 
       console.error('❌ Erreur chargement mouvements:', err);
@@ -211,40 +182,63 @@ const initDataLoaders = (state) => {
     }
   };
 
-  /** Charge toutes les ventes avec filtres et recherche */
+  /** Charge toutes les ventes */
   const loadSales = async () => {
     try {
       state.loadingSales.value = true;
-      const filters = state.salesFilters.value;
-      const params = new URLSearchParams();
+      console.log('📄 Chargement des ventes...');
+      
+      const response = await api.get('/sales');
+      
+      if (response.success && response.data) {
+        state.sales.value = response.data;
+        console.log('✅', response.data.length, 'ventes chargées');
+        
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const thisWeekStart = new Date(today);
+        thisWeekStart.setDate(today.getDate() - today.getDay());
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      if (filters.date_from) params.append('date_from', filters.date_from);
-      if (filters.date_to) params.append('date_to', filters.date_to);
-      if (filters.payment_method) params.append('payment_method', filters.payment_method);
-      if (filters.sale_type) params.append('sale_type', filters.sale_type);
-      if (state.salesSearch.value?.trim() !== '') params.append('search', state.salesSearch.value.trim());
+        let filteredSales = state.sales.value;
+        
+        if (state.salesFilters.value.period === 'today') {
+          filteredSales = state.sales.value.filter(sale => {
+            const saleDate = new Date(sale.created_at);
+            return saleDate >= today;
+          });
+        } else if (state.salesFilters.value.period === 'week') {
+          filteredSales = state.sales.value.filter(sale => {
+            const saleDate = new Date(sale.created_at);
+            return saleDate >= thisWeekStart;
+          });
+        } else if (state.salesFilters.value.period === 'month') {
+          filteredSales = state.sales.value.filter(sale => {
+            const saleDate = new Date(sale.created_at);
+            return saleDate >= thisMonthStart;
+          });
+        }
 
-      const response = await safeApiGet(`/sales?${params.toString()}`);
-      if (response.success) {
-        state.sales.value = response.data || [];
-        console.log(`✅ ${state.sales.value.length} ventes chargées`);
+        const total = filteredSales.reduce((sum, sale) => sum + Number(sale.total_amount || 0), 0);
+        const count = filteredSales.length;
+        const average = count > 0 ? total / count : 0;
+
+        state.salesStats.value = { total, count, average };
+        
+        calculateStats();
+        
+      } else {
+        console.warn('⚠️ Aucune vente trouvée');
+        state.sales.value = [];
+        state.salesStats.value = { total: 0, count: 0, average: 0 };
       }
-    } catch (err) {
-      console.error('❌ Erreur chargement ventes:', err);
+    } catch (error) {
+      console.error('❌ Erreur chargement ventes:', error);
       state.sales.value = [];
-    } finally { 
-      state.loadingSales.value = false; 
+      state.salesStats.value = { total: 0, count: 0, average: 0 };
+    } finally {
+      state.loadingSales.value = false;
     }
-  };
-
-  /** Reinitialise tous les filtres et recharge les ventes */
-  const resetSalesFilters = () => {
-    state.salesFilters.value.date_from = '';
-    state.salesFilters.value.date_to = '';
-    state.salesFilters.value.payment_method = '';
-    state.salesFilters.value.sale_type = '';
-    state.salesSearch.value = '';
-    loadSales();
   };
 
   /** Charge les statistiques des ventes */
@@ -271,42 +265,176 @@ const initDataLoaders = (state) => {
     }
   };
 
-  /** Reessaye la connexion */
+  /** Calcule les statistiques du dashboard */
+  const calculateStats = () => {
+    try {
+      const totalProducts = state.products.value?.length || 0;
+      const totalStock = state.products.value?.reduce((sum, p) => sum + (Number(p.stock) || 0), 0) || 0;
+      const totalValue = state.products.value?.reduce((sum, p) => 
+        sum + ((Number(p.stock) || 0) * (Number(p.unit_price) || 0)), 0
+      ) || 0;
+      
+      const lowStock = state.products.value?.filter(p => 
+        Number(p.stock) > 0 && Number(p.stock) <= Number(p.min_stock)
+      ).length || 0;
+      
+      const outOfStock = state.products.value?.filter(p => 
+        Number(p.stock) === 0
+      ).length || 0;
+
+      const now = new Date();
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      
+      const recentSales = state.sales.value?.filter(sale => {
+        const saleDate = new Date(sale.created_at);
+        return saleDate >= yesterday;
+      }) || [];
+
+      const todayRevenue = recentSales.reduce((sum, sale) => 
+        sum + (Number(sale.total_amount) || 0), 0
+      );
+      
+      const todaySalesCount = recentSales.length;
+      const totalCustomers = state.customers.value?.length || 0;
+
+      state.stats.value = {
+        ...state.stats.value,
+        totalProducts,
+        totalStock,
+        totalValue,
+        lowStock,
+        outOfStock,
+        todayRevenue,
+        todaySalesCount,
+        totalCustomers
+      };
+      
+    } catch (error) {
+      console.error('❌ Erreur calcul statistiques:', error);
+      state.stats.value = {
+        totalProducts: 0,
+        totalStock: 0,
+        totalValue: 0,
+        lowStock: 0,
+        outOfStock: 0,
+        todayRevenue: 0,
+        todaySalesCount: 0,
+        totalCustomers: 0
+      };
+    }
+  };
+
+  /** 
+   * ⚡ OPTIMISÉ: Calcule les alertes de stock avec mémoïzation
+   */
+  const calculateAlerts = () => {
+    try {
+      // Vérifier que products existe
+      if (!state.products.value || state.products.value.length === 0) {
+        state.alerts.value = [];
+        state.alertsCount.value = 0;
+        return;
+      }
+
+      // ⚡ MÉMOÏZATION: Calculer un hash pour éviter les recalculs inutiles
+      const currentHash = JSON.stringify(
+        state.products.value.map(p => ({ 
+          id: p.id, 
+          stock: p.stock, 
+          min_stock: p.min_stock 
+        }))
+      );
+      
+      // Si rien n'a changé ET que les alertes sont récentes, ne rien faire
+      const now = Date.now();
+      if (currentHash === productsHash && 
+          state.alerts.value.length > 0 && 
+          now - lastAlertCalculation < ALERT_CACHE_DURATION) {
+        console.log('⚡ Alertes en cache, skip recalcul');
+        return;
+      }
+      
+      productsHash = currentHash;
+      lastAlertCalculation = now;
+
+      // Filtrer les produits en alerte
+      const alerts = state.products.value.filter(product => {
+        const stock = Number(product.stock) || 0;
+        const minStock = Number(product.min_stock) || 0;
+        return stock === 0 || (stock > 0 && minStock > 0 && stock <= minStock);
+      });
+      
+      state.alerts.value = alerts;
+      state.alertsCount.value = alerts.length;
+      
+      if (alerts.length > 0) {
+        console.log(`⚠️ ${alerts.length} alerte(s) détectée(s)`);
+      }
+      
+    } catch (error) {
+      console.error('❌ Erreur calcul alertes:', error);
+      state.alerts.value = [];
+      state.alertsCount.value = 0;
+    }
+  };
+
+  /** Réessaye la connexion */
   const retryConnection = async () => {
     state.connectionError.value = false;
     await init();
   };
 
-  /** Initialise toutes les donnees au demarrage */
+  /** 
+   * ⚡ OPTIMISÉ: Initialise toutes les données en parallèle
+   */
   const init = async () => {
-    console.log('🚀 Initialisation de l\'application...');
+    const startTime = performance.now();
+    console.log('🚀 Initialisation optimisée...');
     
     try {
-      // Charger en parallele les donnees de base (ne bloque pas si erreur)
-      await Promise.allSettled([
-        loadCategories(),
-        loadSubcategories(),
-        loadCustomers(),
-        loadSuppliers(),
-      ]);
+      // ⚡ Phase 1: Charger TOUT en parallèle (sauf les dépendances)
+      const [categoriesResult, subcategoriesResult, customersResult, suppliersResult, productsResult] = 
+        await Promise.allSettled([
+          loadCategories(),
+          loadSubcategories(),
+          loadCustomers(),
+          loadSuppliers(),
+          loadProducts()  // ⚡ Déplacé ici pour paralléliser
+        ]);
       
-      // Charger les produits (important)
-      await loadProducts();
+      // Vérifier les erreurs critiques
+      if (productsResult.status === 'rejected') {
+        console.error('❌ Échec critique: produits non chargés');
+        state.connectionError.value = true;
+        return;
+      }
       
-      // ✅ CORRECTION: loadStats charge AUSSI les alertes
-      // Ne plus appeler loadAlerts() séparément
+      // ⚡ Phase 2: Charger les données secondaires en parallèle
+      // calculateAlerts() a déjà été appelé par loadProducts()
       await Promise.allSettled([
-        loadStats(),        // ✅ Charge stats + alertes en une seule fois
+        loadStats(),     // ⚡ Ne recalcule plus les alertes si elles sont récentes
         loadMovements(),
-        loadSalesStats()
+        loadSales()
       ]);
       
-      console.log('✅ Application initialisée avec succès');
+      const duration = (performance.now() - startTime).toFixed(0);
+      console.log(`✅ Application initialisée en ${duration}ms`);
+      console.log(`📊 État: ${state.products.value?.length || 0} produits, ${state.alertsCount.value} alertes`);
+      
     } catch (error) {
       console.error('❌ Erreur lors de l\'initialisation:', error);
       state.connectionError.value = true;
     }
   };
+
+  // ⚡ OPTIMISATION: Debounced watcher pour les filtres de ventes
+  let salesFilterTimeout = null;
+  watch(state.salesFilters, () => {
+    clearTimeout(salesFilterTimeout);
+    salesFilterTimeout = setTimeout(() => {
+      loadSales();
+    }, 300); // Debounce de 300ms
+  }, { deep: true });
 
   /** Expose toutes les fonctions */
   return {
@@ -316,12 +444,13 @@ const initDataLoaders = (state) => {
     loadCustomers,
     loadSuppliers,
     loadStats,
-    loadAlerts,        // Gardé pour compatibilité mais ne fait plus rien
+    loadAlerts,
     loadMovements,
     loadSales,
     loadSalesStats,
-    resetSalesFilters,
     retryConnection,
+    calculateStats,
+    calculateAlerts,
     init
   };
 };

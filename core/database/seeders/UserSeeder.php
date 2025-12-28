@@ -20,7 +20,7 @@ class UserSeeder extends Seeder
             'password' => Hash::make('admin123'),
             'role' => 'admin',
             'is_active' => true,
-            'phone' => '+237 690 000 001',
+            'phone' => '+237 699 314 077',
         ]);
 
         // Gérant
