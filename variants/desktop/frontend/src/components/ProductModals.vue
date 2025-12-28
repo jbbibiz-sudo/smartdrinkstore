@@ -12,43 +12,107 @@
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium mb-1">Nom du produit *</label>
-              <input v-model="productForm.name" type="text" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+              <input 
+                v-model="productForm.name" 
+                type="text" 
+                required 
+                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Ex: Coca-Cola 33cl"
+                ref="productNameInput"
+              >
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">SKU (Code unique)</label>
-              <input v-model="productForm.sku" type="text" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+              <label class="block text-sm font-medium mb-1 flex items-center gap-2">
+                SKU (Code unique)
+                <span class="text-xs text-gray-500 font-normal">(Auto-généré si vide)</span>
+              </label>
+              <input 
+                v-model="productForm.sku" 
+                type="text" 
+                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                placeholder="Généré automatiquement..."
+              >
+              <p class="text-xs text-gray-500 mt-1">
+                💡 Laissez vide pour génération automatique
+              </p>
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium mb-1">Catégorie *</label>
-              <select v-model="productForm.category_id" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                <option value="">Sélectionner...</option>
-                <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+              <select 
+                v-model="productForm.category_id" 
+                required 
+                @change="onCategoryChange"
+                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Sélectionner une catégorie...</option>
+                <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+                  {{ cat.name }}
+                </option>
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">Sous-catégorie</label>
-              <select v-model="productForm.subcategory_id" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                <option value="">Aucune</option>
-                <option v-for="sub in filterSubcategories(productForm.category_id)" :key="sub.id" :value="sub.id">{{ sub.name }}</option>
+              <label class="block text-sm font-medium mb-1 flex items-center gap-2">
+                Sous-catégorie
+                <span v-if="!productForm.category_id" class="text-xs text-gray-400 font-normal">
+                  (Sélectionnez d'abord une catégorie)
+                </span>
+              </label>
+              <select 
+                v-model="productForm.subcategory_id" 
+                :disabled="!productForm.category_id || availableSubcategories.length === 0"
+                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                :class="{'bg-gray-100 cursor-not-allowed': !productForm.category_id || availableSubcategories.length === 0}"
+              >
+                <option value="">
+                  {{ !productForm.category_id ? 'Sélectionnez une catégorie...' : 
+                     availableSubcategories.length === 0 ? 'Aucune sous-catégorie disponible' : 
+                     'Aucune (optionnel)' }}
+                </option>
+                <option v-for="sub in availableSubcategories" :key="sub.id" :value="sub.id">
+                  {{ sub.name }}
+                </option>
               </select>
+              <p v-if="productForm.category_id && availableSubcategories.length === 0" class="text-xs text-blue-600 mt-1">
+                💡 Créez des sous-catégories via le bouton "🏷️ Catégories"
+              </p>
             </div>
           </div>
 
           <div class="grid grid-cols-3 gap-4">
             <div>
-              <label class="block text-sm font-medium mb-1">Prix unitaire *</label>
-              <input v-model.number="productForm.unit_price" type="number" required min="0" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+              <label class="block text-sm font-medium mb-1">Prix unitaire (FCFA) *</label>
+              <input 
+                v-model.number="productForm.unit_price" 
+                type="number" 
+                required 
+                min="0"
+                step="50"
+                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="500"
+              >
             </div>
             <div>
               <label class="block text-sm font-medium mb-1">Stock initial</label>
-              <input v-model.number="productForm.stock" type="number" min="0" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+              <input 
+                v-model.number="productForm.stock" 
+                type="number" 
+                min="0" 
+                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="0"
+              >
             </div>
             <div>
               <label class="block text-sm font-medium mb-1">Stock min.</label>
-              <input v-model.number="productForm.min_stock" type="number" min="0" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+              <input 
+                v-model.number="productForm.min_stock" 
+                type="number" 
+                min="0" 
+                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="5"
+              >
             </div>
           </div>
 
@@ -151,8 +215,9 @@
             <button 
               type="submit"
               :disabled="savingProduct"
-              class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
             >
+              <span v-if="savingProduct" class="animate-spin">⏳</span>
               {{ savingProduct ? 'Enregistrement...' : 'Enregistrer' }}
             </button>
           </div>
@@ -367,7 +432,7 @@
 </template>
 
 <script>
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import CategoryHierarchyManager from './CategoryHierarchyManager.vue';
 
 export default {
@@ -382,6 +447,7 @@ export default {
     productForm: Object,
     editingProduct: Object,
     categories: Array,
+    subcategories: Array,
     savingProduct: Boolean,
     viewingProduct: Object,
     
@@ -412,18 +478,95 @@ export default {
   ],
   setup(props) {
     const categoryInput = ref(null);
+    const productNameInput = ref(null);
+    
+    // Calcul automatique des sous-catégories disponibles en fonction de la catégorie sélectionnée
+    const availableSubcategories = computed(() => {
+      console.log('🔍 Calcul des sous-catégories disponibles');
+      console.log('  - Catégorie sélectionnée:', props.productForm.category_id);
+      console.log('  - Toutes les sous-catégories:', props.subcategories);
+      
+      if (!props.productForm.category_id || !props.subcategories) {
+        console.log('  ❌ Aucune catégorie sélectionnée ou pas de sous-catégories');
+        return [];
+      }
+      
+      const filtered = props.subcategories.filter(sub => {
+        // Vérifier à la fois category_id et parent_id pour compatibilité
+        const matches = sub.category_id === props.productForm.category_id || 
+                       sub.parent_id === props.productForm.category_id;
+        
+        if (matches) {
+          console.log('  ✅ Sous-catégorie trouvée:', sub.name, '(ID:', sub.id, ')');
+        }
+        
+        return matches;
+      });
+      
+      console.log('  📋 Total des sous-catégories filtrées:', filtered.length);
+      return filtered;
+    });
+
+    // Gestion du changement de catégorie
+    const onCategoryChange = () => {
+      console.log('🔄 Changement de catégorie détecté');
+      console.log('  - Nouvelle catégorie:', props.productForm.category_id);
+      console.log('  - Sous-catégorie actuelle:', props.productForm.subcategory_id);
+      
+      // Si une sous-catégorie est sélectionnée, vérifier si elle appartient toujours à la nouvelle catégorie
+      if (props.productForm.subcategory_id) {
+        const subcategoryBelongsToCategory = availableSubcategories.value.some(
+          sub => sub.id === props.productForm.subcategory_id
+        );
+        
+        console.log('  - Sous-catégorie appartient à la catégorie?', subcategoryBelongsToCategory);
+        
+        if (!subcategoryBelongsToCategory) {
+          console.log('  ⚠️ Réinitialisation de la sous-catégorie (ne correspond plus)');
+          props.productForm.subcategory_id = '';
+        } else {
+          console.log('  ✅ Sous-catégorie conservée');
+        }
+      }
+      
+      console.log('  📊 Sous-catégories disponibles:', availableSubcategories.value.length);
+    };
     
     // Focus automatique sur l'input de catégorie quand le modal s'ouvre
     watch(() => props.showCategoryModal, (newValue) => {
       if (newValue) {
-        setTimeout(() => {
-          categoryInput.value?.focus();
-        }, 100);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (categoryInput.value) {
+              categoryInput.value.focus();
+              categoryInput.value.select();
+            }
+          });
+        });
+      }
+    });
+
+    // Focus automatique sur l'input du nom du produit quand le modal s'ouvre
+    watch(() => props.showProductModal, (newValue) => {
+      if (newValue) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (productNameInput.value) {
+              productNameInput.value.focus();
+              if (props.editingProduct) {
+                productNameInput.value.select();
+              }
+            }
+          });
+        });
       }
     });
 
     return {
-      categoryInput
+      categoryInput,
+      productNameInput,
+      availableSubcategories,
+      onCategoryChange
     };
   }
 }

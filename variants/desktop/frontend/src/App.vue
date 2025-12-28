@@ -468,7 +468,7 @@
                         @click="viewInvoice(sale)" 
                         class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
                       >
-                        👁️ Voir facture
+                        ℹ️ Voir facture
                       </button>
                     </td>
                   </tr>
@@ -657,7 +657,7 @@
                     <td class="px-6 py-4">{{ sale.payment_method }}</td>
                     <td class="px-6 py-4 font-bold text-green-600">{{ formatCurrency(sale.total_amount) }}</td>
                     <td class="px-6 py-4">
-                      <button @click="viewInvoice(sale)" class="text-blue-600 hover:text-blue-800">👁️ Voir</button>
+                      <button @click="viewInvoice(sale)" class="text-blue-600 hover:text-blue-800">ℹ️ Voir</button>
                     </td>
                   </tr>
                 </tbody>
@@ -784,7 +784,7 @@
             @click.self="closeInvoiceModal"
           >
             <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden">
-              <!-- En-tête du modal -->
+              <!-- En-tête du modal de facture-->
               <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 flex-shrink-0">
                 <div class="flex justify-between items-center">
                   <div>
@@ -804,7 +804,7 @@
                 </div>
               </div>
 
-              <!-- Contenu du modal -->
+              <!-- Contenu du modal de facture-->
               <div class="overflow-y-auto flex-1" style="max-height: calc(95vh - 280px);">
                 <div class="p-4">
                   
@@ -969,6 +969,7 @@
             :product-form="productForm"
             :editing-product="editingProduct"
             :categories="categories"
+            :subcategories="subcategories"
             :saving-product="savingProduct"
             :viewing-product="viewingProduct"
             

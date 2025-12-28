@@ -111,10 +111,19 @@
                 <div 
                   v-for="sub in getSubcategories(category.id)" 
                   :key="sub.id"
-                  class="flex items-center justify-between p-2 bg-white rounded border border-gray-200 text-sm group"
+                  :draggable="isReordering"
+                  @dragstart="onSubDragStart($event, sub, category.id)"
+                  @dragover.prevent
+                  @dragenter.prevent="onSubDragEnter($event, category.id)"
+                  @drop="onSubDrop($event, sub, category.id)"
+                  class="flex items-center justify-between p-2 bg-white rounded border border-gray-200 text-sm group transition-all"
+                  :class="{
+                    'cursor-move border-blue-400': isReordering,
+                    'opacity-50 scale-95': draggedSubcategory && draggedSubcategory.id === sub.id
+                  }"
                 >
                   <span class="text-gray-700">{{ sub.name }}</span>
-                  <div class="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                  <div class="transition-opacity flex gap-1" :class="{'opacity-0 group-hover:opacity-100': !isReordering, 'pointer-events-none': isReordering}">
                     <button 
                       @click="openModal(sub, category.id)"
                       class="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
@@ -132,15 +141,20 @@
                   </div>
                 </div>
               </div>
-              <div v-else class="text-center py-4 text-gray-400 text-sm italic border border-dashed border-gray-200 rounded">
-                Aucune sous-catégorie
+              <div v-else class="text-center py-4 text-gray-400 text-sm italic border border-dashed border-gray-200 rounded"
+                @dragover.prevent
+                @dragenter.prevent="onSubDragEnter($event, category.id)"
+                @drop="onSubDrop($event, null, category.id)"
+                :class="{'bg-blue-50 border-blue-300': isReordering}"
+              >
+                {{ isReordering ? '↓ Déposer ici' : 'Aucune sous-catégorie' }}
               </div>
             </div>
           </div>
 
           <!-- Empty State -->
           <div v-if="filteredCategories.length === 0" class="col-span-full py-12 text-center text-gray-500">
-            <div class="text-4xl mb-3">🔍</div>
+            <div class="text-4xl mb-3">📂</div>
             <p>Aucune catégorie trouvée pour "{{ searchQuery }}"</p>
           </div>
         </div>
@@ -202,7 +216,7 @@
 </template>
 
 <script>
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed, nextTick, onMounted, watch } from 'vue';
 import { categories, subcategories } from '../modules/module-2-state.js';
 import { api } from '../modules/module-1-config.js';
 
@@ -216,6 +230,7 @@ export default {
     const loading = ref(false);
     const isReordering = ref(false);
     const draggedCategory = ref(null);
+    const draggedSubcategory = ref(null);
     const nameInput = ref(null);
     
     const form = ref({
@@ -223,6 +238,39 @@ export default {
       name: '',
       category_id: null
     });
+
+    // Fonction de rechargement des données
+    const reloadData = async () => {
+      console.log('🔄 Rechargement des catégories et sous-catégories...');
+      try {
+        const [categoriesRes, subcategoriesRes] = await Promise.all([
+          api.get('/categories'),
+          api.get('/subcategories')
+        ]);
+        
+        if (categoriesRes.success && categoriesRes.data) {
+          categories.value = categoriesRes.data;
+          console.log('✅ Catégories rechargées:', categories.value.length);
+        }
+        
+        if (subcategoriesRes.success && subcategoriesRes.data) {
+          subcategories.value = subcategoriesRes.data;
+          console.log('✅ Sous-catégories rechargées:', subcategories.value.length);
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors du rechargement:', error);
+      }
+    };
+
+    // Chargement initial
+    onMounted(() => {
+      reloadData();
+    });
+
+    // Watcher pour surveiller les changements
+    watch([categories, subcategories], () => {
+      console.log('👀 Changement détecté dans les catégories/sous-catégories');
+    }, { deep: true });
 
     // Filtrage des catégories
     const filteredCategories = computed(() => {
@@ -264,6 +312,8 @@ export default {
     });
 
     const openModal = (item = null, parentId = null) => {
+      console.log('🔍 openModal appelé:', { item, parentId });
+
       if (item) {
         isEditing.value = true;
         form.value = { ...item, category_id: parentId || item.category_id || null };
@@ -271,11 +321,18 @@ export default {
         isEditing.value = false;
         form.value = { id: null, name: '', category_id: parentId };
       }
+
+      console.log('🔍 Form après init:', form.value);
       showModal.value = true;
       
-      // Focus sur l'input
-      nextTick(() => {
-        if (nameInput.value) nameInput.value.focus();
+      // Focus ultra-rapide avec double RAF pour garantir le rendu
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (nameInput.value) {
+            nameInput.value.focus();
+            nameInput.value.select(); // Sélectionne le texte existant en mode édition
+          }
+        });
       });
     };
 
@@ -285,14 +342,34 @@ export default {
     };
 
     const saveCategory = async () => {
-      if (!form.value.name.trim()) return;
+      if (!form.value.name.trim()) {
+        alert('⚠️ Le nom ne peut pas être vide');
+        return;
+      }
+      
+      // Vérifier les doublons
+      const isSub = !!form.value.category_id;
+      const nameExists = isSub
+        ? subcategories.value.some(sub => 
+            sub.name.toLowerCase() === form.value.name.trim().toLowerCase() &&
+            sub.id !== form.value.id &&
+            sub.category_id === form.value.category_id
+          )
+        : categories.value.some(cat => 
+            cat.name.toLowerCase() === form.value.name.trim().toLowerCase() &&
+            cat.id !== form.value.id
+          );
+      
+      if (nameExists) {
+        alert(`❌ Une ${isSub ? 'sous-catégorie' : 'catégorie'} avec ce nom existe déjà !`);
+        return;
+      }
       
       loading.value = true;
       try {
         let response;
-        const isSub = !!form.value.category_id;
         const endpoint = isSub ? '/subcategories' : '/categories';
-        const payload = { name: form.value.name };
+        const payload = { name: form.value.name.trim() };
         
         if (isSub) {
           payload.category_id = form.value.category_id;
@@ -305,12 +382,26 @@ export default {
         }
 
         if (response.success) {
+          console.log('✅ Sauvegarde réussie, rechargement...');
+          
+          // 🔄 Recharger les données immédiatement
+          await reloadData();
+          
+          // Émettre l'événement pour informer le parent
           emit('category-updated');
+          
+          // Fermer le modal
           closeModal();
         }
       } catch (error) {
-        console.error('Erreur sauvegarde catégorie:', error);
-        alert('Une erreur est survenue lors de la sauvegarde.');
+        console.error('❌ Erreur sauvegarde:', error);
+        
+        // Afficher un message d'erreur plus clair
+        const errorMsg = error.response?.data?.errors?.name?.[0] 
+          || error.response?.data?.message 
+          || error.message;
+        
+        alert(`❌ Erreur: ${errorMsg}`);
       } finally {
         loading.value = false;
       }
@@ -324,6 +415,7 @@ export default {
         const endpoint = isSub ? `/subcategories/${item.id}` : `/categories/${item.id}`;
         const response = await api.delete(endpoint);
         if (response.success) {
+          await reloadData();
           emit('category-updated');
         }
       } catch (error) {
@@ -336,23 +428,44 @@ export default {
 
     const toggleReorderMode = async () => {
       if (isReordering.value) {
-        // Mode Sauvegarde
+        // Mode Sauvegarde - Mettre à jour catégories ET sous-catégories
         loading.value = true;
         try {
-          const orderData = categories.value.map(c => ({
-            id: c.id,
-            position: c.position || 0
-          }));
+          // Mettre à jour les positions des catégories
+          const categoryPromises = categories.value.map((category, index) => {
+            if (category.position !== index) {
+              return api.put(`/categories/${category.id}`, {
+                name: category.name,
+                position: index
+              });
+            }
+            return Promise.resolve({ success: true });
+          });
 
-          const response = await api.post('/categories/reorder', { categories: orderData });
+          // Mettre à jour les positions et catégories parentes des sous-catégories
+          const subcategoryPromises = subcategories.value.map((sub, index) => {
+            // Vérifier si la sous-catégorie a été modifiée
+            const needsUpdate = sub.position !== index || sub._originalCategoryId !== sub.category_id;
+            
+            if (needsUpdate) {
+              return api.put(`/subcategories/${sub.id}`, {
+                name: sub.name,
+                category_id: sub.category_id,
+                position: index
+              });
+            }
+            return Promise.resolve({ success: true });
+          });
+
+          await Promise.all([...categoryPromises, ...subcategoryPromises]);
           
-          if (response.success) {
-            isReordering.value = false;
-            emit('category-updated'); // Recharger les données pour confirmer
-          }
+          console.log('✅ Ordre sauvegardé avec succès');
+          isReordering.value = false;
+          await reloadData();
+          emit('category-updated');
         } catch (error) {
-          console.error('Erreur sauvegarde ordre:', error);
-          alert('Erreur lors de la sauvegarde de l\'ordre.');
+          console.error('❌ Erreur sauvegarde ordre:', error);
+          alert('Erreur lors de la sauvegarde de l\'ordre: ' + (error.response?.data?.message || error.message));
         } finally {
           loading.value = false;
         }
@@ -361,12 +474,21 @@ export default {
         isReordering.value = true;
         searchQuery.value = ''; // Vider la recherche pour voir toutes les catégories
         
-        // Initialiser les positions si elles n'existent pas encore localement
-        if (categories.value.some(c => c.position === undefined)) {
-          categories.value.forEach((c, index) => {
-            if (c.position === undefined) c.position = index;
-          });
-        }
+        // Initialiser les positions des catégories
+        categories.value.forEach((c, index) => {
+          if (c.position === undefined || c.position === null) {
+            c.position = index;
+          }
+        });
+        
+        // Initialiser les positions des sous-catégories et sauvegarder la catégorie d'origine
+        subcategories.value.forEach((sub, index) => {
+          if (sub.position === undefined || sub.position === null) {
+            sub.position = index;
+          }
+          // Sauvegarder la catégorie d'origine pour détecter les changements
+          sub._originalCategoryId = sub.category_id;
+        });
       }
     };
 
@@ -398,6 +520,89 @@ export default {
       draggedCategory.value = null;
     };
 
+    // --- Logique Drag & Drop pour sous-catégories ---
+    
+    const onSubDragStart = (event, subcategory, categoryId) => {
+      if (!isReordering.value) return;
+      draggedSubcategory.value = subcategory;
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.dropEffect = 'move';
+      // Empêcher la propagation pour ne pas déclencher le drag de la catégorie
+      event.stopPropagation();
+    };
+
+    const onSubDragEnter = (event, categoryId) => {
+      if (!isReordering.value || !draggedSubcategory.value) return;
+      event.stopPropagation();
+    };
+
+    const onSubDrop = (event, targetSubcategory, targetCategoryId) => {
+      if (!isReordering.value || !draggedSubcategory.value) return;
+      
+      event.stopPropagation();
+      event.preventDefault();
+
+      const draggedSub = draggedSubcategory.value;
+      const sourceCategoryId = draggedSub.category_id;
+
+      // Cas 1: Déplacement vers une catégorie vide (targetSubcategory = null)
+      if (!targetSubcategory) {
+        if (draggedSub.category_id !== targetCategoryId) {
+          console.log(`🔄 Déplacement de "${draggedSub.name}" vers catégorie ${targetCategoryId}`);
+          draggedSub.category_id = targetCategoryId;
+          draggedSub.position = 0; // Première position dans la nouvelle catégorie
+        }
+        draggedSubcategory.value = null;
+        return;
+      }
+
+      // Cas 2: Déplacement dans la même catégorie (réorganisation)
+      if (sourceCategoryId === targetCategoryId && draggedSub.id !== targetSubcategory.id) {
+        const categorySubcategories = subcategories.value.filter(
+          sub => sub.category_id === targetCategoryId
+        );
+        
+        const fromIndex = categorySubcategories.findIndex(sub => sub.id === draggedSub.id);
+        const toIndex = categorySubcategories.findIndex(sub => sub.id === targetSubcategory.id);
+
+        if (fromIndex !== -1 && toIndex !== -1) {
+          // Réorganiser dans la même catégorie
+          const [movedItem] = categorySubcategories.splice(fromIndex, 1);
+          categorySubcategories.splice(toIndex, 0, movedItem);
+
+          // Mettre à jour les positions
+          categorySubcategories.forEach((sub, index) => {
+            sub.position = index;
+          });
+
+          console.log(`↕️ Réorganisation dans catégorie ${targetCategoryId}`);
+        }
+      }
+      // Cas 3: Déplacement vers une autre catégorie
+      else if (sourceCategoryId !== targetCategoryId) {
+        console.log(`➡️ Déplacement de "${draggedSub.name}" de catégorie ${sourceCategoryId} vers ${targetCategoryId}`);
+        
+        // Changer la catégorie parente
+        draggedSub.category_id = targetCategoryId;
+        
+        // Obtenir les sous-catégories de la catégorie cible
+        const targetCategorySubcategories = subcategories.value.filter(
+          sub => sub.category_id === targetCategoryId
+        );
+        
+        // Trouver la position cible
+        const targetIndex = targetCategorySubcategories.findIndex(sub => sub.id === targetSubcategory.id);
+        
+        // Réorganiser les positions dans la catégorie cible
+        targetCategorySubcategories.splice(targetIndex, 0, draggedSub);
+        targetCategorySubcategories.forEach((sub, index) => {
+          sub.position = index;
+        });
+      }
+
+      draggedSubcategory.value = null;
+    };
+
     return {
       categories,
       searchQuery,
@@ -416,9 +621,13 @@ export default {
       confirmDelete,
       isReordering,
       draggedCategory,
+      draggedSubcategory,
       toggleReorderMode,
       onDragStart,
-      onDrop
+      onDrop,
+      onSubDragStart,
+      onSubDragEnter,
+      onSubDrop
     };
   }
 }

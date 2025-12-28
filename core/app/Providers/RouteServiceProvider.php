@@ -37,19 +37,6 @@ class RouteServiceProvider extends ServiceProvider
                     ->prefix('api')
                     ->group(base_path('routes/api.php'));
             }
-
-            // ✅ Routes API modulaires dans api/v1/
-            Route::middleware('api')
-                ->prefix('api')
-                ->group(function () {
-                    $routePath = base_path('routes/api/v1');
-                    
-                    if (is_dir($routePath)) {
-                        foreach (glob($routePath . '/*.php') as $routeFile) {
-                            require $routeFile;
-                        }
-                    }
-                });
         });
     }
 

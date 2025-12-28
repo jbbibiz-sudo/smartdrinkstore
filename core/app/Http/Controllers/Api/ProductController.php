@@ -1,9 +1,11 @@
 <?php
-// Chemin: C:\smartdrinkstore\core\app\Http\Controllers\Api\ProductController.php
+// app/Http/Controllers/Api/ProductController.php
 
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Product;
+use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -11,38 +13,29 @@ use Illuminate\Support\Facades\Log;
 class ProductController extends Controller
 {
     /**
-     * Liste tous les produits
-     * ✅ FORMAT CORRIGÉ - Retourne {success: true, data: [...]}
+     * ✅ Liste tous les produits AVEC leurs fournisseurs
      */
     public function index(Request $request)
     {
         try {
-            $query = DB::table('products')
-                ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
-                ->leftJoin('subcategories', 'products.subcategory_id', '=', 'subcategories.id')
-                ->select(
-                    'products.*',
-                    'categories.name as category_name',
-                    'subcategories.name as subcategory_name'
-                )
-                ->orderBy('products.created_at', 'desc');
+            $query = Product::with(['category', 'subcategory', 'suppliers'])
+                ->orderBy('created_at', 'desc');
 
             // Filtres optionnels
             if ($request->has('category_id')) {
-                $query->where('products.category_id', $request->category_id);
+                $query->where('category_id', $request->category_id);
             }
             
             if ($request->has('search')) {
                 $search = $request->search;
                 $query->where(function($q) use ($search) {
-                    $q->where('products.name', 'like', "%{$search}%")
-                      ->orWhere('products.sku', 'like', "%{$search}%")
-                      ->orWhere('products.code', 'like', "%{$search}%")
-                      ->orWhere('products.barcode', 'like', "%{$search}%");
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('sku', 'like', "%{$search}%")
+                      ->orWhere('code', 'like', "%{$search}%")
+                      ->orWhere('barcode', 'like', "%{$search}%");
                 });
             }
 
-            // ✅ CORRECTION: Ne pas paginer, retourner tous les produits
             $products = $query->get();
 
             return response()->json([
@@ -61,28 +54,13 @@ class ProductController extends Controller
     }
 
     /**
-     * Affiche un produit spécifique
+     * ✅ Affiche un produit avec ses fournisseurs
      */
     public function show($id)
     {
         try {
-            $product = DB::table('products')
-                ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
-                ->leftJoin('subcategories', 'products.subcategory_id', '=', 'subcategories.id')
-                ->select(
-                    'products.*',
-                    'categories.name as category_name',
-                    'subcategories.name as subcategory_name'
-                )
-                ->where('products.id', $id)
-                ->first();
-
-            if (!$product) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Produit non trouvé'
-                ], 404);
-            }
+            $product = Product::with(['category', 'subcategory', 'suppliers'])
+                ->findOrFail($id);
 
             return response()->json([
                 'success' => true,
@@ -92,9 +70,8 @@ class ProductController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'Produit non trouvé'
+            ], 404);
         }
     }
 
@@ -121,41 +98,47 @@ class ProductController extends Controller
                 'is_consigned' => 'boolean',
                 'consignment_price' => 'nullable|numeric|min:0',
                 'empty_containers_stock' => 'nullable|integer|min:0',
+                'suppliers' => 'nullable|array',
+                'suppliers.*.id' => 'required|exists:suppliers,id',
+                'suppliers.*.cost_price' => 'nullable|numeric|min:0',
+                'suppliers.*.is_preferred' => 'boolean',
             ]);
 
-            $productId = DB::table('products')->insertGetId(array_merge($validated, [
-                'created_at' => now(),
-                'updated_at' => now()
-            ]));
+            DB::beginTransaction();
+            
+            // Créer le produit
+            $product = Product::create($validated);
+
+            // Associer les fournisseurs si fournis
+            if (!empty($validated['suppliers'])) {
+                foreach ($validated['suppliers'] as $supplier) {
+                    $product->suppliers()->attach($supplier['id'], [
+                        'cost_price' => $supplier['cost_price'] ?? null,
+                        'is_preferred' => $supplier['is_preferred'] ?? false,
+                    ]);
+                }
+            }
 
             // Créer un mouvement de stock initial
-            DB::table('stock_movements')->insert([
-                'product_id' => $productId,
-                'type' => 'in',
-                'quantity' => $validated['stock'],
-                'previous_stock' => 0,
-                'new_stock' => $validated['stock'],
-                'reason' => 'Stock initial',
-                'user_id' => auth()->id(),
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
+            $product->addStock($validated['stock'], 'Stock initial');
 
-            $product = DB::table('products')->where('id', $productId)->first();
+            DB::commit();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Produit créé avec succès',
-                'data' => $product
+                'data' => $product->load('suppliers')
             ], 201);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur de validation',
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
+            DB::rollBack();
             Log::error('Erreur création produit: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
@@ -166,20 +149,13 @@ class ProductController extends Controller
     }
 
     /**
-     * Met à jour un produit
+     * ✅ Met à jour un produit ET ses fournisseurs
      */
     public function update(Request $request, $id)
     {
         try {
-            $product = DB::table('products')->where('id', $id)->first();
+            $product = Product::findOrFail($id);
             
-            if (!$product) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Produit non trouvé'
-                ], 404);
-            }
-
             $validated = $request->validate([
                 'name' => 'sometimes|required|string|max:255',
                 'sku' => 'sometimes|required|string|unique:products,sku,' . $id,
@@ -197,29 +173,40 @@ class ProductController extends Controller
                 'is_consigned' => 'boolean',
                 'consignment_price' => 'nullable|numeric|min:0',
                 'empty_containers_stock' => 'nullable|integer|min:0',
+                'suppliers' => 'nullable|array',
+                'suppliers.*.id' => 'required|exists:suppliers,id',
+                'suppliers.*.cost_price' => 'nullable|numeric|min:0',
+                'suppliers.*.is_preferred' => 'boolean',
             ]);
 
-            DB::table('products')
-                ->where('id', $id)
-                ->update(array_merge($validated, [
-                    'updated_at' => now()
-                ]));
+            DB::beginTransaction();
 
-            $updatedProduct = DB::table('products')->where('id', $id)->first();
+            $product->update($validated);
+
+            // Mettre à jour les fournisseurs si fournis
+            if (isset($validated['suppliers'])) {
+                // Détacher tous les anciens fournisseurs
+                $product->suppliers()->detach();
+                
+                // Attacher les nouveaux
+                foreach ($validated['suppliers'] as $supplier) {
+                    $product->suppliers()->attach($supplier['id'], [
+                        'cost_price' => $supplier['cost_price'] ?? null,
+                        'is_preferred' => $supplier['is_preferred'] ?? false,
+                    ]);
+                }
+            }
+
+            DB::commit();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Produit mis à jour avec succès',
-                'data' => $updatedProduct
+                'data' => $product->load('suppliers')
             ]);
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur de validation',
-                'errors' => $e->errors()
-            ], 422);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la mise à jour',
@@ -234,16 +221,8 @@ class ProductController extends Controller
     public function destroy($id)
     {
         try {
-            $product = DB::table('products')->where('id', $id)->first();
-            
-            if (!$product) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Produit non trouvé'
-                ], 404);
-            }
-
-            DB::table('products')->where('id', $id)->delete();
+            $product = Product::findOrFail($id);
+            $product->delete();
 
             return response()->json([
                 'success' => true,
@@ -260,14 +239,77 @@ class ProductController extends Controller
     }
 
     /**
+     * ✅ NOUVEAU : Associer/Dissocier un fournisseur
+     */
+    public function manageSupplier(Request $request, $productId)
+    {
+        try {
+            $validated = $request->validate([
+                'supplier_id' => 'required|exists:suppliers,id',
+                'action' => 'required|in:attach,detach,update',
+                'cost_price' => 'nullable|numeric|min:0',
+                'delivery_days' => 'nullable|integer|min:0',
+                'minimum_order_quantity' => 'nullable|integer|min:1',
+                'is_preferred' => 'nullable|boolean',
+                'notes' => 'nullable|string',
+            ]);
+
+            $product = Product::findOrFail($productId);
+            $supplierId = $validated['supplier_id'];
+
+            switch ($validated['action']) {
+                case 'attach':
+                    $product->suppliers()->attach($supplierId, [
+                        'cost_price' => $validated['cost_price'] ?? null,
+                        'delivery_days' => $validated['delivery_days'] ?? null,
+                        'minimum_order_quantity' => $validated['minimum_order_quantity'] ?? 1,
+                        'is_preferred' => $validated['is_preferred'] ?? false,
+                        'notes' => $validated['notes'] ?? null,
+                    ]);
+                    $message = 'Fournisseur associé avec succès';
+                    break;
+
+                case 'detach':
+                    $product->suppliers()->detach($supplierId);
+                    $message = 'Fournisseur dissocié avec succès';
+                    break;
+
+                case 'update':
+                    $product->suppliers()->updateExistingPivot($supplierId, [
+                        'cost_price' => $validated['cost_price'] ?? null,
+                        'delivery_days' => $validated['delivery_days'] ?? null,
+                        'minimum_order_quantity' => $validated['minimum_order_quantity'] ?? 1,
+                        'is_preferred' => $validated['is_preferred'] ?? false,
+                        'notes' => $validated['notes'] ?? null,
+                    ]);
+                    $message = 'Informations fournisseur mises à jour';
+                    break;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => $product->load('suppliers')
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur gestion fournisseur produit: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la gestion du fournisseur',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Produits en stock faible
      */
     public function lowStock()
     {
         try {
-            $products = DB::table('products')
-                ->whereRaw('stock <= min_stock')
-                ->where('stock', '>', 0)
+            $products = Product::with(['category', 'suppliers'])
+                ->lowStock()
                 ->get();
 
             return response()->json([
@@ -288,8 +330,8 @@ class ProductController extends Controller
     public function outOfStock()
     {
         try {
-            $products = DB::table('products')
-                ->where('stock', 0)
+            $products = Product::with(['category', 'suppliers'])
+                ->outOfStock()
                 ->get();
 
             return response()->json([
@@ -311,10 +353,10 @@ class ProductController extends Controller
     {
         try {
             $stats = [
-                'total' => DB::table('products')->count(),
-                'low_stock' => DB::table('products')->whereRaw('stock <= min_stock')->where('stock', '>', 0)->count(),
-                'out_of_stock' => DB::table('products')->where('stock', 0)->count(),
-                'total_value' => DB::table('products')->selectRaw('SUM(stock * unit_price) as value')->value('value') ?? 0
+                'total' => Product::count(),
+                'low_stock' => Product::lowStock()->count(),
+                'out_of_stock' => Product::outOfStock()->count(),
+                'total_value' => Product::selectRaw('SUM(stock * unit_price) as value')->value('value') ?? 0
             ];
 
             return response()->json([

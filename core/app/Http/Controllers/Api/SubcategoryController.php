@@ -7,88 +7,276 @@ use App\Models\Subcategory;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class SubcategoryController extends Controller
 {
+    /**
+     * Liste toutes les sous-catégories
+     */
     public function index(Request $request)
     {
-        $query = Subcategory::with('category');
+        try {
+            $query = Subcategory::with('category');
 
-        if($request->has('category_id')) $query->where('category_id',$request->category_id);
-        if($request->has('is_active')) $query->where('is_active',$request->boolean('is_active'));
-        if($request->get('with_products_count',false)) $query->withCount('products');
+            // Filtres optionnels
+            if ($request->has('category_id')) {
+                $query->where('category_id', $request->category_id);
+            }
+            
+            if ($request->has('is_active')) {
+                $query->where('is_active', $request->boolean('is_active'));
+            }
+            
+            if ($request->get('with_products_count', false)) {
+                $query->withCount('products');
+            }
 
-        $sortBy = $request->get('sort_by','position');
-        $sortOrder = $request->get('sort_order','asc');
-        $query->orderBy($sortBy,$sortOrder);
+            // Tri
+            $sortBy = $request->get('sort_by', 'position');
+            $sortOrder = $request->get('sort_order', 'asc');
+            $query->orderBy($sortBy, $sortOrder);
 
-        return response()->json($query->paginate($request->get('per_page',20)));
+            $subcategories = $query->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $subcategories
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur chargement sous-catégories:', ['message' => $e->getMessage()]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des sous-catégories',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
+    /**
+     * Crée une nouvelle sous-catégorie
+     * ✅ CORRECTION: Tous les champs sont optionnels sauf name et category_id
+     */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'name'=>'required|string|max:255',
-            'code'=>'required|string|max:20|unique:subcategories,code',
-            'category_id'=>'required|exists:categories,id',
-            'description'=>'nullable|string',
-            'color'=>'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
-            'position'=>'nullable|integer|min:0',
-            'is_active'=>'nullable|boolean'
-        ]);
+        try {
+            // ✅ Validation simplifiée
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'category_id' => 'required|exists:categories,id',
+                'description' => 'nullable|string',
+                'color' => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
+                'position' => 'nullable|integer|min:0',
+                'is_active' => 'nullable|boolean'
+            ]);
 
-        $category = Category::find($validated['category_id']);
-        $validated['slug'] = Str::slug($category->name.' '.$validated['name']);
-        $validated['position'] = $validated['position'] ?? (Subcategory::where('category_id',$validated['category_id'])->max('position')+1);
+            // ✅ Le modèle génère automatiquement code et slug via boot()
+            $subcategory = Subcategory::create($validated);
 
-        $subcategory = Subcategory::create($validated);
-        return response()->json(['message'=>'Sous-catégorie créée','subcategory'=>$subcategory->load('category')],201);
-    }
+            Log::info('Sous-catégorie créée:', [
+                'id' => $subcategory->id,
+                'name' => $subcategory->name,
+                'category_id' => $subcategory->category_id
+            ]);
 
-    public function show(Subcategory $subcategory)
-    {
-        $subcategory->load(['category','products'=>fn($q)=>$q->active()->limit(10)]);
-        $stats = [
-            'total_products'=>$subcategory->products()->count(),
-            'active_products'=>$subcategory->products()->active()->count(),
-            'low_stock_products'=>$subcategory->products()->active()->lowStock()->count(),
-            'total_stock_value'=>$subcategory->products()->active()->sum(fn($p)=>$p->stock*$p->cost_price),
-        ];
-        return response()->json(['subcategory'=>$subcategory,'stats'=>$stats]);
-    }
-
-    public function update(Request $request, Subcategory $subcategory)
-    {
-        $validated = $request->validate([
-            'name'=>'sometimes|string|max:255',
-            'code'=>'sometimes|string|max:20|unique:subcategories,code,'.$subcategory->id,
-            'description'=>'nullable|string',
-            'color'=>'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
-            'position'=>'nullable|integer|min:0',
-            'is_active'=>'nullable|boolean'
-        ]);
-
-        if(isset($validated['name'])){
-            $validated['slug'] = Str::slug($subcategory->category->name.' '.$validated['name']);
+            return response()->json([
+                'success' => true,
+                'message' => 'Sous-catégorie créée avec succès',
+                'data' => $subcategory->load('category')
+            ], 201);
+            
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $e->errors()
+            ], 422);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur création sous-catégorie:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la création de la sous-catégorie',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        $subcategory->update($validated);
-        return response()->json(['message'=>'Sous-catégorie mise à jour','subcategory'=>$subcategory->fresh('category')]);
     }
 
-    public function destroy(Subcategory $subcategory)
+    /**
+     * Affiche une sous-catégorie spécifique
+     */
+    public function show($id)
     {
-        $count = $subcategory->products()->count();
-        if($count>0) return response()->json(['message'=>'Impossible de supprimer, produits liés','products_count'=>$count],422);
-        $subcategory->delete();
-        return response()->json(['message'=>'Sous-catégorie supprimée']);
+        try {
+            $subcategory = Subcategory::with([
+                'category',
+                'products' => function($query) {
+                    $query->where('is_active', true)->limit(10);
+                }
+            ])->findOrFail($id);
+            
+            // Statistiques
+            $stats = [
+                'total_products' => $subcategory->products()->count(),
+                'active_products' => $subcategory->products()->where('is_active', true)->count(),
+                'low_stock_products' => $subcategory->products()
+                    ->where('is_active', true)
+                    ->whereRaw('stock <= min_stock')
+                    ->count(),
+                'total_stock_value' => $subcategory->products()
+                    ->where('is_active', true)
+                    ->get()
+                    ->sum(function($p) {
+                        return $p->stock * ($p->cost_price ?? 0);
+                    }),
+            ];
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'subcategory' => $subcategory,
+                    'stats' => $stats
+                ]
+            ]);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sous-catégorie introuvable'
+            ], 404);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
-    public function products(Subcategory $subcategory, Request $request)
+    /**
+     * Met à jour une sous-catégorie
+     */
+    public function update(Request $request, $id)
     {
-        $query = $subcategory->products()->with('category');
-        if($request->get('active_only',true)) $query->active();
-        if($request->has('search')) $query->search($request->search);
-        return response()->json($query->paginate($request->get('per_page',20)));
+        try {
+            $subcategory = Subcategory::findOrFail($id);
+            
+            $validated = $request->validate([
+                'name' => 'sometimes|required|string|max:255',
+                'category_id' => 'sometimes|required|exists:categories,id',
+                'description' => 'nullable|string',
+                'color' => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
+                'position' => 'nullable|integer|min:0',
+                'is_active' => 'nullable|boolean'
+            ]);
+
+            $subcategory->update($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Sous-catégorie mise à jour avec succès',
+                'data' => $subcategory->fresh('category')
+            ]);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sous-catégorie introuvable'
+            ], 404);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur mise à jour sous-catégorie:', ['message' => $e->getMessage()]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Supprime une sous-catégorie
+     */
+    public function destroy($id)
+    {
+        try {
+            $subcategory = Subcategory::findOrFail($id);
+            
+            $count = $subcategory->products()->count();
+            
+            if ($count > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de supprimer, des produits sont liés à cette sous-catégorie',
+                    'products_count' => $count
+                ], 422);
+            }
+            
+            $subcategory->delete();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Sous-catégorie supprimée avec succès'
+            ]);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sous-catégorie introuvable'
+            ], 404);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Liste les produits d'une sous-catégorie
+     */
+    public function products($id, Request $request)
+    {
+        try {
+            $subcategory = Subcategory::findOrFail($id);
+            
+            $query = $subcategory->products()->with('category');
+            
+            if ($request->get('active_only', true)) {
+                $query->where('is_active', true);
+            }
+            
+            if ($request->has('search')) {
+                $search = $request->search;
+                $query->where(function($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('sku', 'like', "%{$search}%");
+                });
+            }
+            
+            $products = $query->get();
+            
+            return response()->json([
+                'success' => true,
+                'data' => $products
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des produits',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

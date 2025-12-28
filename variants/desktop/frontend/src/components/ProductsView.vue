@@ -1,4 +1,4 @@
-<!-- c:\smartdrinkstore\variants\desktop\frontend\src\components\ProductsView.vue -->
+<!-- ProductsView.vue - Version améliorée avec bouton réappro -->
 <template>
   <div class="space-y-6">
     <div class="flex justify-between items-center">
@@ -19,6 +19,7 @@
       </div>
     </div>
 
+    <!-- Barre de recherche et filtres -->
     <div class="bg-white rounded-lg shadow p-6">
       <div class="flex gap-4">
         <input 
@@ -29,6 +30,17 @@
           placeholder="🔍 Rechercher un produit (nom, SKU, code)..."
           class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
         >
+        
+        <!-- Filtre par statut de stock -->
+        <select 
+          v-model="stockFilter"
+          class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">Tous les produits</option>
+          <option value="in-stock">En stock</option>
+          <option value="low-stock">Stock faible</option>
+          <option value="out-of-stock">Rupture de stock</option>
+        </select>
       </div>
     </div>
 
@@ -43,6 +55,7 @@
               Produit <span v-if="sortKey === 'name'">{{ sortOrder === 'asc' ? '↑' : '↓' }}</span>
             </th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fournisseur</th>
             <th 
               @click="sort('unit_price')" 
               class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
@@ -60,41 +73,95 @@
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="5" class="px-6 py-8 text-center">
+            <td colspan="6" class="px-6 py-8 text-center">
               <div class="flex justify-center items-center">
                 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                 <span class="ml-3">Chargement...</span>
               </div>
             </td>
           </tr>
-          <tr v-else-if="filteredProducts.length === 0">
-            <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+          <tr v-else-if="displayedProducts.length === 0">
+            <td colspan="6" class="px-6 py-8 text-center text-gray-500">
               Aucun produit trouvé
             </td>
           </tr>
-          <!-- Utilisation de paginatedProducts au lieu de filteredProducts -->
-          <tr v-else v-for="product in paginatedProducts" :key="product.id" class="border-t hover:bg-gray-50">
+          <tr v-else v-for="product in paginatedProducts" :key="product.id" class="border-t hover:bg-gray-50 transition">
+            <!-- Nom du produit -->
             <td class="px-6 py-4">
               <div class="font-medium">{{ product.name }}</div>
               <div class="text-sm text-gray-500">{{ product.sku }}</div>
             </td>
+            
+            <!-- Catégorie -->
             <td class="px-6 py-4">
               <span class="px-2 py-1 bg-gray-100 rounded text-sm">
                 {{ product.category?.name || 'Sans catégorie' }}
               </span>
             </td>
-            <td class="px-6 py-4 font-medium">{{ formatCurrency(product.unit_price) }}</td>
+            
+            <!-- Fournisseur -->
             <td class="px-6 py-4">
-              <span :class="['px-2 py-1 rounded text-sm', 
-                product.stock <= product.min_stock ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800']">
+              <span v-if="product.suppliers && product.suppliers.length > 0" class="text-sm">
+                <span class="px-2 py-1 bg-blue-50 text-blue-700 rounded">
+                  {{ product.suppliers[0].name }}
+                </span>
+                <span v-if="product.suppliers.length > 1" class="ml-1 text-xs text-gray-500">
+                  +{{ product.suppliers.length - 1 }}
+                </span>
+              </span>
+              <span v-else class="text-sm text-gray-400 italic">
+                Aucun fournisseur
+              </span>
+            </td>
+            
+            <!-- Prix -->
+            <td class="px-6 py-4 font-medium">{{ formatCurrency(product.unit_price) }}</td>
+            
+            <!-- Stock avec badge coloré -->
+            <td class="px-6 py-4">
+              <span :class="getStockBadgeClass(product)">
                 {{ product.stock }} unités
               </span>
             </td>
+            
+            <!-- Actions -->
             <td class="px-6 py-4">
-              <div class="flex gap-2">
-                <button @click="$emit('view-product', product)" class="text-blue-600 hover:text-blue-800" title="Voir">👁️</button>
-                <button @click="$emit('open-product-modal', product)" class="text-yellow-600 hover:text-yellow-800" title="Modifier">✏️</button>
-                <button @click="$emit('delete-product', product.id)" class="text-red-600 hover:text-red-800" title="Supprimer">🗑️</button>
+              <div class="flex gap-2 items-center">
+                <!-- Réapprovisionner - Nouveau bouton -->
+                <button 
+                  @click="$emit('open-restock-modal', product)" 
+                  class="text-green-600 hover:text-green-800 hover:bg-green-50 p-2 rounded transition"
+                  title="Réapprovisionner"
+                >
+                  📦
+                </button>
+                
+                <!-- Voir les détails -->
+                <button 
+                  @click="$emit('view-product', product)" 
+                  class="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded transition"
+                  title="Voir les détails"
+                >
+                  ℹ️
+                </button>
+                
+                <!-- Modifier -->
+                <button 
+                  @click="$emit('open-product-modal', product)" 
+                  class="text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50 p-2 rounded transition"
+                  title="Modifier"
+                >
+                  ✏️
+                </button>
+                
+                <!-- Supprimer -->
+                <button 
+                  @click="$emit('delete-product', product.id)" 
+                  class="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded transition"
+                  title="Supprimer"
+                >
+                  🗑️
+                </button>
               </div>
             </td>
           </tr>
@@ -104,13 +171,13 @@
       <!-- Contrôles de Pagination -->
       <div v-if="totalPages > 1" class="px-6 py-4 border-t flex items-center justify-between bg-gray-50">
         <div class="text-sm text-gray-500">
-          Affichage de {{ startIndex + 1 }} à {{ endIndex }} sur {{ filteredProducts.length }} produits
+          Affichage de {{ startIndex + 1 }} à {{ endIndex }} sur {{ displayedProducts.length }} produits
         </div>
         <div class="flex gap-2">
           <button 
             @click="prevPage" 
             :disabled="currentPage === 1"
-            class="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             Précédent
           </button>
@@ -120,7 +187,7 @@
               v-for="page in displayedPages" 
               :key="page"
               @click="currentPage = page"
-              :class="['px-3 py-1 border rounded min-w-[32px]', 
+              :class="['px-3 py-1 border rounded min-w-[32px] transition', 
                 currentPage === page ? 'bg-blue-600 text-white border-blue-600' : 'hover:bg-gray-100']"
             >
               {{ page }}
@@ -130,7 +197,7 @@
           <button 
             @click="nextPage" 
             :disabled="currentPage === totalPages"
-            class="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             Suivant
           </button>
@@ -168,10 +235,12 @@ export default {
     'open-hierarchical-category-modal',
     'open-product-modal',
     'view-product',
-    'delete-product'
+    'delete-product',
+    'open-restock-modal'
   ],
   setup(props) {
     const searchInput = ref(null);
+    const stockFilter = ref('all');
     
     // --- Pagination ---
     const currentPage = ref(1);
@@ -190,8 +259,35 @@ export default {
       }
     };
 
+    // Fonction pour obtenir la classe CSS du badge de stock
+    const getStockBadgeClass = (product) => {
+      if (product.stock === 0) {
+        return 'px-2 py-1 rounded text-sm bg-red-100 text-red-800 font-medium';
+      } else if (product.stock <= product.min_stock) {
+        return 'px-2 py-1 rounded text-sm bg-orange-100 text-orange-800 font-medium';
+      } else {
+        return 'px-2 py-1 rounded text-sm bg-green-100 text-green-800 font-medium';
+      }
+    };
+
+    // Filtrage par statut de stock
+    const displayedProducts = computed(() => {
+      let products = [...props.filteredProducts];
+      
+      switch (stockFilter.value) {
+        case 'in-stock':
+          return products.filter(p => p.stock > p.min_stock);
+        case 'low-stock':
+          return products.filter(p => p.stock <= p.min_stock && p.stock > 0);
+        case 'out-of-stock':
+          return products.filter(p => p.stock === 0);
+        default:
+          return products;
+      }
+    });
+
     const sortedProducts = computed(() => {
-      const items = [...props.filteredProducts];
+      const items = [...displayedProducts.value];
       return items.sort((a, b) => {
         let valA = a[sortKey.value];
         let valB = b[sortKey.value];
@@ -220,17 +316,15 @@ export default {
       return sortedProducts.value.slice(startIndex.value, endIndex.value);
     });
 
-    // Calcul intelligent des pages à afficher (ex: 1 2 ... 5 6 7 ... 10)
+    // Calcul intelligent des pages à afficher
     const displayedPages = computed(() => {
       const total = totalPages.value;
       const current = currentPage.value;
       let pages = [];
 
       if (total <= 7) {
-        // Si peu de pages, on affiche tout
         for (let i = 1; i <= total; i++) pages.push(i);
       } else {
-        // Sinon on affiche début, fin et autour de la page courante
         if (current <= 4) {
           pages = [1, 2, 3, 4, 5, total];
         } else if (current >= total - 3) {
@@ -250,8 +344,12 @@ export default {
       if (currentPage.value > 1) currentPage.value--;
     };
 
-    // Réinitialiser la page à 1 si la liste filtrée change (ex: recherche)
+    // Réinitialiser la page à 1 si la liste filtrée change
     watch(() => props.filteredProducts, () => {
+      currentPage.value = 1;
+    });
+
+    watch(stockFilter, () => {
       currentPage.value = 1;
     });
 
@@ -264,6 +362,7 @@ export default {
 
     return {
       searchInput,
+      stockFilter,
       // Pagination
       currentPage,
       itemsPerPage,
@@ -277,8 +376,21 @@ export default {
       // Tri
       sortKey,
       sortOrder,
-      sort
+      sort,
+      // Helpers
+      getStockBadgeClass,
+      displayedProducts
     };
   }
 }
 </script>
+
+<style scoped>
+/* Animations pour les transitions */
+.hover\:bg-blue-50:hover,
+.hover\:bg-yellow-50:hover,
+.hover\:bg-red-50:hover,
+.hover\:bg-green-50:hover {
+  transition: background-color 0.2s ease;
+}
+</style>

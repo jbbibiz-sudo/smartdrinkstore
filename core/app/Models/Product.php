@@ -1,131 +1,185 @@
 <?php
+// app/Models/Product.php
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Product extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'name',
         'sku',
+        'code',
+        'barcode',
         'category_id',
         'subcategory_id',
-        'supplier_id',
+        'brand',
+        'volume',
         'unit_price',
         'cost_price',
         'stock',
         'min_stock',
+        'description',
         'is_consigned',
-        'consignment_value',
+        'consignment_price',
+        'empty_containers_stock',
         'is_active'
     ];
 
     protected $casts = [
+        'unit_price' => 'decimal:2',
+        'cost_price' => 'decimal:2',
+        'consignment_price' => 'decimal:2',
+        'stock' => 'integer',
+        'min_stock' => 'integer',
+        'empty_containers_stock' => 'integer',
         'is_consigned' => 'boolean',
         'is_active' => 'boolean',
-        'unit_price' => 'float',
-        'cost_price' => 'float',
-        'consignment_value' => 'float',
-        'stock' => 'integer',
-        'min_stock' => 'integer'
     ];
 
-    /*
-    |--------------------------------------------------------------------------
-    | RELATIONS
-    |--------------------------------------------------------------------------
-    */
-
-    public function category()
+    /**
+     * Relation avec la catégorie
+     */
+    public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
     }
 
-    public function subcategory()
+    /**
+     * Relation avec la sous-catégorie
+     */
+    public function subcategory(): BelongsTo
     {
         return $this->belongsTo(Subcategory::class);
     }
 
-    public function supplier()
-    {
-        return $this->belongsTo(Supplier::class);
-    }
-
-    public function stockMovements()
+    /**
+     * Relation avec les mouvements de stock
+     */
+    public function stockMovements(): HasMany
     {
         return $this->hasMany(StockMovement::class);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | SCOPES
-    |--------------------------------------------------------------------------
-    */
+    /**
+     * Relation avec les items de vente
+     */
+    public function saleItems(): HasMany
+    {
+        return $this->hasMany(SaleItem::class);
+    }
 
-    public function scopeActive(Builder $query)
+    /**
+     * ✅ NOUVEAU : Relation avec les fournisseurs (Many-to-Many)
+     */
+    public function suppliers(): BelongsToMany
+    {
+        return $this->belongsToMany(Supplier::class, 'product_supplier')
+            ->withPivot([
+                'cost_price',
+                'delivery_days',
+                'minimum_order_quantity',
+                'is_preferred',
+                'notes'
+            ])
+            ->withTimestamps();
+    }
+
+    /**
+     * ✅ NOUVEAU : Obtenir le fournisseur principal
+     */
+    public function preferredSupplier()
+    {
+        return $this->suppliers()
+            ->wherePivot('is_preferred', true)
+            ->first();
+    }
+
+    /**
+     * Vérifie si le produit est en stock faible
+     */
+    public function isLowStock(): bool
+    {
+        return $this->stock <= $this->min_stock && $this->stock > 0;
+    }
+
+    /**
+     * Vérifie si le produit est en rupture de stock
+     */
+    public function isOutOfStock(): bool
+    {
+        return $this->stock == 0;
+    }
+
+    /**
+     * Ajoute du stock et crée un mouvement
+     */
+    public function addStock(int $quantity, string $reason = 'Réapprovisionnement', $userId = null): void
+    {
+        $previousStock = $this->stock;
+        $this->stock += $quantity;
+        $this->save();
+
+        StockMovement::create([
+            'product_id' => $this->id,
+            'type' => 'in',
+            'quantity' => $quantity,
+            'previous_stock' => $previousStock,
+            'new_stock' => $this->stock,
+            'reason' => $reason,
+            'user_id' => $userId ?? auth()->id(),
+        ]);
+    }
+
+    /**
+     * Retire du stock et crée un mouvement
+     */
+    public function removeStock(int $quantity, string $reason = 'Sortie', $userId = null): void
+    {
+        if ($this->stock < $quantity) {
+            throw new \Exception("Stock insuffisant pour {$this->name}");
+        }
+
+        $previousStock = $this->stock;
+        $this->stock -= $quantity;
+        $this->save();
+
+        StockMovement::create([
+            'product_id' => $this->id,
+            'type' => 'out',
+            'quantity' => $quantity,
+            'previous_stock' => $previousStock,
+            'new_stock' => $this->stock,
+            'reason' => $reason,
+            'user_id' => $userId ?? auth()->id(),
+        ]);
+    }
+
+    /**
+     * Scope pour les produits actifs
+     */
+    public function scopeActive($query)
     {
         return $query->where('is_active', true);
     }
 
-    public function scopeLowStock(Builder $query)
+    /**
+     * Scope pour les produits en stock faible
+     */
+    public function scopeLowStock($query)
     {
-        return $query->whereColumn('stock', '<=', 'min_stock');
+        return $query->whereRaw('stock <= min_stock')->where('stock', '>', 0);
     }
 
-    public function scopeSearch(Builder $query, $term)
+    /**
+     * Scope pour les produits en rupture de stock
+     */
+    public function scopeOutOfStock($query)
     {
-        return $query->where(function (Builder $q) use ($term) {
-            $q->where('name', 'like', "%$term%")
-              ->orWhere('sku', 'like', "%$term%");
-        });
-    }
-
-    // 🔹 Helpers
-    public function getIsLowStockAttribute()
-    {
-        return $this->stock <= $this->min_stock;
-    }
-
-    public function addStock(int $qty, ?string $reason = null, ?string $expiry = null)
-    {
-        $previous = $this->stock;
-        $this->stock += $qty;
-        $this->save();
-
-        $this->stockMovements()->create([
-            'type'=>'in',
-            'quantity'=>$qty,
-            'previous_stock'=>$previous,
-            'new_stock'=>$this->stock,
-            'reason'=>$reason ?? 'Ajout stock',
-            'expiry_date'=>$expiry
-        ]);
-    }
-
-    public function removeStock(int $qty, ?string $reason = null, ?string $expiry = null)
-    {
-        if($qty > $this->stock) throw new \Exception('Stock insuffisant');
-        $previous = $this->stock;
-        $this->stock -= $qty;
-        $this->save();
-
-        $this->stockMovements()->create([
-            'type'=>'out',
-            'quantity'=>$qty,
-            'previous_stock'=>$previous,
-            'new_stock'=>$this->stock,
-            'reason'=>$reason ?? 'Retrait stock',
-            'expiry_date'=>$expiry
-        ]);
-    }
-
-    public function saleItems()
-    {
-        return $this->hasMany(SaleItem::class);
+        return $query->where('stock', 0);
     }
 }

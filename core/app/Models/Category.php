@@ -5,45 +5,34 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Category extends Model
 {
     use HasFactory, SoftDeletes;
 
-    /**
-     * The table associated with the model.
-     */
     protected $table = 'categories';
 
-    /**
-     * The attributes that are mass assignable.
-     */
     protected $fillable = [
         'name',
-        'code',          // ✅ AJOUTÉ
+        'code',
         'slug',
         'description',
         'color',
         'icon',
-        'position',      // ✅ AJOUTÉ (remplace 'order')
+        'position',
         'is_active',
         'parent_id'
     ];
 
-    /**
-     * The attributes that should be cast.
-     */
     protected $casts = [
         'is_active' => 'boolean',
-        'position' => 'integer',  // ✅ MODIFIÉ (avant c'était 'order')
+        'position' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime'
     ];
 
-    /**
-     * The attributes that should be hidden.
-     */
     protected $hidden = [
         'deleted_at'
     ];
@@ -55,6 +44,26 @@ class Category extends Model
     {
         parent::boot();
 
+        // Événement avant création : générer automatiquement code et slug
+        static::creating(function ($category) {
+            // Générer le code automatiquement s'il est vide
+            if (empty($category->code)) {
+                $category->code = self::generateUniqueCode($category->name);
+            }
+            
+            // Générer le slug automatiquement s'il est vide
+            if (empty($category->slug)) {
+                $category->slug = self::generateUniqueSlug($category->name);
+            }
+        });
+
+        // Événement avant mise à jour : régénérer le slug si le nom change
+        static::updating(function ($category) {
+            if ($category->isDirty('name') && empty($category->slug)) {
+                $category->slug = self::generateUniqueSlug($category->name);
+            }
+        });
+
         // Événement avant suppression
         static::deleting(function ($category) {
             // Optionnel : Empêcher la suppression si des produits existent
@@ -62,6 +71,49 @@ class Category extends Model
                 throw new \Exception('Impossible de supprimer une catégorie contenant des produits');
             }
         });
+    }
+
+    /**
+     * Générer un code unique pour la catégorie
+     */
+    private static function generateUniqueCode(string $name): string
+    {
+        // Nettoyer le nom et créer un code
+        $baseCode = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $name), 0, 6));
+        
+        // Si le code est vide, utiliser un code par défaut
+        if (empty($baseCode)) {
+            $baseCode = 'CAT';
+        }
+        
+        $code = $baseCode;
+        $counter = 1;
+        
+        // Vérifier l'unicité et ajouter un suffixe si nécessaire
+        while (self::where('code', $code)->exists()) {
+            $code = $baseCode . $counter;
+            $counter++;
+        }
+        
+        return $code;
+    }
+
+    /**
+     * Générer un slug unique pour la catégorie
+     */
+    private static function generateUniqueSlug(string $name): string
+    {
+        $slug = Str::slug($name);
+        $originalSlug = $slug;
+        $counter = 1;
+        
+        // Vérifier l'unicité et ajouter un suffixe si nécessaire
+        while (self::where('slug', $slug)->exists()) {
+            $slug = $originalSlug . '-' . $counter;
+            $counter++;
+        }
+        
+        return $slug;
     }
 
     /**
