@@ -1035,6 +1035,7 @@ import Header from './components/Header.vue';
 import DashboardView from './components/DashboardView.vue';
 import ProductsView from './components/ProductsView.vue';
 import StockModals from './components/StockModals.vue'; 
+import { perfMonitor, measureAsync } from './utils/performance-monitor';
 
 export default {
   name: 'App',
@@ -1313,6 +1314,7 @@ export default {
 
     onMounted(async () => {
       console.log('🎯 Démarrage de l\'application...');
+      perfMonitor.start('Initialisation App');
       
       const wasAuthenticated = await loadUserFromStorage();
       
@@ -1322,11 +1324,19 @@ export default {
           'Authorization': `Bearer ${authToken.value}`,
           'Content-Type': 'application/json',
         };
+        
+        await measureAsync('Chargement produits', async () => {
+          await loaders.loadProducts();
+        });
+        
         await loaders.init();
       } else {
         console.log('⏳ En attente de connexion...');
       }
-    });
+      
+      perfMonitor.end('Initialisation App');
+      perfMonitor.getReport();
+    });  
 
     // ========== GESTION DES FACTURES ==========
 
