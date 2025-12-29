@@ -1,6 +1,5 @@
 <?php
 
-// Fichier 2: core/database/seeders/SalesSeeder.php
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
@@ -11,9 +10,10 @@ class SalesSeeder extends Seeder
 {
     public function run(): void
     {
-        // Récupérer les IDs des produits et clients existants
+        // Récupérer les IDs des produits, clients ET UTILISATEURS
         $productIds = DB::table('products')->pluck('id')->toArray();
         $customerIds = DB::table('customers')->pluck('id')->toArray();
+        $userIds = DB::table('users')->pluck('id')->toArray(); // ✅ AJOUTÉ
 
         if (empty($productIds)) {
             $this->command->error('❌ Aucun produit trouvé. Veuillez d\'abord exécuter les seeders de produits.');
@@ -22,6 +22,11 @@ class SalesSeeder extends Seeder
 
         if (empty($customerIds)) {
             $this->command->error('❌ Aucun client trouvé. Veuillez d\'abord exécuter CustomerSeeder.');
+            return;
+        }
+
+        if (empty($userIds)) {
+            $this->command->error('❌ Aucun utilisateur trouvé. Veuillez d\'abord créer des utilisateurs.');
             return;
         }
 
@@ -36,7 +41,7 @@ class SalesSeeder extends Seeder
             $dailySales = rand(3, 8);
             
             for ($j = 0; $j < $dailySales; $j++) {
-                $saleId = $this->createSale($date, $productIds, $customerIds);
+                $saleId = $this->createSale($date, $productIds, $customerIds, $userIds); // ✅ AJOUTÉ userIds
                 $itemsCreated = $this->createSaleItems($saleId, $productIds);
                 
                 $salesCount++;
@@ -50,7 +55,7 @@ class SalesSeeder extends Seeder
     /**
      * Créer une vente
      */
-    private function createSale($date, $productIds, $customerIds): int
+    private function createSale($date, $productIds, $customerIds, $userIds): int
     {
         $type = rand(1, 10) > 7 ? 'wholesale' : 'counter'; // 30% gros, 70% comptoir
         $paymentMethod = $this->getRandomPaymentMethod($type);
@@ -61,13 +66,16 @@ class SalesSeeder extends Seeder
             $customerId = $customerIds[array_rand($customerIds)];
         }
 
+        // ✅ VENDEUR ALÉATOIRE
+        $userId = $userIds[array_rand($userIds)];
+
         // Calculer le montant (sera mis à jour après création des items)
         $totalAmount = 0;
-        $discountAmount = 0;
+        $discount = 0;
 
         // Remise aléatoire pour les ventes en gros
         if ($type === 'wholesale') {
-            $discountAmount = 0; // Sera calculé après
+            $discount = 0; // Sera calculé après
         }
 
         $invoiceNumber = 'INV-' . $date->format('Ymd') . '-' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
@@ -75,10 +83,11 @@ class SalesSeeder extends Seeder
         $saleId = DB::table('sales')->insertGetId([
             'invoice_number' => $invoiceNumber,
             'customer_id' => $customerId,
+            'user_id' => $userId, // ✅ AJOUTÉ
             'type' => $type,
             'payment_method' => $paymentMethod,
             'total_amount' => $totalAmount,
-            'discount_amount' => $discountAmount,
+            'discount' => $discount,
             'paid_amount' => 0, // Sera mis à jour
             'created_at' => $date->addHours(rand(8, 20))->addMinutes(rand(0, 59)),
             'updated_at' => $date
@@ -133,17 +142,17 @@ class SalesSeeder extends Seeder
         // Mettre à jour le montant total de la vente
         $sale = DB::table('sales')->where('id', $saleId)->first();
         
-        $discountAmount = 0;
+        $discount = 0;
         if ($sale->type === 'wholesale') {
-            $discountAmount = $totalAmount * 0.05; // 5% de remise pour gros
+            $discount = $totalAmount * 0.05; // 5% de remise pour gros
         }
 
-        $finalTotal = $totalAmount - $discountAmount;
+        $finalTotal = $totalAmount - $discount;
         $paidAmount = $sale->payment_method === 'credit' ? 0 : $finalTotal;
 
         DB::table('sales')->where('id', $saleId)->update([
             'total_amount' => $finalTotal,
-            'discount_amount' => $discountAmount,
+            'discount' => $discount,
             'paid_amount' => $paidAmount
         ]);
 

@@ -447,22 +447,24 @@
             <div class="print-section">
               <h3 class="print-section-title">PRODUIT CONCERNÉ</h3>
               <table class="print-table">
-                <tr>
-                  <td class="label-col">Nom du produit :</td>
-                  <td class="value-col strong">{{ selectedMovement?.product?.name || '-' }}</td>
-                </tr>
-                <tr>
-                  <td class="label-col">Code SKU :</td>
-                  <td class="value-col">{{ selectedMovement?.product?.sku || '-' }}</td>
-                </tr>
-                <tr v-if="selectedMovement?.product?.barcode">
-                  <td class="label-col">Code-barres :</td>
-                  <td class="value-col">{{ selectedMovement?.product?.barcode }}</td>
-                </tr>
-                <tr v-if="selectedMovement?.product?.category">
-                  <td class="label-col">Catégorie :</td>
-                  <td class="value-col">{{ selectedMovement?.product?.category?.name || '-' }}</td>
-                </tr>
+                <tbody>
+                  <tr>
+                    <td class="label-col">Nom du produit :</td>
+                    <td class="value-col strong">{{ selectedMovement?.product?.name || '-' }}</td>
+                  </tr>
+                  <tr>
+                    <td class="label-col">Code SKU :</td>
+                    <td class="value-col">{{ selectedMovement?.product?.sku || '-' }}</td>
+                  </tr>
+                  <tr v-if="selectedMovement?.product?.barcode">
+                    <td class="label-col">Code-barres :</td>
+                    <td class="value-col">{{ selectedMovement?.product?.barcode }}</td>
+                  </tr>
+                  <tr v-if="selectedMovement?.product?.category">
+                    <td class="label-col">Catégorie :</td>
+                    <td class="value-col">{{ selectedMovement?.product?.category?.name || '-' }}</td>
+                  </tr>
+                </tbody>
               </table>
             </div>
 
@@ -470,32 +472,34 @@
             <div class="print-section">
               <h3 class="print-section-title">DÉTAILS DU MOUVEMENT</h3>
               <table class="print-table">
-                <tr>
-                  <td class="label-col">Type de mouvement :</td>
-                  <td class="value-col strong">{{ formatMovementType(selectedMovement?.type) }}</td>
-                </tr>
-                <tr>
-                  <td class="label-col">Quantité :</td>
-                  <td class="value-col quantity-value" :class="selectedMovement?.type">
-                    {{ selectedMovement?.type === 'in' ? '+' : '-' }}{{ selectedMovement?.quantity }} unités
-                  </td>
-                </tr>
-                <tr>
-                  <td class="label-col">Stock avant :</td>
-                  <td class="value-col">{{ selectedMovement?.previous_stock }} unités</td>
-                </tr>
-                <tr>
-                  <td class="label-col">Stock après :</td>
-                  <td class="value-col strong">{{ selectedMovement?.new_stock }} unités</td>
-                </tr>
-                <tr>
-                  <td class="label-col">Différence :</td>
-                  <td class="value-col">
-                    <span :class="getStockDifference(selectedMovement) >= 0 ? 'text-success' : 'text-danger'">
-                      {{ getStockDifference(selectedMovement) >= 0 ? '+' : '' }}{{ getStockDifference(selectedMovement) }} unités
-                    </span>
-                  </td>
-                </tr>
+                <tbody>
+                  <tr>
+                    <td class="label-col">Type de mouvement :</td>
+                    <td class="value-col strong">{{ formatMovementType(selectedMovement?.type) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="label-col">Quantité :</td>
+                    <td class="value-col quantity-value" :class="selectedMovement?.type">
+                      {{ selectedMovement?.type === 'in' ? '+' : '-' }}{{ selectedMovement?.quantity }} unités
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="label-col">Stock avant :</td>
+                    <td class="value-col">{{ selectedMovement?.previous_stock }} unités</td>
+                  </tr>
+                  <tr>
+                    <td class="label-col">Stock après :</td>
+                    <td class="value-col strong">{{ selectedMovement?.new_stock }} unités</td>
+                  </tr>
+                  <tr>
+                    <td class="label-col">Différence :</td>
+                    <td class="value-col">
+                      <span :class="getStockDifference(selectedMovement) >= 0 ? 'text-success' : 'text-danger'">
+                        {{ getStockDifference(selectedMovement) >= 0 ? '+' : '' }}{{ getStockDifference(selectedMovement) }} unités
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
               </table>
             </div>
 
@@ -503,32 +507,34 @@
             <div class="print-section">
               <h3 class="print-section-title">INFORMATIONS COMPLÉMENTAIRES</h3>
               <table class="print-table">
-                <tr>
-                  <td class="label-col">Raison / Motif :</td>
-                  <td class="value-col">{{ selectedMovement?.reason || 'Non spécifié' }}</td>
-                </tr>
-                <tr v-if="selectedMovement?.reference">
-                  <td class="label-col">Référence :</td>
-                  <td class="value-col">{{ selectedMovement?.reference }}</td>
-                </tr>
-                <tr v-if="selectedMovement?.expiry_date">
-                  <td class="label-col">Date d'expiration :</td>
-                  <td class="value-col">{{ formatDate(selectedMovement?.expiry_date) }}</td>
-                </tr>
-                <tr v-if="selectedMovement?.empty_packages">
-                  <td class="label-col">Emballages vides :</td>
-                  <td class="value-col">{{ selectedMovement?.empty_packages }}</td>
-                </tr>
-                <tr v-if="selectedMovement?.unit_price">
-                  <td class="label-col">Prix unitaire :</td>
-                  <td class="value-col">{{ selectedMovement?.unit_price?.toLocaleString() }} FCFA</td>
-                </tr>
-                <tr v-if="selectedMovement?.unit_price">
-                  <td class="label-col">Valeur totale :</td>
-                  <td class="value-col strong highlight">
-                    {{ (selectedMovement?.quantity * selectedMovement?.unit_price).toLocaleString() }} FCFA
-                  </td>
-                </tr>
+                <tbody>
+                  <tr>
+                    <td class="label-col">Raison / Motif :</td>
+                    <td class="value-col">{{ selectedMovement?.reason || 'Non spécifié' }}</td>
+                  </tr>
+                  <tr v-if="selectedMovement?.reference">
+                    <td class="label-col">Référence :</td>
+                    <td class="value-col">{{ selectedMovement?.reference }}</td>
+                  </tr>
+                  <tr v-if="selectedMovement?.expiry_date">
+                    <td class="label-col">Date d'expiration :</td>
+                    <td class="value-col">{{ formatDate(selectedMovement?.expiry_date) }}</td>
+                  </tr>
+                  <tr v-if="selectedMovement?.empty_packages">
+                    <td class="label-col">Emballages vides :</td>
+                    <td class="value-col">{{ selectedMovement?.empty_packages }}</td>
+                  </tr>
+                  <tr v-if="selectedMovement?.unit_price">
+                    <td class="label-col">Prix unitaire :</td>
+                    <td class="value-col">{{ selectedMovement?.unit_price?.toLocaleString() }} FCFA</td>
+                  </tr>
+                  <tr v-if="selectedMovement?.unit_price">
+                    <td class="label-col">Valeur totale :</td>
+                    <td class="value-col strong highlight">
+                      {{ (selectedMovement?.quantity * selectedMovement?.unit_price).toLocaleString() }} FCFA
+                    </td>
+                  </tr>
+                </tbody>
               </table>
             </div>
 
@@ -536,18 +542,20 @@
             <div class="print-section">
               <h3 class="print-section-title">TRAÇABILITÉ</h3>
               <table class="print-table">
-                <tr>
-                  <td class="label-col">Utilisateur :</td>
-                  <td class="value-col">{{ selectedMovement?.user?.name || 'Système' }}</td>
-                </tr>
-                <tr>
-                  <td class="label-col">Date de création :</td>
-                  <td class="value-col">{{ formatDate(selectedMovement?.created_at) }}</td>
-                </tr>
-                <tr v-if="selectedMovement?.updated_at !== selectedMovement?.created_at">
-                  <td class="label-col">Dernière modification :</td>
-                  <td class="value-col">{{ formatDate(selectedMovement?.updated_at) }}</td>
-                </tr>
+                <tbody>
+                  <tr>
+                    <td class="label-col">Utilisateur :</td>
+                    <td class="value-col">{{ selectedMovement?.user?.name || 'Système' }}</td>
+                  </tr>
+                  <tr>
+                    <td class="label-col">Date de création :</td>
+                    <td class="value-col">{{ formatDate(selectedMovement?.created_at) }}</td>
+                  </tr>
+                  <tr v-if="selectedMovement?.updated_at !== selectedMovement?.created_at">
+                    <td class="label-col">Dernière modification :</td>
+                    <td class="value-col">{{ formatDate(selectedMovement?.updated_at) }}</td>
+                  </tr>
+                </tbody>
               </table>
             </div>
 

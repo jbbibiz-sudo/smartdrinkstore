@@ -127,15 +127,7 @@
             <!-- Actions -->
             <td class="px-6 py-4">
               <div class="flex gap-2 items-center">
-                <!-- Réapprovisionner - Nouveau bouton -->
-                <button 
-                  @click="$emit('open-restock-modal', product)" 
-                  class="text-green-600 hover:text-green-800 hover:bg-green-50 p-2 rounded transition"
-                  title="Réapprovisionner"
-                >
-                  📦
-                </button>
-                
+
                 <!-- Voir les détails -->
                 <button 
                   @click="$emit('view-product', product)" 
@@ -153,7 +145,25 @@
                 >
                   ✏️
                 </button>
-                
+
+                <!-- Fournisseurs associer aux produits -->
+                <button 
+                  @click="$emit('open-product-suppliers-modal', product)"
+                  class="px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                  title="Fournisseurs associés aux produits"
+                >
+                  👥
+                </button>
+
+                <!-- Réapprovisionner - Nouveau bouton -->
+                <button 
+                  @click="$emit('open-restock-modal', product)" 
+                  class="text-green-600 hover:text-green-800 hover:bg-green-50 p-2 rounded transition"
+                  title="Réapprovisionner"
+                >
+                  📦
+                </button>
+                                
                 <!-- Supprimer -->
                 <button 
                   @click="$emit('delete-product', product.id)" 
@@ -236,7 +246,8 @@ export default {
     'open-product-modal',
     'view-product',
     'delete-product',
-    'open-restock-modal'
+    'open-restock-modal',
+    'open-product-suppliers-modal'
   ],
   setup(props) {
     const searchInput = ref(null);

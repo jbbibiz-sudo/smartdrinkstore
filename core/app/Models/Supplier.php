@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Supplier extends Model
 {
@@ -23,11 +24,34 @@ class Supplier extends Model
         'updated_at' => 'datetime',
     ];
 
-    public function products()
+    /**
+     * ✅ CORRIGÉ : Relation Many-to-Many avec les produits
+     * Un fournisseur peut fournir plusieurs produits
+     */
+    public function products(): BelongsToMany
     {
-        return $this->hasMany(Product::class);
+        return $this->belongsToMany(Product::class, 'product_supplier')
+            ->withPivot([
+                'cost_price',
+                'delivery_days',
+                'minimum_order_quantity',
+                'is_preferred',
+                'notes'
+            ])
+            ->withTimestamps();
     }
 
+    /**
+     * Récupère le nombre de produits fournis
+     */
+    public function getProductsCountAttribute()
+    {
+        return $this->products()->count();
+    }
+
+    /**
+     * Scope pour les fournisseurs avec contact
+     */
     public function scopeWithContact($query)
     {
         return $query->where(function($q) {
@@ -36,6 +60,9 @@ class Supplier extends Model
         });
     }
 
+    /**
+     * Vérifie si le fournisseur a des informations de contact
+     */
     public function getHasContactAttribute()
     {
         return !empty($this->phone) || !empty($this->email);

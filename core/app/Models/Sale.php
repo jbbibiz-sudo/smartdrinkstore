@@ -51,6 +51,14 @@ class Sale extends Model
     }
 
     /**
+     * Relation: Une vente appartient à un utilisateur (vendeur)
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
      * Accessor: Montant restant à payer
      */
     public function getUnpaidAmountAttribute()

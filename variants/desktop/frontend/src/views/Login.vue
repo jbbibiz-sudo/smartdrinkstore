@@ -227,7 +227,7 @@ const handleLogin = async () => {
 
       // ✅ SAUVEGARDER LE TOKEN ET L'UTILISATEUR
       if (window.electron) {
-        await window.electron.store.set('auth_token', token);
+        await window.electron.store.set('token', token);
         await window.electron.store.set('user', JSON.stringify(user));
         
         if (rememberMe.value) {

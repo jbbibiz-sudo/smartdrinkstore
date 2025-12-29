@@ -144,6 +144,58 @@ const initPosManagement = (state, loaders) => {
       return;
     }
 
+    // ✅ VALIDATION PRÉLIMINAIRE: Calculer le total pour la confirmation
+    const subtotalPreview = state.cart.value.reduce((sum, item) => 
+      sum + (item.quantity * item.unit_price), 0
+    );
+    const discountPreview = state.saleType.value === 'wholesale' ? subtotalPreview * 0.05 : 0;
+    const totalAmountPreview = subtotalPreview - discountPreview;
+
+    // 🛡️ CONFIRMATION OBLIGATOIRE AVANT VALIDATION
+    const saleTypeLabel = state.saleType.value === 'wholesale' ? 'Vente en Gros (-5%)' : 'Vente au Comptoir';
+    
+    let paymentLabel = '';
+    switch (state.paymentMethod.value) {
+      case 'cash': paymentLabel = '💵 Espèces'; break;
+      case 'mobile': paymentLabel = '📱 Mobile Money'; break;
+      case 'credit': paymentLabel = '📝 À crédit'; break;
+      default: paymentLabel = state.paymentMethod.value;
+    }
+
+    // Obtenir le nom du client si vente à crédit
+    let customerName = '';
+    if (state.paymentMethod.value === 'credit' && state.selectedCustomerId.value) {
+      const customer = state.customers.value.find(c => c.id === state.selectedCustomerId.value);
+      customerName = customer ? customer.name : 'Client inconnu';
+    }
+
+    // Construire le message de confirmation détaillé
+    let confirmMessage = `🛒 CONFIRMATION DE VENTE\n\n`;
+    confirmMessage += `📦 Articles: ${state.cart.value.length} produit(s)\n`;
+    confirmMessage += `💰 Montant total: ${formatCurrency(totalAmountPreview)}\n`;
+    confirmMessage += `🏷️ Type: ${saleTypeLabel}\n`;
+    confirmMessage += `💳 Paiement: ${paymentLabel}\n`;
+    
+    if (state.paymentMethod.value === 'credit' && customerName) {
+      confirmMessage += `👤 Client: ${customerName}\n`;
+    }
+    
+    if (discountPreview > 0) {
+      confirmMessage += `\n🎁 Remise appliquée: ${formatCurrency(discountPreview)}\n`;
+    }
+    
+    confirmMessage += `\n⚠️ Voulez-vous confirmer cette vente ?`;
+
+    // Afficher la confirmation
+    const confirmed = confirm(confirmMessage);
+    
+    if (!confirmed) {
+      console.log('❌ Vente annulée par l\'utilisateur');
+      return; // L'utilisateur a annulé
+    }
+
+    console.log('✅ Vente confirmée par l\'utilisateur, traitement en cours...');
+
     // ✅ VALIDATION 2: Vérification crédit
     if (state.paymentMethod.value === 'credit' && !state.selectedCustomerId.value) {
       alert('⚠️ Veuillez sélectionner un client pour une vente à crédit');

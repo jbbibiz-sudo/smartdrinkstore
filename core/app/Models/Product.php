@@ -90,7 +90,7 @@ class Product extends Model
     }
 
     /**
-     * ✅ NOUVEAU : Obtenir le fournisseur principal
+     * ✅ NOUVEAU : Obtenir le fournisseur principal (préféré)
      */
     public function preferredSupplier()
     {

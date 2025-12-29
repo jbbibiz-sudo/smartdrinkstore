@@ -66,6 +66,8 @@
             @view-product="viewProduct"
             @delete-product="deleteProduct"
             @open-restock-modal="openRestockModal"
+            @open-product-suppliers-modal="openProductSuppliersModal"
+            
           />
 
           <!-- POS View -->
@@ -197,6 +199,7 @@
                           <option value="credit">📝 À crédit</option>
                         </select>
 
+
                         <!-- Sélection du client si paiement à crédit -->
                         <select 
                           v-if="paymentMethod === 'credit'"
@@ -211,6 +214,100 @@
                         </select>
                       </div>
                     </div>
+
+                    <!-- ============================================================================ -->
+                    <!-- CODE À AJOUTER DANS App.vue - SECTION TEMPLATE -->
+                    <!-- À insérer après la sélection du mode de paiement (ligne 215) -->
+                    <!-- ============================================================================ -->
+
+                    <!-- 💵 CALCULATEUR DE MONNAIE - À INSÉRER APRÈS LA LIGNE 215 -->
+                    <div v-if="paymentMethod === 'cash'" class="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                      <h4 class="font-semibold text-blue-900 flex items-center gap-2">
+                        💵 Calculateur de monnaie
+                      </h4>
+
+                      <!-- Montant à payer -->
+                      <div class="bg-white rounded-lg p-3 border border-blue-200">
+                        <div class="flex justify-between items-center">
+                          <span class="text-sm text-gray-600">Montant à payer:</span>
+                          <span class="text-lg font-bold text-gray-900">{{ formatCurrency(finalTotal) }}</span>
+                        </div>
+                      </div>
+
+                      <!-- Montant reçu -->
+                      <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                          Montant reçu du client
+                        </label>
+                        <input
+                          v-model.number="amountReceived"
+                          type="number"
+                          :min="finalTotal"
+                          step="500"
+                          placeholder="Ex: 10000"
+                          class="w-full px-4 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-semibold"
+                          @input="calculateChange"
+                        >
+                        <p class="text-xs text-gray-500 mt-1">
+                          💡 Saisissez le montant donné par le client
+                        </p>
+                      </div>
+
+                      <!-- Résultat: Monnaie à rendre -->
+                      <div v-if="amountReceived && amountReceived >= finalTotal" class="bg-green-50 border-2 border-green-300 rounded-lg p-4">
+                        <div class="flex justify-between items-center mb-3">
+                          <span class="text-sm font-medium text-green-700">💰 Monnaie à rendre:</span>
+                          <span class="text-2xl font-bold text-green-600">{{ formatCurrency(changeToReturn) }}</span>
+                        </div>
+
+                        <!-- Décomposition en billets -->
+                        <div v-if="changeToReturn > 0" class="space-y-2">
+                          <p class="text-xs font-semibold text-gray-700 uppercase mb-2">Décomposition:</p>
+                          <div v-for="denomination in changeBreakdown" :key="denomination.value" 
+                              v-show="denomination.count > 0"
+                              class="flex justify-between items-center bg-white rounded px-3 py-2 border border-gray-200">
+                            <span class="text-sm text-gray-700">
+                              {{ formatCurrency(denomination.value) }} × {{ denomination.count }}
+                            </span>
+                            <span class="font-semibold text-gray-900">
+                              {{ formatCurrency(denomination.value * denomination.count) }}
+                            </span>
+                          </div>
+                        </div>
+
+                        <!-- Message si pas de monnaie -->
+                        <div v-else class="text-center py-2">
+                          <p class="text-sm text-green-700 font-medium">
+                            ✅ Montant exact, pas de monnaie à rendre
+                          </p>
+                        </div>
+                      </div>
+
+                      <!-- Avertissement si montant insuffisant -->
+                      <div v-else-if="amountReceived && amountReceived < finalTotal" class="bg-red-50 border-2 border-red-300 rounded-lg p-3">
+                        <p class="text-sm text-red-700 font-medium flex items-center gap-2">
+                          ⚠️ Montant insuffisant !
+                          <span class="font-bold">Manque: {{ formatCurrency(finalTotal - amountReceived) }}</span>
+                        </p>
+                      </div>
+
+                      <!-- Suggestions de montants rapides -->
+                      <div class="flex flex-wrap gap-2">
+                        <p class="w-full text-xs text-gray-600 font-medium mb-1">Montants suggérés:</p>
+                        <button
+                          v-for="amount in suggestedCashAmounts"
+                          :key="amount"
+                          @click="amountReceived = amount; calculateChange()"
+                          class="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition text-sm font-medium"
+                        >
+                          {{ formatCurrency(amount) }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- ============================================================================ -->
+                    <!-- FIN DU CALCULATEUR DE MONNAIE -->
+                    <!-- ============================================================================ -->
 
                     <!-- Boutons d'action -->
                     <button 
@@ -252,6 +349,16 @@
                 placeholder="🔍 Rechercher un client..."
                 class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
               >
+              
+              <!-- Info sur le nombre de résultats -->
+              <div class="mt-3 text-sm text-gray-600">
+                <span v-if="customerSearchQuery">
+                  {{ filteredCustomers.length }} résultat(s) trouvé(s) sur {{ customers.length }} client(s)
+                </span>
+                <span v-else>
+                  {{ filteredCustomers.length }} client(s) affiché(s)
+                </span>
+              </div>
             </div>
 
             <div class="bg-white rounded-lg shadow overflow-hidden">
@@ -270,7 +377,8 @@
                       Aucun client trouvé
                     </td>
                   </tr>
-                  <tr v-else v-for="customer in filteredCustomers" :key="customer.id" class="border-t hover:bg-gray-50">
+                  <!-- ✅ MODIFICATION: Utiliser paginatedCustomers au lieu de filteredCustomers -->
+                  <tr v-else v-for="customer in paginatedCustomers" :key="customer.id" class="border-t hover:bg-gray-50">
                     <td class="px-6 py-4 font-medium">{{ customer.name }}</td>
                     <td class="px-6 py-4">{{ customer.phone || 'N/A' }}</td>
                     <td class="px-6 py-4">{{ customer.email || 'N/A' }}</td>
@@ -283,6 +391,65 @@
                   </tr>
                 </tbody>
               </table>
+              
+              <!-- ✅ NOUVEAU: PAGINATION POUR CLIENTS -->
+              <div v-if="filteredCustomers.length > 0" class="bg-gray-50 px-6 py-4 border-t border-gray-200">
+                <div class="flex items-center justify-between">
+                  <!-- Info pagination -->
+                  <div class="text-sm text-gray-700">
+                    Affichage de 
+                    <span class="font-medium">{{ (customersCurrentPage - 1) * customersPerPage + 1 }}</span>
+                    à 
+                    <span class="font-medium">{{ Math.min(customersCurrentPage * customersPerPage, filteredCustomers.length) }}</span>
+                    sur 
+                    <span class="font-medium">{{ filteredCustomers.length }}</span>
+                    client(s)
+                  </div>
+
+                  <!-- Boutons navigation -->
+                  <div class="flex items-center gap-1">
+                    <!-- Première page -->
+                    <button
+                      v-if="customersCurrentPage > 3"
+                      @click="goToCustomersPage(1)"
+                      class="w-10 h-10 rounded-lg font-medium transition bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
+                    >
+                      1
+                    </button>
+                    
+                    <!-- Points de suspension gauche -->
+                    <span v-if="customersCurrentPage > 4" class="px-2 text-gray-500">...</span>
+                    
+                    <!-- Pages autour de la page courante -->
+                    <button
+                      v-for="page in totalCustomersPages"
+                      :key="page"
+                      v-show="Math.abs(page - customersCurrentPage) <= 2"
+                      @click="goToCustomersPage(page)"
+                      :class="[
+                        'w-10 h-10 rounded-lg font-medium transition',
+                        page === customersCurrentPage
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                      ]"
+                    >
+                      {{ page }}
+                    </button>
+                    
+                    <!-- Points de suspension droite -->
+                    <span v-if="customersCurrentPage < totalCustomersPages - 3" class="px-2 text-gray-500">...</span>
+                    
+                    <!-- Dernière page -->
+                    <button
+                      v-if="customersCurrentPage < totalCustomersPages - 2"
+                      @click="goToCustomersPage(totalCustomersPages)"
+                      class="w-10 h-10 rounded-lg font-medium transition bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
+                    >
+                      {{ totalCustomersPages }}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -305,6 +472,16 @@
                 placeholder="🔍 Rechercher un fournisseur..."
                 class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
               >
+              
+              <!-- Info sur le nombre de résultats -->
+              <div class="mt-3 text-sm text-gray-600">
+                <span v-if="supplierSearchQuery">
+                  {{ filteredSuppliers.length }} résultat(s) trouvé(s) sur {{ suppliers.length }} fournisseur(s)
+                </span>
+                <span v-else>
+                  {{ filteredSuppliers.length }} fournisseur(s) affiché(s)
+                </span>
+              </div>
             </div>
 
             <div class="bg-white rounded-lg shadow overflow-hidden">
@@ -323,7 +500,8 @@
                       Aucun fournisseur trouvé
                     </td>
                   </tr>
-                  <tr v-else v-for="supplier in filteredSuppliers" :key="supplier.id" class="border-t hover:bg-gray-50">
+                  <!-- ✅ MODIFICATION: Utiliser paginatedSuppliers au lieu de filteredSuppliers -->
+                  <tr v-else v-for="supplier in paginatedSuppliers" :key="supplier.id" class="border-t hover:bg-gray-50">
                     <td class="px-6 py-4 font-medium">{{ supplier.name }}</td>
                     <td class="px-6 py-4">{{ supplier.phone || 'N/A' }}</td>
                     <td class="px-6 py-4">{{ supplier.email || 'N/A' }}</td>
@@ -336,6 +514,65 @@
                   </tr>
                 </tbody>
               </table>
+              
+              <!-- ✅ NOUVEAU: PAGINATION POUR FOURNISSEURS -->
+              <div v-if="filteredSuppliers.length > 0" class="bg-gray-50 px-6 py-4 border-t border-gray-200">
+                <div class="flex items-center justify-between">
+                  <!-- Info pagination -->
+                  <div class="text-sm text-gray-700">
+                    Affichage de 
+                    <span class="font-medium">{{ (suppliersCurrentPage - 1) * suppliersPerPage + 1 }}</span>
+                    à 
+                    <span class="font-medium">{{ Math.min(suppliersCurrentPage * suppliersPerPage, filteredSuppliers.length) }}</span>
+                    sur 
+                    <span class="font-medium">{{ filteredSuppliers.length }}</span>
+                    fournisseur(s)
+                  </div>
+
+                  <!-- Boutons navigation -->
+                  <div class="flex items-center gap-1">
+                    <!-- Première page -->
+                    <button
+                      v-if="suppliersCurrentPage > 3"
+                      @click="goToSuppliersPage(1)"
+                      class="w-10 h-10 rounded-lg font-medium transition bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
+                    >
+                      1
+                    </button>
+                    
+                    <!-- Points de suspension gauche -->
+                    <span v-if="suppliersCurrentPage > 4" class="px-2 text-gray-500">...</span>
+                    
+                    <!-- Pages autour de la page courante -->
+                    <button
+                      v-for="page in totalSuppliersPages"
+                      :key="page"
+                      v-show="Math.abs(page - suppliersCurrentPage) <= 2"
+                      @click="goToSuppliersPage(page)"
+                      :class="[
+                        'w-10 h-10 rounded-lg font-medium transition',
+                        page === suppliersCurrentPage
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                      ]"
+                    >
+                      {{ page }}
+                    </button>
+                    
+                    <!-- Points de suspension droite -->
+                    <span v-if="suppliersCurrentPage < totalSuppliersPages - 3" class="px-2 text-gray-500">...</span>
+                    
+                    <!-- Dernière page -->
+                    <button
+                      v-if="suppliersCurrentPage < totalSuppliersPages - 2"
+                      @click="goToSuppliersPage(totalSuppliersPages)"
+                      class="w-10 h-10 rounded-lg font-medium transition bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
+                    >
+                      {{ totalSuppliersPages }}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -791,13 +1028,158 @@
           @close-stock-out-modal="closeStockOutModal"
           @save-stock-out="saveStockOut"
         />
+
+        <!-- ✅ MODALES CUSTOMER ET SUPPLIER -->
+        <!-- Modal Customer -->
+        <div v-if="showCustomerModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+            <h3 class="text-xl font-bold mb-4">
+              {{ editingCustomer ? 'Modifier le client' : 'Nouveau client' }}
+            </h3>
+            
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
+                <input 
+                  v-model="customerForm.name"
+                  type="text"
+                  required
+                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Nom du client"
+                >
+              </div>
+              
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
+                <input 
+                  v-model="customerForm.phone"
+                  type="tel"
+                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Téléphone"
+                >
+              </div>
+              
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input 
+                  v-model="customerForm.email"
+                  type="email"
+                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Email"
+                >
+              </div>
+              
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+                <textarea 
+                  v-model="customerForm.address"
+                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Adresse"
+                  rows="2"
+                ></textarea>
+              </div>
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+              <button 
+                @click="closeCustomerModal"
+                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              >
+                Annuler
+              </button>
+              <button 
+                @click="saveCustomer"
+                class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+              >
+                {{ editingCustomer ? 'Modifier' : 'Créer' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal ProductSuppliers -->
+        <ProductSuppliersModal
+          :show="showProductSuppliersModal"
+          :product="selectedProduct"
+          :all-suppliers="suppliers"
+          @close="closeProductSuppliersModal"
+          @refresh="handleReloadData"
+        />
+
+        <!-- Modal Supplier -->
+        <div v-if="showSupplierModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+            <h3 class="text-xl font-bold mb-4">
+              {{ editingSupplier ? 'Modifier le fournisseur' : 'Nouveau fournisseur' }}
+            </h3>
+            
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
+                <input 
+                  v-model="supplierForm.name"
+                  type="text"
+                  required
+                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Nom du fournisseur"
+                >
+              </div>
+              
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
+                <input 
+                  v-model="supplierForm.phone"
+                  type="tel"
+                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Téléphone"
+                >
+              </div>
+              
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input 
+                  v-model="supplierForm.email"
+                  type="email"
+                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Email"
+                >
+              </div>
+              
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+                <textarea 
+                  v-model="supplierForm.address"
+                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Adresse"
+                  rows="2"
+                ></textarea>
+              </div>
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+              <button 
+                @click="closeSupplierModal"
+                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              >
+                Annuler
+              </button>
+              <button 
+                @click="saveSupplier"
+                class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+              >
+                {{ editingSupplier ? 'Modifier' : 'Créer' }}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
+import { setToken, clearToken } from '@/services/auth';
 import Login from './views/Login.vue';
 import { API_BASE_URL } from './modules/module-1-config.js';
 import * as stateModule from './modules/module-2-state.js';
@@ -819,10 +1201,13 @@ import ProductsView from './components/ProductsView.vue';
 import StockModals from './components/StockModals.vue'; 
 import { perfMonitor, measureAsync } from './utils/performance-monitor';
 import StockMovementsView from './views/StockMovementsView.vue';
+import ProductSuppliersModal from './components/ProductSuppliersModal.vue';
 
 export default {
   name: 'App',
   components: {
+    ProductSuppliersModal,
+    StockMovementsView,
     Login,
     Sidebar,
     Header,
@@ -830,7 +1215,8 @@ export default {
     ProductModals,
     ProductsView,
     StockModals,
-    StockMovementsView
+    StockMovementsView,
+    
     
   },
   setup() {
@@ -947,6 +1333,222 @@ export default {
     const getPaymentMethodLabel = invoiceMgmt.getPaymentMethodLabel;
     const navigation = initNavigation(state, loaders);
 
+    // ============================================================================
+// CODE JAVASCRIPT À AJOUTER DANS App.vue - SECTION <script setup>
+// À ajouter dans la fonction setup() après les autres variables (ligne ~1150)
+// ============================================================================
+
+    // ============================================
+    // 💵 CALCULATEUR DE MONNAIE
+    // ============================================
+    
+    // Variables pour le calculateur de monnaie
+    const amountReceived = ref(null);
+    const changeToReturn = ref(0);
+    const changeBreakdown = ref([]);
+
+    // Billets FCFA disponibles (du plus grand au plus petit)
+    const CASH_DENOMINATIONS = [10000, 5000, 2000, 1000, 500, 250, 100, 50, 25];
+
+    /**
+     * Calcule la monnaie à rendre et sa décomposition en billets
+     */
+    const calculateChange = () => {
+      console.log('💰 Calcul de la monnaie...');
+      console.log('  Montant reçu:', amountReceived.value);
+      console.log('  Total à payer:', computedProps.finalTotal.value);
+
+      // Valider que le montant est suffisant
+      if (!amountReceived.value || amountReceived.value < computedProps.finalTotal.value) {
+        changeToReturn.value = 0;
+        changeBreakdown.value = [];
+        console.log('  ❌ Montant insuffisant ou invalide');
+        return;
+      }
+
+      // Calculer la monnaie
+      const change = amountReceived.value - computedProps.finalTotal.value;
+      changeToReturn.value = change;
+      
+      console.log('  ✅ Monnaie à rendre:', change, 'FCFA');
+
+      // Si pas de monnaie, pas besoin de décomposition
+      if (change === 0) {
+        changeBreakdown.value = [];
+        console.log('  ✅ Montant exact, pas de monnaie');
+        return;
+      }
+
+      // Calculer la décomposition en billets
+      const breakdown = [];
+      let remaining = change;
+
+      for (const denomination of CASH_DENOMINATIONS) {
+        if (remaining >= denomination) {
+          const count = Math.floor(remaining / denomination);
+          breakdown.push({
+            value: denomination,
+            count: count
+          });
+          remaining -= count * denomination;
+          console.log(`  📄 ${count} × ${denomination} FCFA`);
+        }
+      }
+
+      changeBreakdown.value = breakdown;
+      console.log('  ✅ Décomposition calculée');
+    };
+
+    /**
+     * Montants suggérés basés sur le total
+     */
+    const suggestedCashAmounts = computed(() => {
+      const total = computedProps.finalTotal.value;
+      const suggestions = [];
+
+      // Arrondir au millier supérieur
+      const roundedUp = Math.ceil(total / 1000) * 1000;
+      if (roundedUp > total && roundedUp <= 100000) {
+        suggestions.push(roundedUp);
+      }
+
+      // Ajouter des billets courants plus grands que le total
+      const commonBills = [5000, 10000, 20000, 50000];
+      for (const bill of commonBills) {
+        if (bill > total && !suggestions.includes(bill)) {
+          suggestions.push(bill);
+        }
+      }
+
+      // Garder seulement les 4 premières suggestions
+      return suggestions.slice(0, 4);
+    });
+
+    // Réinitialiser le calculateur quand le total change
+    watch(() => computedProps.finalTotal.value, () => {
+      amountReceived.value = null;
+      changeToReturn.value = 0;
+      changeBreakdown.value = [];
+      console.log('💰 Calculateur réinitialisé (total changé)');
+    });
+
+    // Réinitialiser le calculateur quand le mode de paiement change
+    watch(() => state.paymentMethod.value, (newMethod) => {
+      if (newMethod !== 'cash') {
+        amountReceived.value = null;
+        changeToReturn.value = 0;
+        changeBreakdown.value = [];
+        console.log('💰 Calculateur réinitialisé (mode de paiement changé)');
+      }
+    });
+
+    // Réinitialiser après une vente réussie
+    const resetChangeCalculator = () => {
+      amountReceived.value = null;
+      changeToReturn.value = 0;
+      changeBreakdown.value = [];
+    };
+
+    // ============================================
+    // PAGINATION - CLIENTS
+    // ============================================
+    const customersCurrentPage = ref(1);
+    const customersPerPage = ref(5);
+
+    // Computed properties pour la pagination des clients
+    const paginatedCustomers = computed(() => {
+      const start = (customersCurrentPage.value - 1) * customersPerPage.value;
+      const end = start + customersPerPage.value;
+      return computedProps.filteredCustomers.value.slice(start, end);
+    });
+
+    const totalCustomersPages = computed(() => {
+      return Math.ceil(computedProps.filteredCustomers.value.length / customersPerPage.value);
+    });
+
+    const hasCustomersPreviousPage = computed(() => customersCurrentPage.value > 1);
+    const hasCustomersNextPage = computed(() => customersCurrentPage.value < totalCustomersPages.value);
+
+    // ============================================
+    // PAGINATION - FOURNISSEURS
+    // ============================================
+    const suppliersCurrentPage = ref(1);
+    const suppliersPerPage = ref(5);
+
+    // Computed properties pour la pagination des fournisseurs
+    const paginatedSuppliers = computed(() => {
+      const start = (suppliersCurrentPage.value - 1) * suppliersPerPage.value;
+      const end = start + suppliersPerPage.value;
+      return computedProps.filteredSuppliers.value.slice(start, end);
+    });
+
+    const totalSuppliersPages = computed(() => {
+      return Math.ceil(computedProps.filteredSuppliers.value.length / suppliersPerPage.value);
+    });
+
+    const hasSuppliersPreviousPage = computed(() => suppliersCurrentPage.value > 1);
+    const hasSuppliersNextPage = computed(() => suppliersCurrentPage.value < totalSuppliersPages.value);
+
+    // ============================================
+    // FONCTIONS DE PAGINATION - CLIENTS
+    // ============================================
+    const goToCustomersPage = (page) => {
+      console.log('🔘 goToCustomersPage appelé avec:', page);
+      if (page >= 1 && page <= totalCustomersPages.value) {
+        console.log('✅ Navigation vers page clients', page);
+        customersCurrentPage.value = page;
+      }
+    };
+
+    const previousCustomersPage = () => {
+      if (hasCustomersPreviousPage.value) {
+        customersCurrentPage.value--;
+      }
+    };
+
+    const nextCustomersPage = () => {
+      if (hasCustomersNextPage.value) {
+        customersCurrentPage.value++;
+      }
+    };
+
+    // ============================================
+    // FONCTIONS DE PAGINATION - FOURNISSEURS
+    // ============================================
+    const goToSuppliersPage = (page) => {
+      console.log('🔘 goToSuppliersPage appelé avec:', page);
+      if (page >= 1 && page <= totalSuppliersPages.value) {
+        console.log('✅ Navigation vers page fournisseurs', page);
+        suppliersCurrentPage.value = page;
+      }
+    };
+
+    const previousSuppliersPage = () => {
+      if (hasSuppliersPreviousPage.value) {
+        suppliersCurrentPage.value--;
+      }
+    };
+
+    const nextSuppliersPage = () => {
+      if (hasSuppliersNextPage.value) {
+        suppliersCurrentPage.value++;
+      }
+    };
+
+    // ============================================
+    // WATCHERS POUR RÉINITIALISER LA PAGINATION
+    // ============================================
+    // Réinitialiser la page clients quand la recherche change
+    watch(() => state.customerSearchQuery?.value, () => {
+      customersCurrentPage.value = 1;
+    });
+
+    // Réinitialiser la page fournisseurs quand la recherche change
+    watch(() => state.supplierSearchQuery?.value, () => {
+      suppliersCurrentPage.value = 1;
+    });
+
+
     // 🔍 DEBUG: Vérifier la recherche
     console.log('📦 Module exports:');
     console.log('- computedProps:', Object.keys(computedProps));
@@ -990,6 +1592,21 @@ export default {
       showProductModal.value = true;
     };
 
+
+    // Ajouter l'état pour le modal des fournisseurs
+    const showProductSuppliersModal = ref(false);
+    const selectedProduct = ref(null);
+
+    const openProductSuppliersModal = (product) => {
+      selectedProduct.value = product;
+      showProductSuppliersModal.value = true;
+    };
+
+    const closeProductSuppliersModal = () => {
+      showProductSuppliersModal.value = false;
+      selectedProduct.value = null;
+    };
+
     // Modal de gestion hiérarchique des catégories
     const showHierarchicalCategoryModal = ref(false);
 
@@ -1013,7 +1630,19 @@ export default {
         // 1. Sauvegarder les données d'authentification
         currentUser.value = user;
         authToken.value = token;
-        
+
+        // ✅ NOUVEAU: Sauvegarder le token dans le store Electron
+        if (window.electron?.store) {
+          try {
+            await setToken(token);
+            console.log('✅ Token sauvegardé dans Electron store');
+          } catch (storeError) {
+            console.error('❌ Erreur lors de la sauvegarde du token:', storeError);
+          }
+        } else {
+          console.warn('⚠️ Electron store non disponible (mode web?)');
+        }
+            
         // 2. ✅ PASSER IMMÉDIATEMENT isAuthenticated à true
         // Cela affichera le dashboard TOUT DE SUITE
         isAuthenticated.value = true;
@@ -1058,6 +1687,16 @@ export default {
 
     // Fonction de déconnexion
     const handleLogout = async () => {
+      // ✅ NOUVEAU: Supprimer le token du store Electron
+      if (window.electron?.store) {
+        try {
+          await clearToken();
+          console.log('✅ Token supprimé du store Electron');
+        } catch (error) {
+          console.error('❌ Erreur lors de la suppression du token:', error);
+        }
+      }
+
       if (!confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) return;
 
       try {
@@ -1281,6 +1920,14 @@ export default {
       loaders, 
       handleReloadData,
       loadUserFromStorage,  
+
+      // 💵 Calculateur de monnaie
+      amountReceived,
+      changeToReturn,
+      changeBreakdown,
+      suggestedCashAmounts,
+      calculateChange,
+      resetChangeCalculator,
       
       // ========== FACTURES ==========
       viewInvoice,
@@ -1302,6 +1949,10 @@ export default {
       savingProduct: state.savingProduct,
       
       // Modals
+      showProductSuppliersModal,
+      selectedProduct,
+      openProductSuppliersModal,
+      closeProductSuppliersModal,
       showProductModal,
       showCategoryModal: state.showCategoryModal,
       showViewModal: state.showViewModal,
@@ -1362,6 +2013,28 @@ export default {
       alerts: state.alerts,
       alertsCount: state.alertsCount,
       appInfo: state.appInfo,
+
+      // ✅ PAGINATION CLIENTS
+      customersCurrentPage,
+      customersPerPage,
+      paginatedCustomers,
+      totalCustomersPages,
+      hasCustomersPreviousPage,
+      hasCustomersNextPage,
+      goToCustomersPage,
+      previousCustomersPage,
+      nextCustomersPage,
+      
+      // ✅ PAGINATION FOURNISSEURS
+      suppliersCurrentPage,
+      suppliersPerPage,
+      paginatedSuppliers,
+      totalSuppliersPages,
+      hasSuppliersPreviousPage,
+      hasSuppliersNextPage,
+      goToSuppliersPage,
+      previousSuppliersPage,
+      nextSuppliersPage,
       
       // ✅ PAGINATION COMPLÈTE
       salesCurrentPage: state.salesCurrentPage,
@@ -1463,4 +2136,4 @@ export default {
 .fade-leave-to {
   opacity: 0;
 }
-</style>  
+</style>
