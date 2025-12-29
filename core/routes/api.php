@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\StockController;
 use App\Http\Controllers\Api\StatsController;
+use App\Http\Controllers\Api\ProductSupplierController;
 
 /*
 |--------------------------------------------------------------------------
@@ -114,6 +115,38 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     
     // Routes resource
     Route::apiResource('suppliers', SupplierController::class);
+
+    // ============================================
+    // GESTION PRODUITS-FOURNISSEURS
+    // ============================================
+
+    // Routes pour gérer les fournisseurs d'un produit
+    Route::prefix('products/{product}')->group(function () {
+        // Liste les fournisseurs d'un produit
+        Route::get('suppliers', [ProductSupplierController::class, 'index']);
+        
+        // Associe un fournisseur
+        Route::post('suppliers', [ProductSupplierController::class, 'attach']);
+        
+        // Synchronise tous les fournisseurs (remplace)
+        Route::put('suppliers', [ProductSupplierController::class, 'sync']);
+        
+        // Met à jour les infos d'un fournisseur spécifique
+        Route::put('suppliers/{supplier}', [ProductSupplierController::class, 'update']);
+        
+        // Dissocie un fournisseur
+        Route::delete('suppliers/{supplier}', [ProductSupplierController::class, 'detach']);
+        
+        // Définit un fournisseur comme préféré
+        Route::patch('suppliers/{supplier}/preferred', [ProductSupplierController::class, 'setPreferred']);
+    });
+
+    // Routes pour gérer les produits d'un fournisseur
+    Route::prefix('suppliers/{supplier}')->group(function () {
+        // Liste les produits d'un fournisseur
+        Route::get('products', [ProductSupplierController::class, 'productsBySupplier']);
+    });
+
 
     // ========================================
     // VENTES

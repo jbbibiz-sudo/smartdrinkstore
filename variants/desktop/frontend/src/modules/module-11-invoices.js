@@ -1,5 +1,6 @@
-// 📄 Module de gestion des factures - VERSION CORRIGÉE
+// 📄 Module de gestion des factures - VERSION V5 FINALE
 // Fichier: src/modules/module-11-invoices.js
+// ✅ Récupère les noms des produits depuis state.products quand l'API ne les fournit pas
 
 import { ref, computed } from 'vue';
 import { api } from './module-1-config.js';
@@ -9,15 +10,31 @@ export const initInvoiceManagement = (state, loaders) => {
   // Fonction pour voir une facture (affiche le modal)
   const viewInvoice = async (sale) => {
     try {
+      // ✅ VALIDATION 1: Vérifier que sale existe
+      if (!sale) {
+        console.error('❌ Aucune vente fournie à viewInvoice()');
+        alert('❌ Erreur: Aucune vente sélectionnée');
+        return;
+      }
+
+      // ✅ VALIDATION 2: Vérifier que sale.id existe
+      if (!sale.id) {
+        console.error('❌ La vente ne contient pas d\'ID:', sale);
+        alert('❌ Erreur: Vente invalide (pas d\'ID)');
+        return;
+      }
+
       console.log('📄 Ouverture facture pour vente ID:', sale.id);
+      console.log('📦 Objet vente reçu:', sale);
       
       // 🔄 Charger les données complètes depuis la base de données
       state.loadingSales.value = true;
       
       const response = await api.get(`/sales/${sale.id}`);
       console.log('📦 Réponse brute API:', response);
+      console.log('📦 Structure response.data:', response.data);
       
-      // ✅ Vérifier la structure de la réponse
+      // ✅ VALIDATION 3: Vérifier la structure de la réponse
       if (!response || !response.success) {
         throw new Error(response?.message || 'Réponse API invalide');
       }
@@ -26,48 +43,180 @@ export const initInvoiceManagement = (state, loaders) => {
         throw new Error('Aucune donnée retournée par l\'API');
       }
       
-      // ✅ L'API retourne { success: true, data: { sale: {...}, items: [...] } }
-      const saleData = response.data.sale;
-      const items = response.data.items;
+      // ✅ GESTION FLEXIBLE: Détection automatique du format de réponse
+      let saleData, items;
       
-      console.log('📋 Sale data:', saleData);
-      console.log('📦 Items:', items);
+      // Format 1: { success: true, data: { sale: {...}, items: [...] } }
+      if (response.data.sale && response.data.items) {
+        console.log('📋 Format détecté: Format structuré (data.sale + data.items)');
+        saleData = response.data.sale;
+        items = response.data.items;
+      }
+      // Format 2: { success: true, data: { items: [...], ...autres champs } }
+      else if (response.data.items && response.data.id) {
+        console.log('📋 Format détecté: Format plat (data contient tout)');
+        items = response.data.items;
+        // Extraire les données de vente (tout sauf items)
+        const { items: _, ...saleFields } = response.data;
+        saleData = saleFields;
+      }
+      // Format 3: { success: true, data: [...] } (juste un tableau d'items)
+      else if (Array.isArray(response.data)) {
+        console.log('📋 Format détecté: Format tableau direct');
+        throw new Error('Format de réponse non supporté: tableau direct. Données de vente manquantes.');
+      }
+      // Format inconnu
+      else {
+        console.error('❌ Format de réponse non reconnu:', response.data);
+        throw new Error('Format de réponse API non reconnu');
+      }
       
-      // ✅ Vérifier que les articles existent
+      console.log('📋 Sale data brute:', saleData);
+      console.log('📦 Items bruts:', items);
+      
+      // ✅ VALIDATION 4: Vérifier que saleData existe maintenant
+      if (!saleData) {
+        throw new Error('Impossible d\'extraire les données de vente');
+      }
+      
+      // ✅ VALIDATION 5: Vérifier que les articles existent
       if (!items || items.length === 0) {
         throw new Error('Aucun article trouvé pour cette vente');
       }
       
-      // ✅ Calculer le subtotal
-      const subtotal = items.reduce((sum, item) => 
-        sum + (parseFloat(item.quantity) * parseFloat(item.unit_price)), 0
-      );
+      // ✅ LOG DÉTAILLÉ DES ITEMS pour debug
+      console.log('🔍 Détail des items:');
+      items.forEach((item, index) => {
+        console.log(`  Item ${index}:`, {
+          product_id: item.product_id,
+          product_name: item.product_name,
+          name: item.name,
+          quantity: item.quantity,
+          unit_price: item.unit_price
+        });
+      });
+      
+      // ✅ NOUVEAU: Créer un index des produits pour accès rapide
+      const productsMap = new Map();
+      if (state.products.value) {
+        state.products.value.forEach(product => {
+          productsMap.set(product.id, product);
+        });
+        console.log(`📦 ${productsMap.size} produits disponibles pour correspondance`);
+      }
+      
+      // ✅ Calculer le subtotal ET enrichir les items avec les noms
+      let subtotal = 0;
+      const enrichedItems = items.map(item => {
+        const qty = parseFloat(item.quantity || 0);
+        const price = parseFloat(item.unit_price || 0);
+        subtotal += qty * price;
+        
+        // ✅ RÉCUPÉRATION DU NOM: Essayer plusieurs sources
+        let productName = item.product_name || item.name;
+        
+        // Si pas de nom, chercher dans state.products
+        if (!productName && item.product_id) {
+          const product = productsMap.get(item.product_id);
+          if (product) {
+            productName = product.name;
+            console.log(`✅ Nom trouvé pour produit #${item.product_id}: "${productName}"`);
+          } else {
+            console.warn(`⚠️ Produit #${item.product_id} introuvable dans state.products`);
+          }
+        }
+        
+        // Fallback final
+        if (!productName) {
+          productName = `Produit #${item.product_id}`;
+        }
+        
+        return {
+          product_id: item.product_id,
+          product_name: productName,
+          quantity: qty,
+          unit_price: price,
+          subtotal: qty * price
+        };
+      });
       
       console.log('💰 Subtotal calculé:', subtotal);
+      console.log('📦 Items enrichis:', enrichedItems);
+      
+      // ✅ RÉCUPÉRATION DES INFOS DU CLIENT depuis state.customers
+      let customerInfo = null;
+      if (saleData.customer_id) {
+        // D'abord essayer d'utiliser les données de l'API
+        if (saleData.customer_name) {
+          customerInfo = {
+            id: saleData.customer_id,
+            name: saleData.customer_name,
+            phone: saleData.customer_phone || '',
+            address: saleData.customer_address || ''
+          };
+          console.log('✅ Client depuis API:', customerInfo.name);
+        } 
+        // Sinon chercher dans state.customers
+        else if (state.customers.value) {
+          const customer = state.customers.value.find(c => c.id === saleData.customer_id);
+          if (customer) {
+            customerInfo = {
+              id: customer.id,
+              name: customer.name,
+              phone: customer.phone || '',
+              address: customer.address || ''
+            };
+            console.log('✅ Client trouvé dans state.customers:', customerInfo.name);
+          } else {
+            console.warn(`⚠️ Client #${saleData.customer_id} introuvable`);
+            customerInfo = {
+              id: saleData.customer_id,
+              name: `Client #${saleData.customer_id}`,
+              phone: '',
+              address: ''
+            };
+          }
+        }
+      } else {
+        console.log('ℹ️ Vente comptoir (pas de client)');
+      }
+      
+      // ✅ RÉCUPÉRATION DES INFOS DU VENDEUR
+      let sellerInfo = null;
+      if (saleData.user_id) {
+        // PRIORITÉ 1: Données directes de l'API (nouveau backend)
+        if (saleData.seller_name) {
+          sellerInfo = {
+            id: saleData.user_id,
+            name: saleData.seller_name,
+            email: saleData.seller_email || ''
+          };
+          console.log('✅ Vendeur depuis API:', sellerInfo.name);
+        }
+        // PRIORITÉ 2: Utiliser l'utilisateur connecté comme fallback
+        else {
+          sellerInfo = {
+            id: saleData.user_id,
+            name: 'Vendeur', // Fallback
+            email: ''
+          };
+          console.log('ℹ️ Vendeur (user_id):', saleData.user_id);
+        }
+      }
       
       // ✅ Construire l'objet complet pour la facture
       const fullSaleData = {
         id: saleData.id,
-        invoice_number: saleData.invoice_number,
-        type: saleData.type,
-        payment_method: saleData.payment_method,
-        total_amount: parseFloat(saleData.total_amount),
+        invoice_number: saleData.invoice_number || `INV-${saleData.id}`,
+        type: saleData.type || 'counter',
+        payment_method: saleData.payment_method || 'cash',
+        total_amount: parseFloat(saleData.total_amount || 0),
         discount: parseFloat(saleData.discount || 0),
         subtotal: subtotal,
-        created_at: saleData.created_at,
-        customer: saleData.customer_id ? {
-          id: saleData.customer_id,
-          name: saleData.customer_name,
-          phone: saleData.customer_phone,
-          address: saleData.customer_address
-        } : null,
-        items: items.map(item => ({
-          product_id: item.product_id,
-          product_name: item.product_name,
-          quantity: parseFloat(item.quantity),
-          unit_price: parseFloat(item.unit_price),
-          subtotal: parseFloat(item.subtotal)
-        }))
+        created_at: saleData.created_at || new Date().toISOString(),
+        customer: customerInfo,
+        seller: sellerInfo, // ✅ AJOUT DU VENDEUR
+        items: enrichedItems
       };
       
       console.log('✅ Données formatées pour la facture:', fullSaleData);
@@ -79,7 +228,14 @@ export const initInvoiceManagement = (state, loaders) => {
       console.error('❌ Erreur complète:', error);
       console.error('❌ Message:', error.message);
       console.error('❌ Stack:', error.stack);
-      alert('Impossible d\'afficher la facture: ' + error.message);
+      
+      // Message d'erreur plus détaillé
+      let errorMsg = 'Impossible d\'afficher la facture';
+      if (error.message) {
+        errorMsg += ': ' + error.message;
+      }
+      
+      alert(errorMsg);
     } finally {
       state.loadingSales.value = false;
     }
@@ -91,7 +247,7 @@ export const initInvoiceManagement = (state, loaders) => {
     state.currentInvoice.value = null;
   };
 
-  // ✅ FONCTION D'IMPRESSION CORRIGÉE
+  // ✅ FONCTION D'IMPRESSION
   const printInvoice = (format = 'standard') => {
     if (!state.currentInvoice.value) {
       console.error('❌ Aucune facture sélectionnée');
@@ -105,7 +261,7 @@ export const initInvoiceManagement = (state, loaders) => {
     const companyInfo = {
       name: 'ENTREPRISES KAMDEM',
       address: 'Dépôt de boissons - Yaoundé',
-      phone: '+237 XXX XXX XXX',
+      phone: '+237 699 956 376',
       email: 'contact@entreprises-kamdem.cm'
     };
 
@@ -129,6 +285,7 @@ export const initInvoiceManagement = (state, loaders) => {
   const getPaymentMethodLabel = (method) => {
     const labels = {
       'cash': '💵 Espèces',
+      'mobile': '📱 Mobile Money',
       'mobile_money': '📱 Mobile Money',
       'bank_transfer': '🏦 Virement',
       'credit': '📝 À crédit'
@@ -149,12 +306,13 @@ const formatCurrency = (amount) => {
   return new Intl.NumberFormat('fr-FR', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
-  }).format(amount) + ' FCFA';
+  }).format(amount || 0) + ' FCFA';
 };
 
 const getPaymentMethodLabel = (method) => {
   const labels = {
     'cash': '💵 Espèces',
+    'mobile': '📱 Mobile Money',
     'mobile_money': '📱 Mobile Money',
     'bank_transfer': '🏦 Virement',
     'credit': '📝 À crédit'
@@ -162,8 +320,17 @@ const getPaymentMethodLabel = (method) => {
   return labels[method] || method;
 };
 
+// ✅ FONCTION SÉCURISÉE pour tronquer le texte
 const truncateText = (text, maxLength) => {
-  return text.length > maxLength ? text.substring(0, maxLength - 3) + '...' : text;
+  if (!text) return '';
+  const str = String(text);
+  return str.length > maxLength ? str.substring(0, maxLength - 3) + '...' : str;
+};
+
+// ✅ FONCTION SÉCURISÉE pour obtenir le nom du client
+const getCustomerName = (customer) => {
+  if (!customer) return 'Vente comptoir';
+  return customer.name || 'Client';
 };
 
 // ==================== GÉNÉRATEURS DE FACTURES ====================
@@ -174,7 +341,7 @@ const generateStandardInvoice = (sale, companyInfo) => {
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>Facture #${sale.id}</title>
+      <title>Facture #${sale.invoice_number || sale.id}</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Arial, sans-serif; padding: 20px; }
@@ -206,7 +373,7 @@ const generateStandardInvoice = (sale, companyInfo) => {
             ${companyInfo.email ? `<div>Email: ${companyInfo.email}</div>` : ''}
           </div>
           <div class="invoice-details">
-            <div class="invoice-number">FACTURE #${sale.id}</div>
+            <div class="invoice-number">FACTURE #${sale.invoice_number || sale.id}</div>
             <div>Date: ${new Date(sale.created_at).toLocaleDateString('fr-FR')}</div>
             <div>Heure: ${new Date(sale.created_at).toLocaleTimeString('fr-FR')}</div>
           </div>
@@ -214,7 +381,7 @@ const generateStandardInvoice = (sale, companyInfo) => {
 
         ${sale.customer ? `
         <div class="client-section">
-          <strong>Client:</strong> ${sale.customer.name}<br>
+          <strong>Client:</strong> ${getCustomerName(sale.customer)}<br>
           ${sale.customer.phone ? `Tél: ${sale.customer.phone}<br>` : ''}
           ${sale.customer.email ? `Email: ${sale.customer.email}` : ''}
         </div>
@@ -224,9 +391,9 @@ const generateStandardInvoice = (sale, companyInfo) => {
           <thead>
             <tr>
               <th>Produit</th>
-              <th class="text-right">Prix Unit.</th>
-              <th class="text-right">Qté</th>
-              <th class="text-right">Total</th>
+              <th class="text-right">Prix Unitaire</th>
+              <th class="text-right">Quantité</th>
+              <th class="text-right">Montant</th>
             </tr>
           </thead>
           <tbody>
@@ -246,7 +413,7 @@ const generateStandardInvoice = (sale, companyInfo) => {
             <div class="totals-label">Sous-total:</div>
             <div class="totals-value">${formatCurrency(sale.subtotal)}</div>
           </div>
-          ${sale.discount ? `
+          ${sale.discount > 0 ? `
           <div class="totals-row">
             <div class="totals-label">Remise:</div>
             <div class="totals-value">-${formatCurrency(sale.discount)}</div>
@@ -259,19 +426,25 @@ const generateStandardInvoice = (sale, companyInfo) => {
         </div>
 
         <div style="margin-top: 30px; padding: 15px; background: #f3f4f6; border-radius: 8px;">
-          <strong>Mode de paiement:</strong> ${getPaymentMethodLabel(sale.payment_method)}<br>
-          <strong>Type de vente:</strong> ${sale.type === 'wholesale' ? 'Vente en gros' : 'Vente au comptoir'}
+          <strong>Mode de paiement:</strong> ${getPaymentMethodLabel(sale.payment_method)}
         </div>
 
+        ${sale.seller ? `
+        <div style="margin-top: 15px; padding: 15px; background: #f0f9ff; border-radius: 8px;">
+          <strong>Vendeur:</strong> ${sale.seller.name}
+        </div>
+        ` : ''}
+
         <div class="footer">
-          <p>Merci pour votre confiance !</p>
+          <p>Merci de votre confiance !</p>
+          <p>${companyInfo.name} - ${companyInfo.phone}</p>
         </div>
 
         <div class="no-print" style="margin-top: 30px; text-align: center;">
-          <button onclick="window.print()" style="padding: 12px 24px; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px;">
+          <button onclick="window.print()" style="padding: 15px 30px; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px;">
             🖨️ Imprimer
           </button>
-          <button onclick="window.close()" style="padding: 12px 24px; background: #6b7280; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; margin-left: 10px;">
+          <button onclick="window.close()" style="padding: 15px 30px; background: #6b7280; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; margin-left: 10px;">
             Fermer
           </button>
         </div>
@@ -287,41 +460,48 @@ const generateA4Invoice = (sale, companyInfo) => {
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>Facture A4 #${sale.id}</title>
+      <title>Facture A4 #${sale.invoice_number || sale.id}</title>
       <style>
-        @page { size: A4; margin: 15mm; }
+        @page { size: A4; margin: 20mm; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', sans-serif; font-size: 11pt; line-height: 1.4; }
-        .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: white; padding: 20mm; }
-        .header { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #2563eb; }
-        .company-name { font-size: 20pt; color: #1e40af; margin-bottom: 5px; font-weight: bold; }
-        .invoice-title { font-size: 28pt; color: #2563eb; font-weight: bold; }
-        .address-box { padding: 15px; background: #f9fafb; border-left: 4px solid #2563eb; }
-        .items-table { width: 100%; border-collapse: collapse; margin: 30px 0; }
-        .items-table thead { background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); color: white; }
-        .items-table th { padding: 12px; text-align: left; font-weight: 600; }
-        .items-table td { padding: 10px; border-bottom: 1px solid #e5e7eb; }
+        body { font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.4; }
+        .header { display: flex; justify-content: space-between; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 3px solid #2563eb; }
+        .company-name { font-size: 20pt; font-weight: bold; color: #2563eb; }
+        .invoice-title { font-size: 24pt; font-weight: bold; color: #2563eb; text-align: right; margin-bottom: 10px; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .items-table th { background: #2563eb; color: white; padding: 12px; text-align: left; }
+        .items-table td { padding: 10px; border-bottom: 1px solid #ddd; }
         .text-right { text-align: right; }
-        .summary-row { display: flex; justify-content: space-between; padding: 8px 0; }
-        .summary-row.total { background: #2563eb; color: white; padding: 15px; margin-top: 10px; font-size: 14pt; font-weight: bold; border-radius: 8px; }
+        .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .summary-row.total { font-size: 14pt; font-weight: bold; color: #2563eb; border-top: 2px solid #2563eb; border-bottom: none; margin-top: 10px; padding-top: 10px; }
         @media print { .no-print { display: none !important; } }
       </style>
     </head>
     <body>
-      <div class="page">
+      <div style="max-width: 800px; margin: 0 auto;">
         <div class="header">
           <div>
             <div class="company-name">${companyInfo.name}</div>
             <p>${companyInfo.address}</p>
             <p>Tél: ${companyInfo.phone}</p>
+            ${companyInfo.email ? `<p>Email: ${companyInfo.email}</p>` : ''}
           </div>
           <div style="text-align: right;">
             <div class="invoice-title">FACTURE</div>
-            <p><strong>N°:</strong> ${String(sale.id).padStart(6, '0')}</p>
+            <p><strong>N°:</strong> ${sale.invoice_number || String(sale.id).padStart(6, '0')}</p>
             <p><strong>Date:</strong> ${new Date(sale.created_at).toLocaleDateString('fr-FR')}</p>
             <p><strong>Heure:</strong> ${new Date(sale.created_at).toLocaleTimeString('fr-FR')}</p>
           </div>
         </div>
+
+        ${sale.customer ? `
+        <div style="margin-bottom: 30px; padding: 15px; background: #f8f9fa; border-left: 4px solid #2563eb;">
+          <p><strong>FACTURÉ À:</strong></p>
+          <p style="margin-top: 8px; font-size: 12pt;"><strong>${getCustomerName(sale.customer)}</strong></p>
+          ${sale.customer.phone ? `<p>Tél: ${sale.customer.phone}</p>` : ''}
+          ${sale.customer.address ? `<p>${sale.customer.address}</p>` : ''}
+        </div>
+        ` : ''}
 
         <table class="items-table">
           <thead>
@@ -350,7 +530,7 @@ const generateA4Invoice = (sale, companyInfo) => {
               <span>Sous-total:</span>
               <span>${formatCurrency(sale.subtotal)}</span>
             </div>
-            ${sale.discount ? `
+            ${sale.discount > 0 ? `
             <div class="summary-row">
               <span>Remise:</span>
               <span style="color: #ef4444;">-${formatCurrency(sale.discount)}</span>
@@ -365,6 +545,12 @@ const generateA4Invoice = (sale, companyInfo) => {
 
         <div style="margin-top: 40px; padding: 20px; background: #f0f9ff; border-radius: 8px;">
           <p><strong>💳 Mode de paiement:</strong> ${getPaymentMethodLabel(sale.payment_method)}</p>
+          ${sale.seller ? `<p style="margin-top: 8px;"><strong>👤 Vendeur:</strong> ${sale.seller.name}</p>` : ''}
+        </div>
+
+        <div style="margin-top: 60px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #6b7280; font-size: 10pt;">
+          <p><strong>Merci de votre confiance !</strong></p>
+          <p style="margin-top: 5px;">${companyInfo.name} - ${companyInfo.phone}</p>
         </div>
 
         <div class="no-print" style="margin-top: 30px; text-align: center;">
@@ -387,7 +573,7 @@ const generateThermal78Invoice = (sale, companyInfo) => {
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>Ticket 78mm #${sale.id}</title>
+      <title>Ticket 78mm #${sale.invoice_number || sale.id}</title>
       <style>
         @page { size: 78mm auto; margin: 0; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -410,12 +596,12 @@ const generateThermal78Invoice = (sale, companyInfo) => {
 
       <div class="double-divider"></div>
 
-      <div class="center bold">FACTURE N° ${sale.id}</div>
+      <div class="center bold">FACTURE N° ${sale.invoice_number || sale.id}</div>
       <div class="center">${new Date(sale.created_at).toLocaleString('fr-FR')}</div>
 
       ${sale.customer ? `
       <div class="divider"></div>
-      <div class="bold">Client: ${sale.customer.name}</div>
+      <div class="bold">Client: ${getCustomerName(sale.customer)}</div>
       ` : ''}
 
       <div class="divider"></div>
@@ -435,7 +621,7 @@ const generateThermal78Invoice = (sale, companyInfo) => {
         <span>${formatCurrency(sale.subtotal)}</span>
       </div>
 
-      ${sale.discount ? `
+      ${sale.discount > 0 ? `
       <div class="row bold">
         <span>REMISE:</span>
         <span>-${formatCurrency(sale.discount)}</span>
@@ -452,7 +638,9 @@ const generateThermal78Invoice = (sale, companyInfo) => {
       <div class="divider"></div>
 
       <div class="center">
-        <div class="bold">MERCI DE VOTRE VISITE !</div>
+        <div>Paiement: ${getPaymentMethodLabel(sale.payment_method)}</div>
+        ${sale.seller ? `<div style="margin-top: 5px;">Vendeur: ${truncateText(sale.seller.name, 25)}</div>` : ''}
+        <div class="bold" style="margin-top: 10px;">MERCI DE VOTRE VISITE !</div>
       </div>
 
       <div style="height: 15mm;"></div>
@@ -473,7 +661,7 @@ const generateThermal58Invoice = (sale, companyInfo) => {
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>Ticket 58mm #${sale.id}</title>
+      <title>Ticket 58mm #${sale.invoice_number || sale.id}</title>
       <style>
         @page { size: 58mm auto; margin: 0; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -496,7 +684,7 @@ const generateThermal58Invoice = (sale, companyInfo) => {
 
       <div class="double-divider"></div>
 
-      <div class="center bold">FACTURE #${sale.id}</div>
+      <div class="center bold">FACTURE #${sale.invoice_number || sale.id}</div>
       <div class="center" style="font-size: 7pt;">${new Date(sale.created_at).toLocaleString('fr-FR')}</div>
 
       <div class="divider"></div>
@@ -510,6 +698,13 @@ const generateThermal58Invoice = (sale, companyInfo) => {
       `).join('')}
 
       <div class="divider"></div>
+
+      ${sale.discount > 0 ? `
+      <div class="row">
+        <span>Remise:</span>
+        <span>-${formatCurrency(sale.discount)}</span>
+      </div>
+      ` : ''}
 
       <div class="row bold">
         <span>TOTAL:</span>

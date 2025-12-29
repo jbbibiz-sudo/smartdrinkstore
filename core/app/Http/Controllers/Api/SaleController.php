@@ -37,7 +37,7 @@ class SaleController extends Controller
     }
 
     /**
-     * ✅ FONCTION AVEC DEBUG AMÉLIORÉ
+     * ✅ FONCTION AVEC DEBUG AMÉLIORÉ + USER_ID
      */
     public function store(Request $request)
     {
@@ -96,10 +96,11 @@ class SaleController extends Controller
             DB::beginTransaction();
 
             try {
-                // ✅ LOG 3: Données à insérer
+                // ✅ LOG 3: Données à insérer (AVEC USER_ID)
                 $saleData = [
                     'invoice_number' => $validated['invoice_number'],
                     'customer_id' => $validated['customer_id'],
+                    'user_id' => auth()->id(), // ✅ AJOUT DU VENDEUR
                     'type' => $validated['type'],
                     'payment_method' => $validated['payment_method'],
                     'total_amount' => $validated['total_amount'],
@@ -108,6 +109,8 @@ class SaleController extends Controller
                 ];
 
                 Log::info('Données à insérer dans Sale::create():', $saleData);
+                Log::info('Vendeur (user_id):', auth()->id());
+                Log::info('Nom du vendeur:', auth()->user()->name ?? 'Unknown');
                 
                 // ✅ LOG 4: Vérifier les fillable
                 $saleModel = new Sale();
@@ -120,6 +123,7 @@ class SaleController extends Controller
                 Log::info('Vente créée avec succès:', [
                     'id' => $sale->id,
                     'invoice' => $sale->invoice_number,
+                    'vendeur' => auth()->user()->name ?? 'Unknown',
                     'all_attributes' => $sale->toArray()
                 ]);
 
@@ -176,7 +180,7 @@ class SaleController extends Controller
                 Log::info('=== VENTE ENREGISTRÉE AVEC SUCCÈS ===');
 
                 // Charger les relations pour la réponse
-                $sale->load(['customer', 'items.product']);
+                $sale->load(['customer', 'items.product', 'user']);
 
                 return response()->json([
                     'success' => true,
@@ -220,22 +224,94 @@ class SaleController extends Controller
     }
 
     /**
-     * Affiche une vente spécifique
+     * ✅ COMPLET: Affiche une vente avec toutes les infos (client + produits + VENDEUR)
+     * Format optimisé pour les factures
      */
     public function show($id)
     {
         try {
-            $sale = Sale::with(['customer', 'items.product'])->findOrFail($id);
+            // ✅ Requête optimisée avec JOINs pour TOUT récupérer (y compris vendeur)
+            $sale = DB::table('sales')
+                ->leftJoin('customers', 'sales.customer_id', '=', 'customers.id')
+                ->leftJoin('users', 'sales.user_id', '=', 'users.id') // ✅ AJOUT VENDEUR
+                ->select(
+                    'sales.*',
+                    // Infos client
+                    'customers.name as customer_name',
+                    'customers.phone as customer_phone',
+                    'customers.email as customer_email',
+                    'customers.address as customer_address',
+                    // ✅ Infos vendeur
+                    'users.name as seller_name',
+                    'users.email as seller_email'
+                )
+                ->where('sales.id', $id)
+                ->first();
 
+            if (!$sale) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vente introuvable'
+                ], 404);
+            }
+
+            // ✅ Récupérer les items avec les noms des produits
+            $items = DB::table('sale_items')
+                ->join('products', 'sale_items.product_id', '=', 'products.id')
+                ->select(
+                    'sale_items.id',
+                    'sale_items.product_id',
+                    'sale_items.quantity',
+                    'sale_items.unit_price',
+                    'sale_items.subtotal',
+                    'products.name as product_name',
+                    'products.sku as product_sku'
+                )
+                ->where('sale_items.sale_id', $id)
+                ->get();
+
+            // ✅ Format de réponse optimisé pour le frontend (AVEC VENDEUR)
             return response()->json([
                 'success' => true,
-                'data' => $sale
+                'data' => [
+                    // Données de la vente
+                    'id' => $sale->id,
+                    'invoice_number' => $sale->invoice_number,
+                    'customer_id' => $sale->customer_id,
+                    'user_id' => $sale->user_id,
+                    'type' => $sale->type,
+                    'payment_method' => $sale->payment_method,
+                    'total_amount' => $sale->total_amount,
+                    'discount' => $sale->discount,
+                    'paid_amount' => $sale->paid_amount,
+                    'created_at' => $sale->created_at,
+                    'updated_at' => $sale->updated_at,
+                    
+                    // Infos client
+                    'customer_name' => $sale->customer_name,
+                    'customer_phone' => $sale->customer_phone,
+                    'customer_email' => $sale->customer_email,
+                    'customer_address' => $sale->customer_address,
+                    
+                    // ✅ Infos vendeur
+                    'seller_name' => $sale->seller_name,
+                    'seller_email' => $sale->seller_email,
+                    
+                    // Items avec noms des produits
+                    'items' => $items
+                ]
             ]);
+
         } catch (\Exception $e) {
+            Log::error('Erreur show vente:', [
+                'id' => $id,
+                'message' => $e->getMessage()
+            ]);
+            
             return response()->json([
                 'success' => false,
-                'message' => 'Vente introuvable'
-            ], 404);
+                'message' => 'Erreur lors du chargement de la vente'
+            ], 500);
         }
     }
 

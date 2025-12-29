@@ -65,6 +65,7 @@
             @open-product-modal="openProductModal"
             @view-product="viewProduct"
             @delete-product="deleteProduct"
+            @open-restock-modal="openRestockModal"
           />
 
           <!-- POS View -->

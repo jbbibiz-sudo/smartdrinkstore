@@ -28,6 +28,7 @@ class DatabaseSeeder extends Seeder
             // 3️⃣ PARTENAIRES (avant les ventes)
             CustomerSeeder::class,
             SupplierSeeder::class,
+            ProductSupplierSeeder::class,
             
             // 4️⃣ TRANSACTIONS (en dernier car dépendent des autres)
             StockMovementSeeder::class,
