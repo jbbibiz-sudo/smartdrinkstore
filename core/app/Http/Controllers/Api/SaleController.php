@@ -37,7 +37,7 @@ class SaleController extends Controller
     }
 
     /**
-     * ✅ FONCTION AVEC DEBUG AMÉLIORÉ + USER_ID
+     * ✅ FONCTION CORRIGÉE - Logs avec arrays
      */
     public function store(Request $request)
     {
@@ -100,7 +100,7 @@ class SaleController extends Controller
                 $saleData = [
                     'invoice_number' => $validated['invoice_number'],
                     'customer_id' => $validated['customer_id'],
-                    'user_id' => auth()->id(), // ✅ AJOUT DU VENDEUR
+                    'user_id' => auth()->id(),
                     'type' => $validated['type'],
                     'payment_method' => $validated['payment_method'],
                     'total_amount' => $validated['total_amount'],
@@ -109,13 +109,15 @@ class SaleController extends Controller
                 ];
 
                 Log::info('Données à insérer dans Sale::create():', $saleData);
-                Log::info('Vendeur (user_id):', auth()->id());
-                Log::info('Nom du vendeur:', auth()->user()->name ?? 'Unknown');
+                
+                // ✅ CORRECTION PRINCIPALE - Logs avec arrays
+                Log::info('Vendeur (user_id):', ['user_id' => auth()->id()]);
+                Log::info('Nom du vendeur:', ['name' => auth()->user()->name ?? 'Unknown']);
                 
                 // ✅ LOG 4: Vérifier les fillable
                 $saleModel = new Sale();
-                Log::info('Fillable du modèle Sale:', $saleModel->getFillable());
-                Log::info('Guarded du modèle Sale:', $saleModel->getGuarded());
+                Log::info('Fillable du modèle Sale:', ['fillable' => $saleModel->getFillable()]);
+                Log::info('Guarded du modèle Sale:', ['guarded' => $saleModel->getGuarded()]);
 
                 // ✅ CRÉER LA VENTE
                 $sale = Sale::create($saleData);
@@ -224,24 +226,20 @@ class SaleController extends Controller
     }
 
     /**
-     * ✅ COMPLET: Affiche une vente avec toutes les infos (client + produits + VENDEUR)
-     * Format optimisé pour les factures
+     * ✅ COMPLET: Affiche une vente avec toutes les infos
      */
     public function show($id)
     {
         try {
-            // ✅ Requête optimisée avec JOINs pour TOUT récupérer (y compris vendeur)
             $sale = DB::table('sales')
                 ->leftJoin('customers', 'sales.customer_id', '=', 'customers.id')
-                ->leftJoin('users', 'sales.user_id', '=', 'users.id') // ✅ AJOUT VENDEUR
+                ->leftJoin('users', 'sales.user_id', '=', 'users.id')
                 ->select(
                     'sales.*',
-                    // Infos client
                     'customers.name as customer_name',
                     'customers.phone as customer_phone',
                     'customers.email as customer_email',
                     'customers.address as customer_address',
-                    // ✅ Infos vendeur
                     'users.name as seller_name',
                     'users.email as seller_email'
                 )
@@ -255,7 +253,6 @@ class SaleController extends Controller
                 ], 404);
             }
 
-            // ✅ Récupérer les items avec les noms des produits
             $items = DB::table('sale_items')
                 ->join('products', 'sale_items.product_id', '=', 'products.id')
                 ->select(
@@ -270,11 +267,9 @@ class SaleController extends Controller
                 ->where('sale_items.sale_id', $id)
                 ->get();
 
-            // ✅ Format de réponse optimisé pour le frontend (AVEC VENDEUR)
             return response()->json([
                 'success' => true,
                 'data' => [
-                    // Données de la vente
                     'id' => $sale->id,
                     'invoice_number' => $sale->invoice_number,
                     'customer_id' => $sale->customer_id,
@@ -286,18 +281,12 @@ class SaleController extends Controller
                     'paid_amount' => $sale->paid_amount,
                     'created_at' => $sale->created_at,
                     'updated_at' => $sale->updated_at,
-                    
-                    // Infos client
                     'customer_name' => $sale->customer_name,
                     'customer_phone' => $sale->customer_phone,
                     'customer_email' => $sale->customer_email,
                     'customer_address' => $sale->customer_address,
-                    
-                    // ✅ Infos vendeur
                     'seller_name' => $sale->seller_name,
                     'seller_email' => $sale->seller_email,
-                    
-                    // Items avec noms des produits
                     'items' => $items
                 ]
             ]);
@@ -329,7 +318,6 @@ class SaleController extends Controller
             $weekSales = Sale::where('created_at', '>=', $thisWeekStart)->get();
             $monthSales = Sale::where('created_at', '>=', $thisMonthStart)->get();
 
-            // Total crédit impayé
             $totalCredit = Sale::where('payment_method', 'credit')
                 ->get()
                 ->sum(function ($sale) {
@@ -384,7 +372,6 @@ class SaleController extends Controller
                     $product->stock += $item->quantity;
                     $product->save();
 
-                    // Créer un mouvement
                     StockMovement::create([
                         'product_id' => $item->product_id,
                         'type' => 'in',
@@ -405,9 +392,7 @@ class SaleController extends Controller
                 }
             }
 
-            // Supprimer la vente (cascade sur items)
             $sale->delete();
-
             DB::commit();
 
             return response()->json([

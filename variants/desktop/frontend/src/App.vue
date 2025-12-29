@@ -341,232 +341,12 @@
 
           <!-- Movements View -->
           <div v-if="currentView === 'movements'" class="space-y-6">
-            <h2 class="text-3xl font-bold">Historique des Mouvements de Stock</h2>
-            
-            <div class="bg-white rounded-lg shadow p-6">
-              <div class="grid grid-cols-3 gap-4">
-                <select v-model="movementFilters.type" class="px-4 py-2 border rounded-lg">
-                  <option value="">Tous les types</option>
-                  <option value="in">Entrées</option>
-                  <option value="out">Sorties</option>
-                </select>
-                <select v-model="movementFilters.reason" class="px-4 py-2 border rounded-lg">
-                  <option value="">Toutes les raisons</option>
-                  <option value="restock">Réapprovisionnement</option>
-                  <option value="sale">Vente</option>
-                  <option value="adjustment">Ajustement</option>
-                  <option value="damage">Dommage</option>
-                  <option value="expiry">Péremption</option>
-                </select>
-                <input 
-                  v-model="movementFilters.date"
-                  type="date"
-                  class="px-4 py-2 border rounded-lg"
-                >
-              </div>
-            </div>
-
-            <div class="bg-white rounded-lg shadow overflow-hidden">
-              <table class="w-full">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Facture</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Paiement</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-if="loadingSales">
-                    <td colspan="7" class="px-6 py-8 text-center">
-                      <div class="flex items-center justify-center gap-2">
-                        <svg class="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span>Chargement des ventes...</span>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr v-else-if="paginatedSales.length === 0">
-                    <td colspan="7" class="px-6 py-8 text-center text-gray-500">
-                      <div class="space-y-2">
-                        <p class="text-lg">🔍 Aucune vente trouvée</p>
-                        <p class="text-sm" v-if="salesSearch">
-                          Essayez avec un autre terme de recherche
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr v-else v-for="sale in paginatedSales" :key="sale.id" class="border-t hover:bg-gray-50 transition">
-                    <!-- Numéro de facture avec badge -->
-                    <td class="px-6 py-4">
-                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {{ sale.invoice_number || `#${sale.id}` }}
-                      </span>
-                    </td>
-                    
-                    <!-- Date et heure -->
-                    <td class="px-6 py-4">
-                      <div class="text-sm">
-                        <div class="font-medium text-gray-900">
-                          {{ new Date(sale.created_at).toLocaleDateString('fr-FR') }}
-                        </div>
-                        <div class="text-gray-500">
-                          {{ new Date(sale.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}
-                        </div>
-                      </div>
-                    </td>
-                    
-                    <!-- Client -->
-                    <td class="px-6 py-4">
-                      <div class="text-sm">
-                        <div class="font-medium text-gray-900">
-                          {{ sale.customer_name || 'Comptoir' }}
-                        </div>
-                        <div v-if="sale.customer_phone" class="text-gray-500">
-                          {{ sale.customer_phone }}
-                        </div>
-                      </div>
-                    </td>
-                    
-                    <!-- Type de vente -->
-                    <td class="px-6 py-4">
-                      <span :class="[
-                        'px-2 py-1 rounded text-xs font-medium',
-                        sale.type === 'wholesale' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
-                      ]">
-                        {{ sale.type === 'wholesale' ? '📦 Gros' : '🛒 Comptoir' }}
-                      </span>
-                    </td>
-                    
-                    <!-- Mode de paiement -->
-                    <td class="px-6 py-4">
-                      <span :class="[
-                        'px-2 py-1 rounded text-xs font-medium',
-                        sale.payment_method === 'cash' ? 'bg-green-100 text-green-800' :
-                        sale.payment_method === 'mobile_money' ? 'bg-orange-100 text-orange-800' :
-                        sale.payment_method === 'credit' ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
-                      ]">
-                        {{ getPaymentMethodLabel(sale.payment_method) }}
-                      </span>
-                    </td>
-                    
-                    <!-- Total -->
-                    <td class="px-6 py-4">
-                      <span class="text-lg font-bold text-green-600">
-                        {{ formatCurrency(sale.total_amount) }}
-                      </span>
-                    </td>
-                    
-                    <!-- Actions -->
-                    <td class="px-6 py-4">
-                      <button 
-                        @click="viewInvoice(sale)" 
-                        class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
-                      >
-                        ℹ️ Voir facture
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-              <!-- ✅ PAGINATION -->
-              <div v-if="!loadingSales && paginatedSales.length > 0" class="bg-gray-50 px-6 py-4 border-t border-gray-200">
-                <div class="flex items-center justify-between">
-                  <!-- Info pagination -->
-                  <div class="text-sm text-gray-700">
-                    Affichage de 
-                    <span class="font-medium">{{ (salesCurrentPage - 1) * salesPerPage + 1 }}</span>
-                    à 
-                    <span class="font-medium">{{ Math.min(salesCurrentPage * salesPerPage, filteredSales.length) }}</span>
-                    sur 
-                    <span class="font-medium">{{ filteredSales.length }}</span>
-                    vente(s)
-                  </div>
-
-                  <!-- Boutons navigation -->
-                  <div class="flex items-center gap-2">
-                    <!-- Bouton Précédent -->
-                    <button
-                      @click="previousPage"
-                      :disabled="!hasPreviousPage"
-                      :class="[
-                        'px-4 py-2 rounded-lg font-medium transition',
-                        hasPreviousPage 
-                          ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                      ]"
-                    >
-                      ← Précédent
-                    </button>
-
-                    <!-- Numéros de pages -->
-                    <div class="flex items-center gap-1">
-                  <!-- Première page -->
-                  <button
-                    v-if="salesCurrentPage > 3"
-                    @click="goToPage(1)"
-                    class="w-10 h-10 rounded-lg font-medium transition bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
-                  >
-                    1
-                  </button>
-                  
-                  <!-- Points de suspension gauche -->
-                  <span v-if="salesCurrentPage > 4" class="px-2 text-gray-500">...</span>
-                  
-                  <!-- Pages autour de la page courante -->
-                  <button
-                    v-for="page in totalSalesPages"
-                    :key="page"
-                    v-show="Math.abs(page - salesCurrentPage) <= 2"
-                    @click="goToPage(page)"
-                    :class="[
-                      'w-10 h-10 rounded-lg font-medium transition',
-                      page === salesCurrentPage
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                    ]"
-                  >
-                    {{ page }}
-                  </button>
-                  
-                  <!-- Points de suspension droite -->
-                  <span v-if="salesCurrentPage < totalSalesPages - 3" class="px-2 text-gray-500">...</span>
-                  
-                  <!-- Dernière page -->
-                  <button
-                    v-if="salesCurrentPage < totalSalesPages - 2"
-                    @click="goToPage(totalSalesPages)"
-                    class="w-10 h-10 rounded-lg font-medium transition bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
-                  >
-                    {{ totalSalesPages }}
-                  </button>
-                </div>
-
-                    <!-- Bouton Suivant -->
-                    <button
-                      @click="nextPage()"
-                      :disabled="!hasNextPage"
-                      :class="[
-                        'px-4 py-2 rounded-lg font-medium transition',
-                        hasNextPage 
-                          ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                      ]"
-                    >
-                      Suivant →
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <StockMovementsView 
+                :products="products"
+                :alertsCount="alertsCount"
+                @reload-data="handleReloadData"
+            />
           </div>
-
           <!-- Invoices View -->
           <div v-if="currentView === 'invoices'" class="space-y-6">
             <div class="flex justify-between items-center">
@@ -1038,6 +818,7 @@ import DashboardView from './components/DashboardView.vue';
 import ProductsView from './components/ProductsView.vue';
 import StockModals from './components/StockModals.vue'; 
 import { perfMonitor, measureAsync } from './utils/performance-monitor';
+import StockMovementsView from './views/StockMovementsView.vue';
 
 export default {
   name: 'App',
@@ -1048,7 +829,8 @@ export default {
     DashboardView,
     ProductModals,
     ProductsView,
-    StockModals
+    StockModals,
+    StockMovementsView
     
   },
   setup() {
@@ -1136,6 +918,17 @@ export default {
     // État global
     const state = {
       ...stateModule
+    };
+
+    const handleReloadData = async () => {
+      console.log('🔄 Rechargement des données...');
+      await Promise.all([
+        loaders.loadProducts(),
+        loaders.loadMovements(),
+        loaders.calculateStats(),
+        loaders.calculateAlerts()
+      ]);
+      console.log('✅ Données rechargées');
     };
 
     // Initialisation des modules
@@ -1486,6 +1279,8 @@ export default {
       
       // ========== LOADERS ==========
       loaders, 
+      handleReloadData,
+      loadUserFromStorage,  
       
       // ========== FACTURES ==========
       viewInvoice,
