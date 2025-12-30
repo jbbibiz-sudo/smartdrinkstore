@@ -22,6 +22,10 @@ use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\StockController;
 use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\ProductSupplierController;
+use App\Http\Controllers\Api\CreditPaymentController;
+use App\Http\Controllers\Api\DebitPaymentController;
+
+
 
 /*
 |--------------------------------------------------------------------------
@@ -86,35 +90,35 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     // ========================================
     
     // Routes spécifiques AVANT les routes resource
-    Route::get('/products/low-stock', [ProductController::class, 'lowStock']);
-    Route::get('/products/out-of-stock', [ProductController::class, 'outOfStock']);
-    Route::get('/products/stats', [ProductController::class, 'stats']);
+        Route::get('/products/low-stock', [ProductController::class, 'lowStock']);
+        Route::get('/products/out-of-stock', [ProductController::class, 'outOfStock']);
+        Route::get('/products/stats', [ProductController::class, 'stats']);
     
     // Routes resource
-    Route::apiResource('products', ProductController::class);
+        Route::apiResource('products', ProductController::class);
 
     // ========================================
     // CLIENTS
     // ========================================
     
     // Routes spécifiques AVANT les routes resource
-    Route::get('/customers/search', [CustomerController::class, 'search']);
-    Route::get('/customers/stats', [CustomerController::class, 'stats']);
-    Route::post('/customers/{id}/adjust-balance', [CustomerController::class, 'adjustBalance']);
+        Route::get('/customers/search', [CustomerController::class, 'search']);
+        Route::get('/customers/stats', [CustomerController::class, 'stats']);
+        Route::post('/customers/{id}/adjust-balance', [CustomerController::class, 'adjustBalance']);
     
     // Routes resource
-    Route::apiResource('customers', CustomerController::class);
+        Route::apiResource('customers', CustomerController::class);
 
     // ========================================
     // FOURNISSEURS
     // ========================================
     
     // Routes spécifiques AVANT les routes resource
-    Route::get('/suppliers/search', [SupplierController::class, 'search']);
-    Route::get('/suppliers/stats', [SupplierController::class, 'stats']);
+        Route::get('/suppliers/search', [SupplierController::class, 'search']);
+        Route::get('/suppliers/stats', [SupplierController::class, 'stats']);
     
     // Routes resource
-    Route::apiResource('suppliers', SupplierController::class);
+        Route::apiResource('suppliers', SupplierController::class);
 
     // ============================================
     // GESTION PRODUITS-FOURNISSEURS
@@ -124,19 +128,19 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     Route::prefix('products/{product}')->group(function () {
         // Liste les fournisseurs d'un produit
         Route::get('suppliers', [ProductSupplierController::class, 'index']);
-        
+            
         // Associe un fournisseur
         Route::post('suppliers', [ProductSupplierController::class, 'attach']);
-        
+            
         // Synchronise tous les fournisseurs (remplace)
         Route::put('suppliers', [ProductSupplierController::class, 'sync']);
-        
+            
         // Met à jour les infos d'un fournisseur spécifique
         Route::put('suppliers/{supplier}', [ProductSupplierController::class, 'update']);
-        
+            
         // Dissocie un fournisseur
         Route::delete('suppliers/{supplier}', [ProductSupplierController::class, 'detach']);
-        
+            
         // Définit un fournisseur comme préféré
         Route::patch('suppliers/{supplier}/preferred', [ProductSupplierController::class, 'setPreferred']);
     });
@@ -165,16 +169,16 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     Route::prefix('stock')->group(function () {
         // Ajouter du stock
         Route::post('/in', [StockController::class, 'addStock']);
-        
+      
         // Retirer du stock
         Route::post('/out', [StockController::class, 'removeStock']);
-        
+            
         // Alertes de stock
         Route::get('/alerts', [StockController::class, 'alerts']);
-        
+            
         // Valorisation du stock
         Route::get('/valuation', [StockController::class, 'stockValuation']);
-        
+            
         // Rapport de statut
         Route::get('/status-report', [StockController::class, 'stockStatusReport']);
     });
@@ -186,13 +190,13 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     Route::prefix('movements')->group(function () {
         // Liste des mouvements avec filtres
         Route::get('/', [StockController::class, 'movements']);
-        
+           
         // Créer un mouvement
         Route::post('/', [StockController::class, 'createMovement']);
-        
+         
         // Réapprovisionnement (alias de stock/in)
         Route::post('/restock', [StockController::class, 'addStock']);
-        
+            
         // Sortie de stock (alias de stock/out)
         Route::post('/stock-out', [StockController::class, 'removeStock']);
     });
@@ -200,8 +204,31 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     // ========================================
     // STATISTIQUES DASHBOARD
     // ========================================
-    
-    Route::get('/stats', [StatsController::class, 'dashboard']);
+        
+        Route::get('/stats', [StatsController::class, 'dashboard']);
+        
+    // ========================================
+    // PAIEMENTS - GESTION CREDITS 
+    // ========================================
+        
+    Route::prefix('credits')->group(function () {
+
+        // Liste des crédits
+        Route::get('/', [CreditPaymentController::class, 'index']);
+                
+        // Enregistrer un paiement
+        Route::post('/payments', [CreditPaymentController::class, 'store']);
+            
+        // Historique des paiements d'une vente
+        Route::get('/{saleId}/history', [CreditPaymentController::class, 'history']);
+            
+        // Supprimer un paiement
+        Route::delete('/payments/{paymentId}', [CreditPaymentController::class, 'destroy']);
+            
+        // Statistiques des paiements
+        Route::get('/statistics', [CreditPaymentController::class, 'statistics']);
+    });
+     
 });
 
 // ========================================

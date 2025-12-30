@@ -223,6 +223,14 @@ class SaleController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+
+        // Si c'est une vente à crédit, définir l'échéance
+        if ($request->payment_method === 'credit') {
+            $creditDays = $request->input('credit_days', 30); // 30 jours par défaut
+            $sale->credit_days = $creditDays;
+            $sale->due_date = now()->addDays($creditDays);
+            $sale->save();
+        }
     }
 
     /**

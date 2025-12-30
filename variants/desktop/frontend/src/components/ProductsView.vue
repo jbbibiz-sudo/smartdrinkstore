@@ -179,49 +179,24 @@
       </table>
 
       <!-- Contrôles de Pagination -->
-      <div v-if="totalPages > 1" class="px-6 py-4 border-t flex items-center justify-between bg-gray-50">
-        <div class="text-sm text-gray-500">
-          Affichage de {{ startIndex + 1 }} à {{ endIndex }} sur {{ displayedProducts.length }} produits
-        </div>
-        <div class="flex gap-2">
-          <button 
-            @click="prevPage" 
-            :disabled="currentPage === 1"
-            class="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
-          >
-            Précédent
-          </button>
-          
-          <div class="flex items-center gap-1">
-            <button 
-              v-for="page in displayedPages" 
-              :key="page"
-              @click="currentPage = page"
-              :class="['px-3 py-1 border rounded min-w-[32px] transition', 
-                currentPage === page ? 'bg-blue-600 text-white border-blue-600' : 'hover:bg-gray-100']"
-            >
-              {{ page }}
-            </button>
-          </div>
-
-          <button 
-            @click="nextPage" 
-            :disabled="currentPage === totalPages"
-            class="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
-          >
-            Suivant
-          </button>
-        </div>
-      </div>
+      <PaginationControls
+        v-model:currentPage="currentPage"
+        :total-pages="totalPages"
+        :total-items="displayedProducts.length"
+        :per-page="itemsPerPage"
+        item-name="produits"
+      />
     </div>
   </div>
 </template>
 
 <script>
 import { ref, computed, watch, onMounted } from 'vue';
+import PaginationControls from './PaginationControls.vue';
 
 export default {
   name: 'ProductsView',
+  components: { PaginationControls },
   props: {
     filteredProducts: {
       type: Array,
@@ -327,34 +302,6 @@ export default {
       return sortedProducts.value.slice(startIndex.value, endIndex.value);
     });
 
-    // Calcul intelligent des pages à afficher
-    const displayedPages = computed(() => {
-      const total = totalPages.value;
-      const current = currentPage.value;
-      let pages = [];
-
-      if (total <= 7) {
-        for (let i = 1; i <= total; i++) pages.push(i);
-      } else {
-        if (current <= 4) {
-          pages = [1, 2, 3, 4, 5, total];
-        } else if (current >= total - 3) {
-          pages = [1, total - 4, total - 3, total - 2, total - 1, total];
-        } else {
-          pages = [1, current - 1, current, current + 1, total];
-        }
-      }
-      return pages;
-    });
-
-    const nextPage = () => {
-      if (currentPage.value < totalPages.value) currentPage.value++;
-    };
-
-    const prevPage = () => {
-      if (currentPage.value > 1) currentPage.value--;
-    };
-
     // Réinitialiser la page à 1 si la liste filtrée change
     watch(() => props.filteredProducts, () => {
       currentPage.value = 1;
@@ -381,9 +328,6 @@ export default {
       startIndex,
       endIndex,
       paginatedProducts,
-      displayedPages,
-      nextPage,
-      prevPage,
       // Tri
       sortKey,
       sortOrder,

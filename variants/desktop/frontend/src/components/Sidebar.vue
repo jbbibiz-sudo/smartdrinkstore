@@ -102,8 +102,8 @@
         </span>
       </a>
       
+      <!-- ✅ CORRECTION: Bouton Consignes toujours visible -->
       <a 
-        v-if="consignedProducts.length > 0"
         @click.prevent="$emit('navigate', 'deposits')"
         :class="['nav-item', {'nav-item-active': currentView === 'deposits'}]"
         href="#"
@@ -111,8 +111,22 @@
       >
         <span class="text-xl">🍾</span>
         <span v-if="!isCollapsed" class="flex-1 ml-2">Consignes</span>
+        <!-- Badge conditionnel si vous avez des conteneurs vides -->
         <span v-if="!isCollapsed && totalEmptyContainers > 0" class="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs font-bold rounded-full">
           {{ totalEmptyContainers }}
+        </span>
+      </a>
+
+      <a 
+        @click.prevent="$emit('navigate', 'credits')"
+        :class="['nav-item', {'nav-item-active': currentView === 'credits'}]"
+        href="#"
+        :title="isCollapsed ? 'Crédits' : ''"
+      >
+        <span class="text-xl">💳</span>
+        <span v-if="!isCollapsed" class="flex-1 ml-2">Crédits</span>
+        <span v-if="!isCollapsed && creditsCount > 0" class="ml-2 px-2 py-0.5 bg-yellow-500 text-white text-xs font-bold rounded-full">
+          {{ creditsCount }}
         </span>
       </a>
       
@@ -183,6 +197,7 @@ export default {
     consignedProducts: { type: Array, default: () => [] },
     totalEmptyContainers: { type: Number, default: 0 },
     alertsCount: { type: Number, default: 0 },
+    creditsCount: { type: Number, default: 0 },
     appInfo: { type: Object, default: () => ({ mode: 'dev', platform: 'web' }) },
     productsCount: { type: Number, default: 0 },
     customersCount: { type: Number, default: 0 },

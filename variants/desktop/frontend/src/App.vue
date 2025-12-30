@@ -35,6 +35,7 @@
           :consigned-products="consignedProducts"
           :total-empty-containers="totalEmptyContainers"
           :alerts-count="alertsCount"
+          :credits-count="creditsCount" 
           :app-info="appInfo"
 
           :products-count="products?.length || 0"
@@ -46,7 +47,6 @@
           @navigate="handleSidebarNavigation"
           @logout="handleLogout"
         />
-
         <!-- Main Content -->
         <main class="flex-1 p-6 bg-gray-50">
           <transition name="fade" mode="out-in">
@@ -329,6 +329,9 @@
               </div>
             </div>
           </div>
+
+          <!-- Crédits et remboursements -->
+          <CreditManagement v-if="currentView === 'credits'" />
 
           <!-- Customers View -->
           <div v-if="currentView === 'customers'" class="space-y-6">
@@ -1202,6 +1205,7 @@ import StockModals from './components/StockModals.vue';
 import { perfMonitor, measureAsync } from './utils/performance-monitor';
 import StockMovementsView from './views/StockMovementsView.vue';
 import ProductSuppliersModal from './components/ProductSuppliersModal.vue';
+import CreditManagement from './components/CreditManagement.vue';
 
 export default {
   name: 'App',
@@ -1216,6 +1220,7 @@ export default {
     ProductsView,
     StockModals,
     StockMovementsView,
+    CreditManagement,
     
     
   },
@@ -1333,10 +1338,43 @@ export default {
     const getPaymentMethodLabel = invoiceMgmt.getPaymentMethodLabel;
     const navigation = initNavigation(state, loaders);
 
-    // ============================================================================
-// CODE JAVASCRIPT À AJOUTER DANS App.vue - SECTION <script setup>
-// À ajouter dans la fonction setup() après les autres variables (ligne ~1150)
-// ============================================================================
+    // ✅ NOUVEAU: Gestion des crédits
+    const creditsCount = ref(0);
+
+    /**
+     * Charger le nombre de crédits impayés
+     */
+    const loadCreditsCount = async () => {
+      try {
+        const apiBase = window.electron 
+          ? await window.electron.getApiBase() 
+          : 'http://localhost:8000';
+
+        const response = await fetch(`${apiBase}/api/v1/credits`, {
+          method: 'GET',
+          headers: window.authHeaders || {
+            'Authorization': `Bearer ${authToken.value}`,
+            'Content-Type': 'application/json',
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erreur ${response.status}`);
+        }
+
+        const data = await response.json();
+        const credits = data.data || [];
+        
+        // Compter uniquement les crédits avec un reste à payer > 0
+        creditsCount.value = credits.filter(c => c.remaining_amount > 0).length;
+        
+        console.log('📊 Crédits impayés:', creditsCount.value);
+        
+      } catch (error) {
+        console.error('❌ Erreur chargement crédits:', error);
+        creditsCount.value = 0;
+      }
+    };
 
     // ============================================
     // 💵 CALCULATEUR DE MONNAIE
@@ -1658,7 +1696,10 @@ export default {
         try {
           console.log('📊 Chargement des données en arrière-plan...');
           await loaders.init();
+          
+          await loadCreditsCount();
           console.log('✅ Données chargées avec succès');
+
         } catch (initError) {
           console.error('⚠️ Erreur lors du chargement des données:', initError);
           // ⚠️ NE PAS BLOQUER - l'utilisateur est déjà dans le dashboard
@@ -1764,6 +1805,10 @@ export default {
         });
         
         await loaders.init();
+
+        await loadCreditsCount();
+        setInterval(loadCreditsCount, 30000); // Rafraîchir toutes les 30s
+
       } else {
         console.log('⏳ En attente de connexion...');
       }
@@ -2012,6 +2057,7 @@ export default {
       stats: state.stats,
       alerts: state.alerts,
       alertsCount: state.alertsCount,
+      creditsCount,
       appInfo: state.appInfo,
 
       // ✅ PAGINATION CLIENTS

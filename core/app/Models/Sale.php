@@ -123,4 +123,38 @@ class Sale extends Model
     {
         return $query->whereColumn('paid_amount', '<', 'total_amount');
     }
+
+    /**
+     * Relation avec les paiements de crédit
+     */
+    public function creditPayments()
+    {
+        return $this->hasMany(CreditPayment::class);
+    }
+
+    /**
+     * Calculer la date d'échéance lors de la création
+     */
+    protected static function booted()
+    {
+        static::creating(function ($sale) {
+            if ($sale->payment_method === 'credit') {
+                $creditDays = $sale->credit_days ?? 30; // 30 jours par défaut
+                $sale->due_date = now()->addDays($creditDays);
+            }
+        });
+    }
+
+    /**
+     * Vérifier si le crédit est en retard
+     */
+    public function getIsOverdueAttribute()
+    {
+        if ($this->payment_method !== 'credit') {
+            return false;
+        }
+        
+        $remainingAmount = $this->total_amount - $this->paid_amount;
+        return $this->due_date && $this->due_date < now() && $remainingAmount > 0;
+    }
 }
