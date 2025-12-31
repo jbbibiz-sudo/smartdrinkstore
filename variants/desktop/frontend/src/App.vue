@@ -183,9 +183,48 @@
                     </div>
 
                     <!-- Total final -->
-                    <div class="flex justify-between text-2xl font-bold border-t pt-3">
-                      <span>Total:</span>
-                      <span class="text-blue-600">{{ formatCurrency(finalTotal) }}</span>
+                    <div class="flex justify-between text-lg">
+                      <span class="text-gray-600">Total produits:</span>
+                      <span class="font-semibold">{{ formatCurrency(finalTotal) }}</span>
+                    </div>
+
+                    <!-- ✅ NOUVEAU : Section consignes -->
+                    <div v-if="cartDeposits.length > 0" class="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+                      <div class="flex items-center justify-between">
+                        <span class="text-sm font-semibold text-amber-800 flex items-center gap-1">
+                          🍾 Consignes ({{ cartDepositsCount }})
+                        </span>
+                        <button 
+                          @click="showDepositDetails = !showDepositDetails"
+                          class="text-xs text-amber-700 hover:text-amber-900"
+                        >
+                          {{ showDepositDetails ? '▼ Masquer' : '▶ Afficher' }}
+                        </button>
+                      </div>
+                      
+                      <!-- Détails des consignes (repliable) -->
+                      <div v-if="showDepositDetails" class="space-y-1 text-xs">
+                        <div 
+                          v-for="deposit in cartDeposits" 
+                          :key="deposit.deposit_type_id"
+                          class="flex justify-between text-gray-700 bg-white rounded px-2 py-1"
+                        >
+                          <span>{{ deposit.quantity }}× {{ deposit.deposit_type_name }}</span>
+                          <span class="font-medium">{{ formatCurrency(deposit.total_amount) }}</span>
+                        </div>
+                      </div>
+                      
+                      <!-- Total consignes -->
+                      <div class="flex justify-between text-sm font-bold text-amber-900 pt-2 border-t border-amber-300">
+                        <span>Total consignes:</span>
+                        <span>{{ formatCurrency(totalDepositsAmount) }}</span>
+                      </div>
+                    </div>
+
+                    <!-- ✅ NOUVEAU : Total général incluant consignes -->
+                    <div class="flex justify-between text-2xl font-bold border-t-2 pt-3">
+                      <span>Total général:</span>
+                      <span class="text-blue-600">{{ formatCurrency(grandTotal) }}</span>
                     </div>
 
                     <!-- Mode de paiement -->
@@ -198,7 +237,6 @@
                           <option value="bank_transfer">🏦 Virement bancaire</option>
                           <option value="credit">📝 À crédit</option>
                         </select>
-
 
                         <!-- Sélection du client si paiement à crédit -->
                         <select 
@@ -332,6 +370,9 @@
 
           <!-- Crédits et remboursements -->
           <CreditManagement v-if="currentView === 'credits'" />
+
+          <!-- Gestion des Consignes -->
+          <DepositsView v-if="currentView === 'deposits'" />
 
           <!-- Customers View -->
           <div v-if="currentView === 'customers'" class="space-y-6">
@@ -1196,6 +1237,7 @@ import { initPosManagement } from './modules/module-9-pos.js';
 import { initCustomersAndSuppliers } from './modules/module-10-customers-suppliers.js';
 import { initInvoiceManagement } from './modules/module-11-invoices.js';
 import { initNavigation } from './modules/module-12-navigation.js';
+import { initDepositManagement } from './modules/module-13-deposits.js';
 import ProductModals from './components/ProductModals.vue';
 import Sidebar from './components/Sidebar.vue';
 import Header from './components/Header.vue';
@@ -1206,6 +1248,28 @@ import { perfMonitor, measureAsync } from './utils/performance-monitor';
 import StockMovementsView from './views/StockMovementsView.vue';
 import ProductSuppliersModal from './components/ProductSuppliersModal.vue';
 import CreditManagement from './components/CreditManagement.vue';
+import {// ✅ NOUVEAUX : États consignes
+  depositTypes,
+  deposits,
+  depositReturns,
+  depositTypesInPOS,
+  cartDeposits,
+  totalDepositsAmount,
+  
+  // ✅ NOUVEAUX : Modals consignes
+  showDepositTypeModal,
+  showDepositModal,
+  showDepositReturnModal,
+  
+  // ✅ NOUVEAUX : Formulaires consignes
+  depositTypeForm,
+  depositForm,
+  depositReturnForm,
+  editingDepositType,
+  editingDeposit,
+  processingReturn
+} from './modules/module-2-state.js';
+import DepositsView from './views/Deposits.vue';
 
 export default {
   name: 'App',
@@ -1221,7 +1285,7 @@ export default {
     StockModals,
     StockMovementsView,
     CreditManagement,
-    
+    DepositsView,
     
   },
   setup() {
@@ -1337,6 +1401,7 @@ export default {
     const printInvoice = invoiceMgmt.printInvoice;
     const getPaymentMethodLabel = invoiceMgmt.getPaymentMethodLabel;
     const navigation = initNavigation(state, loaders);
+    const depositMgmt = initDepositManagement(state, loaders);
 
     // ✅ NOUVEAU: Gestion des crédits
     const creditsCount = ref(0);
@@ -1948,6 +2013,12 @@ export default {
           });
         });
 
+        // ========================================
+        // 4. ÉTAT LOCAL POUR L'AFFICHAGE DES DÉTAILS
+        // ========================================
+
+        const showDepositDetails = ref(true); // Afficher les détails par défaut
+
     // ⭐ RETURN CORRIGÉ - VERSION COMPLÈTE
     return {
       // ========== AUTH ==========
@@ -1993,6 +2064,40 @@ export default {
       viewingProduct: state.viewingProduct,
       savingProduct: state.savingProduct,
       
+      // ✅ NOUVEAUX : Modals consignes
+      showDepositTypeModal,
+      showDepositModal,
+      showDepositReturnModal,
+      showDepositDetails,
+      
+      
+      // ✅ NOUVEAUX : Formulaires consignes
+      depositTypeForm,
+      depositForm,
+      depositReturnForm,
+      editingDepositType,
+      editingDeposit,
+      processingReturn,
+      
+      // ✅ NOUVEAUX : Computed properties consignes
+      filteredDepositTypes: computedProps.filteredDepositTypes,
+      activeDepositTypes: computedProps.activeDepositTypes,
+      filteredDeposits: computedProps.filteredDeposits,
+      pendingDeposits: computedProps.pendingDeposits,
+      returnedDeposits: computedProps.returnedDeposits,
+      totalDepositValue: computedProps.totalDepositValue,
+      grandTotal: computedProps.grandTotal,
+      cartDepositsCount: computedProps.cartDepositsCount,
+      // ✅ Fonctions gestion consignes
+      loadDepositTypes: depositMgmt.loadDepositTypes,
+      loadDeposits: depositMgmt.loadDeposits,
+      loadDepositReturns: depositMgmt.loadDepositReturns,
+      createDepositType: depositMgmt.createDepositType,
+      updateDepositType: depositMgmt.updateDepositType,
+      deleteDepositType: depositMgmt.deleteDepositType,
+      createDeposit: depositMgmt.createDeposit,
+      processDepositReturn: depositMgmt.processDepositReturn,
+
       // Modals
       showProductSuppliersModal,
       selectedProduct,

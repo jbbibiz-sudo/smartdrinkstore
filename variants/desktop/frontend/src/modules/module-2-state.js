@@ -1,6 +1,6 @@
 // Chemin: C:\smartdrinkstore\desktop-app\src\modules\module-2-state.js
-// Module 2: État global de l'application - AVEC PAGINATION
-// ✅ Ajout de la pagination pour les ventes
+// Module 2: État global de l'application - AVEC CONSIGNES
+// ✅ Ajout de la gestion des consignes pour le POS
 
 import { ref } from 'vue';
 
@@ -20,6 +20,11 @@ export const customers = ref([]);
 export const suppliers = ref([]);
 export const movements = ref([]);
 export const sales = ref([]);
+
+// ✅ NOUVEAU: Données consignes
+export const depositTypes = ref([]);
+export const deposits = ref([]);
+export const depositReturns = ref([]);
 
 // Vue courante
 export const currentView = ref('dashboard');
@@ -60,6 +65,11 @@ export const showCustomerModal = ref(false);
 export const showSupplierModal = ref(false);
 export const showInvoiceModal = ref(false);
 
+// ✅ NOUVEAU: Modals consignes
+export const showDepositTypeModal = ref(false);
+export const showDepositModal = ref(false);
+export const showDepositReturnModal = ref(false);
+
 // Formulaires produits
 export const productForm = ref({
   name: '',
@@ -69,7 +79,11 @@ export const productForm = ref({
   subcategory_id: '',
   unit_price: 0,
   min_stock: 0,
-  stock: 0
+  stock: 0,
+  // ✅ NOUVEAU: Champs consignes
+  has_deposit: false,
+  deposit_type_id: null,
+  units_per_deposit: 1
 });
 
 export const editingProduct = ref(null);
@@ -111,12 +125,20 @@ export const supplierForm = ref({
 export const editingCustomer = ref(null);
 export const editingSupplier = ref(null);
 
-// Point de vente (POS)
+// ====================================
+// POINT DE VENTE (POS) - AVEC CONSIGNES
+// ====================================
+
 export const cart = ref([]);
 export const posSearch = ref('');
 export const saleType = ref('counter');
 export const selectedCustomerId = ref('');
 export const paymentMethod = ref('cash');
+
+// ✅ NOUVEAU: Gestion des consignes dans le POS
+export const depositTypesInPOS = ref([]); // Types de consignes disponibles
+export const cartDeposits = ref([]);       // Consignes dans le panier actuel
+export const totalDepositsAmount = ref(0); // Total des consignes
 
 // Dernière vente
 export const lastSaleItems = ref([]);
@@ -146,6 +168,34 @@ export const stats = ref({
 
 export const alerts = ref([]);
 export const alertsCount = ref(0);
+
+// ✅ NOUVEAU: Formulaires consignes
+export const depositTypeForm = ref({
+  name: '',
+  description: '',
+  deposit_amount: 0,
+  quantity_in_stock: 0
+});
+
+export const depositForm = ref({
+  deposit_type_id: null,
+  entity_type: 'customer',
+  entity_id: null,
+  quantity: 0,
+  notes: ''
+});
+
+export const depositReturnForm = ref({
+  deposit_id: null,
+  quantity_returned: 0,
+  condition: 'good',
+  penalty_amount: 0,
+  notes: ''
+});
+
+export const editingDepositType = ref(null);
+export const editingDeposit = ref(null);
+export const processingReturn = ref(null);
 
 // Informations app
 export const appInfo = ref({

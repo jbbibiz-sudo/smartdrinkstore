@@ -1,6 +1,6 @@
 // Chemin: C:\smartdrinkstore\desktop-app\src\modules\module-5-data-loaders.js
 // Module 5: Loaders de données avec gestion du BOM
-// ⚡ VERSION OPTIMISÉE - PERFORMANCES AMÉLIORÉES
+// ⚡ VERSION OPTIMISÉE - PERFORMANCES AMÉLIORÉES + CONSIGNES
 
 import { api } from './module-1-config.js';
 import { watch } from 'vue';
@@ -186,9 +186,10 @@ const initDataLoaders = (state) => {
   const loadSales = async () => {
     try {
       state.loadingSales.value = true;
-      console.log('📄 Chargement des ventes...');
+      console.log('🔄 Chargement des ventes...');
       
-      const response = await api.get('/sales');
+      // ✅ CORRECTION: Utiliser safeApiGet au lieu de api.get
+      const response = await safeApiGet('/sales');
       
       if (response.success && response.data) {
         state.sales.value = response.data;
@@ -236,6 +237,11 @@ const initDataLoaders = (state) => {
       console.error('❌ Erreur chargement ventes:', error);
       state.sales.value = [];
       state.salesStats.value = { total: 0, count: 0, average: 0 };
+      
+      // ✅ AJOUT: Afficher l'erreur de connexion si l'API ne répond pas
+      if (error.message && error.message.includes('500')) {
+        state.connectionError.value = true;
+      }
     } finally {
       state.loadingSales.value = false;
     }
@@ -262,6 +268,58 @@ const initDataLoaders = (state) => {
         this_month: { count: 0, total: 0 },
         total_credit: 0
       };
+    }
+  };
+
+  // ====================================
+  // 🆕 LOADERS POUR LES CONSIGNES
+  // ====================================
+
+  /** Charge tous les types d'emballages consignables */
+  const loadDepositTypes = async () => {
+    try {
+      console.log('🔄 Chargement des types d\'emballages...');
+      const response = await safeApiGet('/deposit-types');
+      
+      if (response.success) {
+        state.depositTypes.value = response.data || [];
+        console.log(`✅ ${state.depositTypes.value.length} types d'emballages chargés`);
+      }
+    } catch (err) {
+      console.error('❌ Erreur chargement types d\'emballages:', err);
+      state.depositTypes.value = [];
+    }
+  };
+
+  /** Charge toutes les consignes (transactions) */
+  const loadDeposits = async () => {
+    try {
+      console.log('🔄 Chargement des consignes...');
+      const response = await safeApiGet('/deposits');
+      
+      if (response.success) {
+        state.deposits.value = response.data || [];
+        console.log(`✅ ${state.deposits.value.length} consignes chargées`);
+      }
+    } catch (err) {
+      console.error('❌ Erreur chargement consignes:', err);
+      state.deposits.value = [];
+    }
+  };
+
+  /** Charge l'historique des retours d'emballages */
+  const loadDepositReturns = async () => {
+    try {
+      console.log('🔄 Chargement de l\'historique des retours...');
+      const response = await safeApiGet('/deposit-returns');
+      
+      if (response.success) {
+        state.depositReturns.value = response.data || [];
+        console.log(`✅ ${state.depositReturns.value.length} retours chargés`);
+      }
+    } catch (err) {
+      console.error('❌ Erreur chargement retours:', err);
+      state.depositReturns.value = [];
     }
   };
 
@@ -399,7 +457,7 @@ const initDataLoaders = (state) => {
           loadSubcategories(),
           loadCustomers(),
           loadSuppliers(),
-          loadProducts()  // ⚡ Déplacé ici pour paralléliser
+          loadProducts(),  // ⚡ Déplacé ici pour paralléliser
         ]);
       
       // Vérifier les erreurs critiques
@@ -414,7 +472,10 @@ const initDataLoaders = (state) => {
       await Promise.allSettled([
         loadStats(),     // ⚡ Ne recalcule plus les alertes si elles sont récentes
         loadMovements(),
-        loadSales()
+        loadSales(),
+        loadDepositTypes(),    // 🆕 AJOUTÉ
+        loadDeposits(),        // 🆕 AJOUTÉ
+        loadDepositReturns(),  // 🆕 AJOUTÉ
       ]);
       
       const duration = (performance.now() - startTime).toFixed(0);
@@ -448,6 +509,9 @@ const initDataLoaders = (state) => {
     loadMovements,
     loadSales,
     loadSalesStats,
+    loadDepositTypes,      // 🆕 AJOUTÉ
+    loadDeposits,          // 🆕 AJOUTÉ
+    loadDepositReturns,    // 🆕 AJOUTÉ
     retryConnection,
     calculateStats,
     calculateAlerts,

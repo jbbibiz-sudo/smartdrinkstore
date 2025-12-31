@@ -32,6 +32,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 
 export default {
   name: 'Header',
+  
   props: {
     currentUser: {
       type: Object,

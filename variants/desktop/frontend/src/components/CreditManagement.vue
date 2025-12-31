@@ -440,6 +440,7 @@ import PaginationControls from './PaginationControls.vue';
 
 export default {
   name: 'CreditManagement',
+  
   components: { PaginationControls },
   setup() {
     // États
@@ -772,6 +773,9 @@ export default {
   const loadCredits = async () => {
     loading.value = true;
     try {
+      console.log('✅ Chargement des crédits...');
+      console.log('Token disponible:', !!window.authHeaders?.Authorization);
+      
       const response = await fetchCredits({
         status: filterStatus.value !== 'all' ? filterStatus.value : undefined
       });
@@ -780,8 +784,8 @@ export default {
       console.log('✅ Crédits chargés:', credits.value.length);
       
     } catch (error) {
-      console.error('❌ Erreur chargement crédits:', error);
-      showToast('Impossible de charger les crédits', 'error');
+      console.error('âŒ Erreur chargement crédits:', error);
+      showToast(`Impossible de charger les crédits: ${error.message}`, 'error');
     } finally {
       loading.value = false;
     }

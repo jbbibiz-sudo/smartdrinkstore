@@ -59,6 +59,7 @@ import { formatCurrency } from '../modules/module-3-utils.js';
 
 export default {
   name: 'DashboardView',
+  emits: ['close', 'saved'],
   props: {
     stats: {
       type: Object,

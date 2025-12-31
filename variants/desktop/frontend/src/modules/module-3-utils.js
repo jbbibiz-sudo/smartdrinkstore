@@ -1,5 +1,5 @@
 // ============================================
-// MODULE 3 : FONCTIONS UTILITAIRES
+// MODULE 3 : FONCTIONS UTILITAIRES - AVEC CONSIGNES
 // ============================================
 
 /**
@@ -8,7 +8,7 @@
  * @returns {string} - La valeur formatée
  */
 const formatCurrency = (value) => {
-  if (!value) return '0 FCFA';
+  if (!value && value !== 0) return '0 FCFA';
   return new Intl.NumberFormat('fr-FR').format(value) + ' FCFA';
 };
 
@@ -21,6 +21,17 @@ const formatDate = (dateString) => {
   if (!dateString) return '-';
   const date = new Date(dateString);
   return date.toLocaleDateString('fr-FR');
+};
+
+/**
+ * Formate une date avec l'heure
+ * @param {string} dateString - La date à formater
+ * @returns {string} - La date et heure formatées
+ */
+const formatDateTime = (dateString) => {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  return date.toLocaleString('fr-FR');
 };
 
 /**
@@ -64,6 +75,63 @@ const getStockStatusClass = (product) => {
   } else {
     return 'bg-green-100 text-green-800';
   }
+};
+
+/**
+ * ✅ NOUVEAU: Retourne la classe CSS selon le statut de consigne
+ * @param {string} status - Le statut de la consigne
+ * @returns {string} - Les classes CSS
+ */
+const getDepositStatusClass = (status) => {
+  const classes = {
+    'pending': 'bg-yellow-100 text-yellow-800',
+    'returned': 'bg-green-100 text-green-800',
+    'lost': 'bg-red-100 text-red-800',
+    'partial': 'bg-blue-100 text-blue-800'
+  };
+  return classes[status] || 'bg-gray-100 text-gray-800';
+};
+
+/**
+ * ✅ NOUVEAU: Retourne le libellé du statut de consigne
+ * @param {string} status - Le statut
+ * @returns {string} - Le libellé
+ */
+const getDepositStatusLabel = (status) => {
+  const labels = {
+    'pending': '⏳ En attente',
+    'returned': '✅ Retourné',
+    'lost': '❌ Perdu',
+    'partial': '🔄 Partiel'
+  };
+  return labels[status] || status;
+};
+
+/**
+ * ✅ NOUVEAU: Retourne le libellé de la condition d'emballage
+ * @param {string} condition - La condition
+ * @returns {string} - Le libellé
+ */
+const getDepositConditionLabel = (condition) => {
+  const labels = {
+    'good': '✅ Bon état',
+    'damaged': '⚠️ Endommagé',
+    'lost': '❌ Perdu'
+  };
+  return labels[condition] || condition;
+};
+
+/**
+ * ✅ NOUVEAU: Retourne le type d'entité en français
+ * @param {string} entityType - Le type d'entité
+ * @returns {string} - Le libellé
+ */
+const getEntityTypeLabel = (entityType) => {
+  const labels = {
+    'customer': '👤 Client',
+    'supplier': '🏢 Fournisseur'
+  };
+  return labels[entityType] || entityType;
 };
 
 /**
@@ -121,6 +189,18 @@ const truncate = (text, length = 50) => {
 const calculatePercentage = (value, total) => {
   if (!total || total === 0) return 0;
   return Math.round((value / total) * 100);
+};
+
+/**
+ * ✅ NOUVEAU: Calcule le montant de remboursement d'une consigne
+ * @param {number} depositAmount - Montant de la consigne unitaire
+ * @param {number} quantityReturned - Quantité retournée
+ * @param {number} penaltyAmount - Pénalité totale
+ * @returns {number} - Montant à rembourser
+ */
+const calculateDepositRefund = (depositAmount, quantityReturned, penaltyAmount = 0) => {
+  const totalDeposit = depositAmount * quantityReturned;
+  return Math.max(0, totalDeposit - penaltyAmount);
 };
 
 /**
@@ -198,14 +278,20 @@ const showToast = (message, type = 'info') => {
 export {
   formatCurrency,
   formatDate,
+  formatDateTime,
   getPaymentMethodLabel,
   getMovementTypeLabel,
   getStockStatusClass,
+  getDepositStatusClass,
+  getDepositStatusLabel,
+  getDepositConditionLabel,
+  getEntityTypeLabel,
   generateInvoiceNumber,
   isValidEmail,
   isValidPhone,
   truncate,
   calculatePercentage,
+  calculateDepositRefund,
   debounce,
   exportToCSV,
   showToast

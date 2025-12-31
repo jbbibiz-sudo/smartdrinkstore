@@ -205,6 +205,7 @@ import { ref, watch } from 'vue';
 
 export default {
   name: 'StockModals',
+  emits: ['close', 'saved'],
   props: {
     // Props pour le modal de réapprovisionnement
     showRestockModal: {

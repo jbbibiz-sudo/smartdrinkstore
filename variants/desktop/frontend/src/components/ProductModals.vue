@@ -437,6 +437,7 @@ import CategoryHierarchyManager from './CategoryHierarchyManager.vue';
 
 export default {
   name: 'ProductModals',
+  
   components: { CategoryHierarchyManager },
   props: {
     showProductModal: Boolean,

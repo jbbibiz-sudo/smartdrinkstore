@@ -9,9 +9,6 @@ class Sale extends Model
 {
     use HasFactory;
 
-    /**
-     * ✅ FILLABLE CORRIGÉ - Tous les champs de la table
-     */
     protected $fillable = [
         'invoice_number',
         'customer_id',
@@ -21,21 +18,20 @@ class Sale extends Model
         'total_amount',
         'discount',
         'paid_amount',
+        'due_date',
+        'credit_days',
     ];
 
-    /**
-     * ✅ CASTS pour convertir les types
-     */
     protected $casts = [
         'total_amount' => 'decimal:2',
         'discount' => 'decimal:2',
         'paid_amount' => 'decimal:2',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
+        'due_date' => 'date',
+        'credit_days' => 'integer',
     ];
 
     /**
-     * Relation: Une vente appartient à un client
+     * Relation avec le client
      */
     public function customer()
     {
@@ -43,15 +39,7 @@ class Sale extends Model
     }
 
     /**
-     * Relation: Une vente a plusieurs items
-     */
-    public function items()
-    {
-        return $this->hasMany(SaleItem::class);
-    }
-
-    /**
-     * Relation: Une vente appartient à un utilisateur (vendeur)
+     * Relation avec le vendeur
      */
     public function user()
     {
@@ -59,69 +47,11 @@ class Sale extends Model
     }
 
     /**
-     * Accessor: Montant restant à payer
+     * Relation avec les lignes de vente
      */
-    public function getUnpaidAmountAttribute()
+    public function saleItems()
     {
-        return $this->total_amount - $this->paid_amount;
-    }
-
-    /**
-     * Accessor: Statut de paiement
-     */
-    public function getPaymentStatusAttribute()
-    {
-        if ($this->paid_amount >= $this->total_amount) {
-            return 'paid';
-        } elseif ($this->paid_amount > 0) {
-            return 'partial';
-        } else {
-            return 'unpaid';
-        }
-    }
-
-    /**
-     * Scope: Ventes d'aujourd'hui
-     */
-    public function scopeToday($query)
-    {
-        return $query->whereDate('created_at', today());
-    }
-
-    /**
-     * Scope: Ventes de cette semaine
-     */
-    public function scopeThisWeek($query)
-    {
-        return $query->whereBetween('created_at', [
-            now()->startOfWeek(),
-            now()->endOfWeek()
-        ]);
-    }
-
-    /**
-     * Scope: Ventes de ce mois
-     */
-    public function scopeThisMonth($query)
-    {
-        return $query->whereMonth('created_at', now()->month)
-            ->whereYear('created_at', now()->year);
-    }
-
-    /**
-     * Scope: Ventes à crédit
-     */
-    public function scopeCredit($query)
-    {
-        return $query->where('payment_method', 'credit');
-    }
-
-    /**
-     * Scope: Ventes impayées
-     */
-    public function scopeUnpaid($query)
-    {
-        return $query->whereColumn('paid_amount', '<', 'total_amount');
+        return $this->hasMany(SaleItem::class);
     }
 
     /**
@@ -133,28 +63,32 @@ class Sale extends Model
     }
 
     /**
-     * Calculer la date d'échéance lors de la création
+     * Calculer le reste à payer
      */
-    protected static function booted()
+    public function getRemainingAmountAttribute()
     {
-        static::creating(function ($sale) {
-            if ($sale->payment_method === 'credit') {
-                $creditDays = $sale->credit_days ?? 30; // 30 jours par défaut
-                $sale->due_date = now()->addDays($creditDays);
-            }
-        });
+        return $this->total_amount - $this->paid_amount;
     }
 
     /**
-     * Vérifier si le crédit est en retard
+     * Vérifier si la vente est en retard
      */
     public function getIsOverdueAttribute()
     {
         if ($this->payment_method !== 'credit') {
             return false;
         }
-        
-        $remainingAmount = $this->total_amount - $this->paid_amount;
-        return $this->due_date && $this->due_date < now() && $remainingAmount > 0;
+
+        return $this->due_date && 
+               $this->due_date->isPast() && 
+               $this->paid_amount < $this->total_amount;
+    }
+
+    /**
+     * Vérifier si la vente est complètement payée
+     */
+    public function getIsFullyPaidAttribute()
+    {
+        return $this->paid_amount >= $this->total_amount;
     }
 }

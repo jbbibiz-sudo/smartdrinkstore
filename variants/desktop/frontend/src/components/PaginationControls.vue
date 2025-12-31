@@ -40,6 +40,7 @@ import { computed } from 'vue';
 
 export default {
   name: 'PaginationControls',
+  
   props: {
     currentPage: { type: Number, required: true },
     totalPages: { type: Number, required: true },

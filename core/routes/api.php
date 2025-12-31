@@ -23,7 +23,7 @@ use App\Http\Controllers\Api\StockController;
 use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\ProductSupplierController;
 use App\Http\Controllers\Api\CreditPaymentController;
-use App\Http\Controllers\Api\DebitPaymentController;
+use App\Http\Controllers\Api\DepositController;
 
 
 
@@ -228,7 +228,72 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
         // Statistiques des paiements
         Route::get('/statistics', [CreditPaymentController::class, 'statistics']);
     });
-     
+
+    // ========================================
+    // TYPES D'EMBALLAGES CONSIGNABLES
+    // ========================================
+    
+    Route::prefix('deposit-types')->group(function () {
+        // Liste des types
+        Route::get('/', [DepositController::class, 'depositTypes']);
+        
+        // Créer un type
+        Route::post('/', [DepositController::class, 'storeDepositType']);
+        
+        // Détails d'un type
+        Route::get('/{id}', [DepositController::class, 'showDepositType']);
+        
+        // Mettre à jour un type
+        Route::put('/{id}', [DepositController::class, 'updateDepositType']);
+        
+        // Supprimer un type
+        Route::delete('/{id}', [DepositController::class, 'destroyDepositType']);
+    });
+
+    // ========================================
+    // CONSIGNES (TRANSACTIONS)
+    // ========================================
+    
+    Route::prefix('deposits')->group(function () {
+        // Liste avec filtres
+        Route::get('/', [DepositController::class, 'index']);
+        
+        // Statistiques
+        Route::get('/statistics', [DepositController::class, 'statistics']);
+        
+        // Consignes en attente
+        Route::get('/pending', [DepositController::class, 'pending']);
+        
+        // Créer consigne sortante (vers client)
+        Route::post('/outgoing', [DepositController::class, 'storeOutgoing']);
+        
+        // Créer consigne entrante (du fournisseur)
+        Route::post('/incoming', [DepositController::class, 'storeIncoming']);
+        
+        // Détails d'une consigne
+        Route::get('/{id}', [DepositController::class, 'show']);
+        
+        // Traiter un retour
+        Route::post('/{id}/return', [DepositController::class, 'processReturn']);
+        
+        // Historique des retours d'une consigne
+        Route::get('/{id}/returns', [DepositController::class, 'returnHistory']);
+        
+        // Annuler une consigne (si aucun retour)
+        Route::delete('/{id}', [DepositController::class, 'destroy']);
+    });
+
+    // ========================================
+    // RETOURS D'EMBALLAGES
+    // ========================================
+    
+    Route::prefix('deposit-returns')->group(function () {
+        // Liste des retours
+        Route::get('/', [DepositController::class, 'returns']);
+        
+        // Détails d'un retour
+        Route::get('/{id}', [DepositController::class, 'showReturn']);
+    });   
 });
 
 // ========================================

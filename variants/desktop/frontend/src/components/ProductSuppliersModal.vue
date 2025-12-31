@@ -172,6 +172,7 @@ import { getToken } from '@/services/auth'; // ta fonction Electron pour r√©cup√
 
 export default {
   name: 'ProductSuppliersModal',
+  
   props: { show: Boolean, product: Object, allSuppliers: Array },
   emits: ['close', 'refresh'],
   setup(props, { emit }) {

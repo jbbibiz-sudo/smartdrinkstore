@@ -9,9 +9,6 @@ class SaleItem extends Model
 {
     use HasFactory;
 
-    /**
-     * Champs remplissables
-     */
     protected $fillable = [
         'sale_id',
         'product_id',
@@ -20,9 +17,6 @@ class SaleItem extends Model
         'subtotal',
     ];
 
-    /**
-     * Casts
-     */
     protected $casts = [
         'quantity' => 'integer',
         'unit_price' => 'decimal:2',
@@ -30,7 +24,7 @@ class SaleItem extends Model
     ];
 
     /**
-     * Relation: Un item appartient à une vente
+     * Relation avec la vente
      */
     public function sale()
     {
@@ -38,7 +32,7 @@ class SaleItem extends Model
     }
 
     /**
-     * Relation: Un item concerne un produit
+     * Relation avec le produit
      */
     public function product()
     {

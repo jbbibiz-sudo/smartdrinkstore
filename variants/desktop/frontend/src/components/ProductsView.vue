@@ -196,6 +196,7 @@ import PaginationControls from './PaginationControls.vue';
 
 export default {
   name: 'ProductsView',
+  
   components: { PaginationControls },
   props: {
     filteredProducts: {

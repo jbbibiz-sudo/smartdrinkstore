@@ -2,418 +2,371 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Product;
-use App\Models\StockMovement;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class SaleController extends Controller
 {
     /**
-     * Liste toutes les ventes
+     * Liste de toutes les ventes
+     * GET /api/v1/sales
      */
-    public function index()
+    public function index(Request $request)
     {
         try {
-            $sales = Sale::with(['customer', 'items.product'])
-                ->orderBy('created_at', 'desc')
-                ->get();
+            $query = Sale::with(['customer', 'user', 'saleItems.product']);
+
+            // Filtres optionnels
+            if ($request->has('type')) {
+                $query->where('type', $request->type);
+            }
+
+            if ($request->has('payment_method')) {
+                $query->where('payment_method', $request->payment_method);
+            }
+
+            if ($request->has('customer_id')) {
+                $query->where('customer_id', $request->customer_id);
+            }
+
+            if ($request->has('date_from')) {
+                $query->whereDate('created_at', '>=', $request->date_from);
+            }
+
+            if ($request->has('date_to')) {
+                $query->whereDate('created_at', '<=', $request->date_to);
+            }
+
+            $sales = $query->latest()->get();
+
+            // Formater les données
+            $formattedSales = $sales->map(function ($sale) {
+                return [
+                    'id' => $sale->id,
+                    'invoice_number' => $sale->invoice_number,
+                    'customer_id' => $sale->customer_id,
+                    'customer_name' => $sale->customer->name ?? 'Client comptoir',
+                    'user_id' => $sale->user_id,
+                    'user_name' => $sale->user->name ?? 'Utilisateur supprimé',
+                    'type' => $sale->type,
+                    'payment_method' => $sale->payment_method,
+                    'total_amount' => (float) $sale->total_amount,
+                    'discount' => (float) $sale->discount,
+                    'paid_amount' => (float) $sale->paid_amount,
+                    'due_date' => $sale->due_date?->format('Y-m-d'),
+                    'credit_days' => $sale->credit_days,
+                    'items_count' => $sale->saleItems->count(),
+                    'created_at' => $sale->created_at->toIso8601String(),
+                    'updated_at' => $sale->updated_at->toIso8601String(),
+                ];
+            });
 
             return response()->json([
                 'success' => true,
-                'data' => $sales
+                'data' => $formattedSales,
+                'count' => $formattedSales->count()
             ]);
-        } catch (\Exception $e) {
-            Log::error('Erreur chargement ventes:', ['message' => $e->getMessage()]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors du chargement des ventes'
-            ], 500);
-        }
-    }
-
-    /**
-     * ✅ FONCTION CORRIGÉE - Logs avec arrays
-     */
-    public function store(Request $request)
-    {
-        // ✅ LOG 1: Ce qui arrive du frontend
-        Log::info('=== DÉBUT ENREGISTREMENT VENTE ===');
-        Log::info('Données brutes reçues:', $request->all());
-
-        try {
-            // ✅ VALIDATION COMPLÈTE
-            $validated = $request->validate([
-                'invoice_number' => 'required|string|unique:sales,invoice_number',
-                'customer_id' => 'nullable|exists:customers,id',
-                'type' => 'required|in:counter,wholesale',
-                'payment_method' => 'required|in:cash,mobile,credit',
-                'total_amount' => 'required|numeric|min:0',
-                'discount' => 'nullable|numeric|min:0',
-                'paid_amount' => 'nullable|numeric|min:0|lte:total_amount',
-                'items' => 'required|array|min:1',
-                'items.*.product_id' => 'required|exists:products,id',
-                'items.*.quantity' => 'required|integer|min:1',
-                'items.*.unit_price' => 'required|numeric|min:0',
-                'items.*.subtotal' => 'required|numeric|min:0',
-            ]);
-
-            // ✅ LOG 2: Après validation
-            Log::info('Données validées:', $validated);
-
-            // Vérifier le stock AVANT de commencer la transaction
-            foreach ($validated['items'] as $item) {
-                $product = Product::find($item['product_id']);
-                
-                if (!$product) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Produit #{$item['product_id']} introuvable"
-                    ], 404);
-                }
-                
-                if ($product->stock < $item['quantity']) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Stock insuffisant pour {$product->name}. Disponible: {$product->stock}, Demandé: {$item['quantity']}"
-                    ], 422);
-                }
-            }
-
-            // ✅ ACTIVER LES LOGS SQL
-            DB::listen(function($query) {
-                Log::info('SQL:', [
-                    'query' => $query->sql,
-                    'bindings' => $query->bindings
-                ]);
-            });
-
-            // ✅ TRANSACTION POUR GARANTIR LA COHÉRENCE
-            DB::beginTransaction();
-
-            try {
-                // ✅ LOG 3: Données à insérer (AVEC USER_ID)
-                $saleData = [
-                    'invoice_number' => $validated['invoice_number'],
-                    'customer_id' => $validated['customer_id'],
-                    'user_id' => auth()->id(),
-                    'type' => $validated['type'],
-                    'payment_method' => $validated['payment_method'],
-                    'total_amount' => $validated['total_amount'],
-                    'discount' => $validated['discount'] ?? 0,
-                    'paid_amount' => $validated['paid_amount'] ?? $validated['total_amount'],
-                ];
-
-                Log::info('Données à insérer dans Sale::create():', $saleData);
-                
-                // ✅ CORRECTION PRINCIPALE - Logs avec arrays
-                Log::info('Vendeur (user_id):', ['user_id' => auth()->id()]);
-                Log::info('Nom du vendeur:', ['name' => auth()->user()->name ?? 'Unknown']);
-                
-                // ✅ LOG 4: Vérifier les fillable
-                $saleModel = new Sale();
-                Log::info('Fillable du modèle Sale:', ['fillable' => $saleModel->getFillable()]);
-                Log::info('Guarded du modèle Sale:', ['guarded' => $saleModel->getGuarded()]);
-
-                // ✅ CRÉER LA VENTE
-                $sale = Sale::create($saleData);
-
-                Log::info('Vente créée avec succès:', [
-                    'id' => $sale->id,
-                    'invoice' => $sale->invoice_number,
-                    'vendeur' => auth()->user()->name ?? 'Unknown',
-                    'all_attributes' => $sale->toArray()
-                ]);
-
-                // ✅ CRÉER LES ITEMS ET DÉDUIRE LE STOCK
-                foreach ($validated['items'] as $item) {
-                    // Créer l'item
-                    SaleItem::create([
-                        'sale_id' => $sale->id,
-                        'product_id' => $item['product_id'],
-                        'quantity' => $item['quantity'],
-                        'unit_price' => $item['unit_price'],
-                        'subtotal' => $item['subtotal'],
-                    ]);
-
-                    // Déduire le stock
-                    $product = Product::findOrFail($item['product_id']);
-                    $product->stock -= $item['quantity'];
-                    $product->save();
-
-                    Log::info('Stock déduit:', [
-                        'product' => $product->name,
-                        'quantity' => $item['quantity'],
-                        'nouveau_stock' => $product->stock
-                    ]);
-
-                    // Créer le mouvement de stock
-                    StockMovement::create([
-                        'product_id' => $item['product_id'],
-                        'type' => 'out',
-                        'quantity' => $item['quantity'],
-                        'reason' => "Vente #{$sale->invoice_number}",
-                        'user_id' => auth()->id(),
-                    ]);
-                }
-
-                // ✅ METTRE À JOUR LE SOLDE CLIENT SI CRÉDIT
-                if ($validated['payment_method'] === 'credit' && $validated['customer_id']) {
-                    $customer = \App\Models\Customer::find($validated['customer_id']);
-                    if ($customer) {
-                        $unpaid = $validated['total_amount'] - ($validated['paid_amount'] ?? 0);
-                        $customer->balance += $unpaid;
-                        $customer->save();
-                        
-                        Log::info('Solde client mis à jour:', [
-                            'customer' => $customer->name,
-                            'dette_ajoutée' => $unpaid,
-                            'nouveau_solde' => $customer->balance
-                        ]);
-                    }
-                }
-
-                DB::commit();
-
-                Log::info('=== VENTE ENREGISTRÉE AVEC SUCCÈS ===');
-
-                // Charger les relations pour la réponse
-                $sale->load(['customer', 'items.product', 'user']);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Vente enregistrée avec succès',
-                    'data' => $sale
-                ], 201);
-
-            } catch (\Exception $e) {
-                DB::rollBack();
-                Log::error('❌ Erreur dans la transaction:', [
-                    'message' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString()
-                ]);
-                throw $e;
-            }
-
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::error('❌ Validation échouée:', ['errors' => $e->errors()]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Données invalides',
-                'errors' => $e->errors()
-            ], 422);
 
         } catch (\Exception $e) {
-            Log::error('❌ ERREUR CRITIQUE:', [
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de l\'enregistrement de la vente',
+                'message' => 'Erreur lors du chargement des ventes',
                 'error' => $e->getMessage()
             ], 500);
         }
-
-        // Si c'est une vente à crédit, définir l'échéance
-        if ($request->payment_method === 'credit') {
-            $creditDays = $request->input('credit_days', 30); // 30 jours par défaut
-            $sale->credit_days = $creditDays;
-            $sale->due_date = now()->addDays($creditDays);
-            $sale->save();
-        }
     }
 
     /**
-     * ✅ COMPLET: Affiche une vente avec toutes les infos
+     * Détails d'une vente
+     * GET /api/v1/sales/{id}
      */
     public function show($id)
     {
         try {
-            $sale = DB::table('sales')
-                ->leftJoin('customers', 'sales.customer_id', '=', 'customers.id')
-                ->leftJoin('users', 'sales.user_id', '=', 'users.id')
-                ->select(
-                    'sales.*',
-                    'customers.name as customer_name',
-                    'customers.phone as customer_phone',
-                    'customers.email as customer_email',
-                    'customers.address as customer_address',
-                    'users.name as seller_name',
-                    'users.email as seller_email'
-                )
-                ->where('sales.id', $id)
-                ->first();
+            $sale = Sale::with(['customer', 'user', 'saleItems.product'])->findOrFail($id);
 
-            if (!$sale) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Vente introuvable'
-                ], 404);
-            }
-
-            $items = DB::table('sale_items')
-                ->join('products', 'sale_items.product_id', '=', 'products.id')
-                ->select(
-                    'sale_items.id',
-                    'sale_items.product_id',
-                    'sale_items.quantity',
-                    'sale_items.unit_price',
-                    'sale_items.subtotal',
-                    'products.name as product_name',
-                    'products.sku as product_sku'
-                )
-                ->where('sale_items.sale_id', $id)
-                ->get();
+            $formattedSale = [
+                'id' => $sale->id,
+                'invoice_number' => $sale->invoice_number,
+                'customer_id' => $sale->customer_id,
+                'customer_name' => $sale->customer->name ?? 'Client comptoir',
+                'user_id' => $sale->user_id,
+                'user_name' => $sale->user->name ?? 'Utilisateur supprimé',
+                'type' => $sale->type,
+                'payment_method' => $sale->payment_method,
+                'total_amount' => (float) $sale->total_amount,
+                'discount' => (float) $sale->discount,
+                'paid_amount' => (float) $sale->paid_amount,
+                'due_date' => $sale->due_date?->format('Y-m-d'),
+                'credit_days' => $sale->credit_days,
+                'created_at' => $sale->created_at->toIso8601String(),
+                'updated_at' => $sale->updated_at->toIso8601String(),
+                'items' => $sale->saleItems->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'product_id' => $item->product_id,
+                        'product_name' => $item->product->name ?? 'Produit supprimé',
+                        'product_sku' => $item->product->sku ?? 'N/A',
+                        'quantity' => $item->quantity,
+                        'unit_price' => (float) $item->unit_price,
+                        'subtotal' => (float) $item->subtotal,
+                    ];
+                })
+            ];
 
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'id' => $sale->id,
-                    'invoice_number' => $sale->invoice_number,
-                    'customer_id' => $sale->customer_id,
-                    'user_id' => $sale->user_id,
-                    'type' => $sale->type,
-                    'payment_method' => $sale->payment_method,
-                    'total_amount' => $sale->total_amount,
-                    'discount' => $sale->discount,
-                    'paid_amount' => $sale->paid_amount,
-                    'created_at' => $sale->created_at,
-                    'updated_at' => $sale->updated_at,
-                    'customer_name' => $sale->customer_name,
-                    'customer_phone' => $sale->customer_phone,
-                    'customer_email' => $sale->customer_email,
-                    'customer_address' => $sale->customer_address,
-                    'seller_name' => $sale->seller_name,
-                    'seller_email' => $sale->seller_email,
-                    'items' => $items
-                ]
+                'data' => $formattedSale
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Erreur show vente:', [
-                'id' => $id,
-                'message' => $e->getMessage()
-            ]);
-            
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors du chargement de la vente'
+                'message' => 'Vente introuvable',
+                'error' => $e->getMessage()
+            ], 404);
+        }
+    }
+
+    /**
+     * Créer une nouvelle vente
+     * POST /api/v1/sales
+     */
+    public function store(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'customer_id' => 'nullable|exists:customers,id',
+                'type' => 'required|in:counter,wholesale',
+                'payment_method' => 'required|in:cash,mobile,credit',
+                'discount' => 'nullable|numeric|min:0',
+                'items' => 'required|array|min:1',
+                'items.*.product_id' => 'required|exists:products,id',
+                'items.*.quantity' => 'required|integer|min:1',
+                'items.*.unit_price' => 'required|numeric|min:0',
+                'credit_days' => 'nullable|integer|min:1',
+            ]);
+
+            DB::beginTransaction();
+
+            // Générer le numéro de facture
+            $lastSale = Sale::latest('id')->first();
+            $lastNumber = $lastSale ? intval(substr($lastSale->invoice_number, 4)) : 0;
+            $invoiceNumber = 'INV-' . str_pad($lastNumber + 1, 6, '0', STR_PAD_LEFT);
+
+            // Calculer le total
+            $totalAmount = 0;
+            foreach ($validated['items'] as $item) {
+                $totalAmount += $item['quantity'] * $item['unit_price'];
+            }
+
+            // Appliquer la remise si vente en gros
+            $discount = $validated['discount'] ?? 0;
+            if ($validated['type'] === 'wholesale' && $discount === 0) {
+                $discount = $totalAmount * 0.05; // 5% de remise par défaut
+            }
+
+            $finalAmount = $totalAmount - $discount;
+
+            // Calculer la date d'échéance pour les crédits
+            $dueDate = null;
+            $creditDays = null;
+            if ($validated['payment_method'] === 'credit') {
+                $creditDays = $validated['credit_days'] ?? 30;
+                $dueDate = Carbon::now()->addDays($creditDays);
+            }
+
+            // Créer la vente
+            $sale = Sale::create([
+                'invoice_number' => $invoiceNumber,
+                'customer_id' => $validated['customer_id'] ?? null,
+                'user_id' => auth()->id(),
+                'type' => $validated['type'],
+                'payment_method' => $validated['payment_method'],
+                'total_amount' => $finalAmount,
+                'discount' => $discount,
+                'paid_amount' => $validated['payment_method'] === 'credit' ? 0 : $finalAmount,
+                'due_date' => $dueDate,
+                'credit_days' => $creditDays,
+            ]);
+
+            // Créer les lignes de vente et mettre à jour le stock
+            foreach ($validated['items'] as $item) {
+                $product = Product::findOrFail($item['product_id']);
+
+                // Vérifier le stock disponible
+                if ($product->stock < $item['quantity']) {
+                    throw new \Exception("Stock insuffisant pour {$product->name}");
+                }
+
+                // Créer la ligne de vente
+                SaleItem::create([
+                    'sale_id' => $sale->id,
+                    'product_id' => $item['product_id'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'subtotal' => $item['quantity'] * $item['unit_price'],
+                ]);
+
+                // Décrémenter le stock
+                $product->decrement('stock', $item['quantity']);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Vente créée avec succès',
+                'data' => [
+                    'id' => $sale->id,
+                    'invoice_number' => $sale->invoice_number,
+                    'total_amount' => (float) $sale->total_amount,
+                    'payment_method' => $sale->payment_method,
+                ]
+            ], 201);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la création de la vente',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Supprimer une vente
+     * DELETE /api/v1/sales/{id}
+     */
+    public function destroy($id)
+    {
+        try {
+            DB::beginTransaction();
+
+            $sale = Sale::with('saleItems')->findOrFail($id);
+
+            // Vérifier si la vente peut être supprimée (moins de 24h)
+            $saleAge = Carbon::parse($sale->created_at)->diffInHours(now());
+            if ($saleAge > 24) {
+                throw new \Exception('Cette vente ne peut plus être supprimée (plus de 24h)');
+            }
+
+            // Restaurer le stock
+            foreach ($sale->saleItems as $item) {
+                $product = Product::find($item->product_id);
+                if ($product) {
+                    $product->increment('stock', $item->quantity);
+                }
+            }
+
+            // Supprimer les lignes de vente
+            $sale->saleItems()->delete();
+
+            // Supprimer la vente
+            $sale->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Vente supprimée avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression de la vente',
+                'error' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
      * Statistiques des ventes
+     * GET /api/v1/sales/stats/summary
      */
-    public function stats()
+    public function stats(Request $request)
     {
         try {
-            $today = now()->startOfDay();
-            $thisWeekStart = now()->startOfWeek();
-            $thisMonthStart = now()->startOfMonth();
+            // Période par défaut: aujourd'hui
+            $period = $request->get('period', 'today');
+            
+            $query = Sale::query();
 
-            $todaySales = Sale::where('created_at', '>=', $today)->get();
-            $weekSales = Sale::where('created_at', '>=', $thisWeekStart)->get();
-            $monthSales = Sale::where('created_at', '>=', $thisMonthStart)->get();
-
-            $totalCredit = Sale::where('payment_method', 'credit')
-                ->get()
-                ->sum(function ($sale) {
-                    return $sale->total_amount - $sale->paid_amount;
-                });
-
-            $stats = [
-                'today' => [
-                    'count' => $todaySales->count(),
-                    'total' => $todaySales->sum('total_amount'),
-                    'cash' => $todaySales->where('payment_method', 'cash')->sum('total_amount'),
-                    'mobile' => $todaySales->where('payment_method', 'mobile')->sum('total_amount'),
-                    'credit' => $todaySales->where('payment_method', 'credit')->sum('total_amount'),
-                ],
-                'this_week' => [
-                    'count' => $weekSales->count(),
-                    'total' => $weekSales->sum('total_amount'),
-                ],
-                'this_month' => [
-                    'count' => $monthSales->count(),
-                    'total' => $monthSales->sum('total_amount'),
-                ],
-                'total_credit' => $totalCredit
-            ];
-
-            return response()->json([
-                'success' => true,
-                'data' => $stats
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Erreur stats ventes:', ['message' => $e->getMessage()]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors du calcul des statistiques'
-            ], 500);
-        }
-    }
-
-    /**
-     * Supprime une vente (annulation)
-     */
-    public function destroy($id)
-    {
-        DB::beginTransaction();
-        try {
-            $sale = Sale::findOrFail($id);
-
-            // Restaurer le stock
-            foreach ($sale->items as $item) {
-                $product = Product::find($item->product_id);
-                if ($product) {
-                    $product->stock += $item->quantity;
-                    $product->save();
-
-                    StockMovement::create([
-                        'product_id' => $item->product_id,
-                        'type' => 'in',
-                        'quantity' => $item->quantity,
-                        'reason' => "Annulation vente #{$sale->invoice_number}",
-                        'user_id' => auth()->id(),
+            // Appliquer les filtres de période
+            switch ($period) {
+                case 'today':
+                    $query->whereDate('created_at', today());
+                    break;
+                case 'week':
+                    $query->whereBetween('created_at', [
+                        now()->startOfWeek(),
+                        now()->endOfWeek()
                     ]);
-                }
+                    break;
+                case 'month':
+                    $query->whereMonth('created_at', now()->month)
+                          ->whereYear('created_at', now()->year);
+                    break;
+                case 'year':
+                    $query->whereYear('created_at', now()->year);
+                    break;
             }
 
-            // Ajuster le solde client si crédit
-            if ($sale->payment_method === 'credit' && $sale->customer_id) {
-                $customer = \App\Models\Customer::find($sale->customer_id);
-                if ($customer) {
-                    $unpaid = $sale->total_amount - $sale->paid_amount;
-                    $customer->balance -= $unpaid;
-                    $customer->save();
-                }
-            }
+            $sales = $query->get();
 
-            $sale->delete();
-            DB::commit();
+            $total = $sales->sum('total_amount');
+            $count = $sales->count();
+            $average = $count > 0 ? $total / $count : 0;
+
+            // Stats par type
+            $counterSales = $sales->where('type', 'counter')->sum('total_amount');
+            $wholesaleSales = $sales->where('type', 'wholesale')->sum('total_amount');
+
+            // Stats par mode de paiement
+            $cashSales = $sales->where('payment_method', 'cash')->sum('total_amount');
+            $mobileSales = $sales->where('payment_method', 'mobile')->sum('total_amount');
+            $creditSales = $sales->where('payment_method', 'credit')->sum('total_amount');
 
             return response()->json([
                 'success' => true,
-                'message' => 'Vente annulée avec succès'
+                'data' => [
+                    'period' => $period,
+                    'total' => (float) $total,
+                    'count' => $count,
+                    'average' => (float) $average,
+                    'by_type' => [
+                        'counter' => (float) $counterSales,
+                        'wholesale' => (float) $wholesaleSales,
+                    ],
+                    'by_payment_method' => [
+                        'cash' => (float) $cashSales,
+                        'mobile' => (float) $mobileSales,
+                        'credit' => (float) $creditSales,
+                    ]
+                ]
             ]);
 
         } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Erreur annulation vente:', ['message' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de l\'annulation'
+                'message' => 'Erreur lors du calcul des statistiques',
+                'error' => $e->getMessage()
             ], 500);
         }
     }

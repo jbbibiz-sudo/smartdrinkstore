@@ -191,6 +191,7 @@ import { ref } from 'vue';
 
 export default {
   name: 'Sidebar',
+  
   props: {
     currentView: { type: String, required: true },
     currentUser: { type: Object, default: null },

@@ -1,5 +1,5 @@
 // Chemin: C:\smartdrinkstore\desktop-app\src\modules\module-4-computed.js
-// Module 4: Computed Properties - VERSION ULTRA SIMPLIFIÉE
+// Module 4: Computed Properties - VERSION AVEC CONSIGNES
 
 import { computed } from 'vue';
 
@@ -49,7 +49,7 @@ export const initComputedProperties = (state) => {
   });
 
   // ====================================
-  // PANIER (POS)
+  // PANIER (POS) - AVEC CONSIGNES
   // ====================================
   
   const cartTotal = computed(() => {
@@ -58,10 +58,29 @@ export const initComputedProperties = (state) => {
     );
   });
 
+  const cartSubtotal = computed(() => {
+    return cartTotal.value;
+  });
+
+  const cartDiscount = computed(() => {
+    const subtotal = cartSubtotal.value;
+    return state.saleType.value === 'wholesale' ? subtotal * 0.05 : 0;
+  });
+
   const finalTotal = computed(() => {
-    const subtotal = cartTotal.value;
-    const discount = state.saleType.value === 'wholesale' ? subtotal * 0.05 : 0;
-    return subtotal - discount;
+    return cartSubtotal.value - cartDiscount.value;
+  });
+
+  // ✅ NOUVEAU: Total avec consignes
+  const grandTotal = computed(() => {
+    const salesTotal = finalTotal.value;
+    const depositsTotal = state.totalDepositsAmount.value || 0;
+    return salesTotal + depositsTotal;
+  });
+
+  // ✅ NOUVEAU: Nombre de consignes dans le panier
+  const cartDepositsCount = computed(() => {
+    return state.cartDeposits.value.reduce((sum, d) => sum + d.quantity, 0);
   });
 
   // ====================================
@@ -126,7 +145,7 @@ export const initComputedProperties = (state) => {
   });
 
   // ====================================
-  // ✅ VENTES - PAGINATION ULTRA SIMPLE
+  // VENTES - PAGINATION
   // ====================================
   
   const filteredSales = computed(() => {
@@ -143,7 +162,6 @@ export const initComputedProperties = (state) => {
     );
   });
 
-  // ✅ PAGINATION SIMPLIFIÉE
   const paginatedSales = computed(() => {
     const page = state.salesCurrentPage.value;
     const perPage = state.salesPerPage.value;
@@ -182,24 +200,75 @@ export const initComputedProperties = (state) => {
   });
 
   // ====================================
+  // ✅ NOUVEAU: CONSIGNES
+  // ====================================
+  
+  const filteredDepositTypes = computed(() => {
+    if (!state.depositTypes.value) return [];
+    return state.depositTypes.value;
+  });
+
+  const activeDepositTypes = computed(() => {
+    return filteredDepositTypes.value.filter(dt => dt.quantity_in_stock > 0);
+  });
+
+  const filteredDeposits = computed(() => {
+    if (!state.deposits.value) return [];
+    return state.deposits.value;
+  });
+
+  const pendingDeposits = computed(() => {
+    return filteredDeposits.value.filter(d => d.status === 'pending');
+  });
+
+  const returnedDeposits = computed(() => {
+    return filteredDeposits.value.filter(d => d.status === 'returned');
+  });
+
+  const totalDepositValue = computed(() => {
+    return pendingDeposits.value.reduce((sum, d) => 
+      sum + (d.quantity * d.deposit_amount), 0
+    );
+  });
+
+  // ====================================
   // RETURN
   // ====================================
   
   return {
+    // Produits
     filteredProducts,
     filteredPosProducts,
     consignedProducts,
     totalEmptyContainers,
+    
+    // Panier
     cartTotal,
+    cartSubtotal,
+    cartDiscount,
     finalTotal,
+    grandTotal, // ✅ NOUVEAU: Total avec consignes
+    cartDepositsCount, // ✅ NOUVEAU
+    
+    // Clients & Fournisseurs
     filteredCustomers,
     filteredSuppliers,
+    
+    // Mouvements & Ventes
     filteredMovements,
     filteredSales,
     displaySalesStats,
     paginatedSales,
     totalSalesPages,
     hasPreviousPage,
-    hasNextPage
+    hasNextPage,
+    
+    // ✅ NOUVEAU: Consignes
+    filteredDepositTypes,
+    activeDepositTypes,
+    filteredDeposits,
+    pendingDeposits,
+    returnedDeposits,
+    totalDepositValue
   };
 };
