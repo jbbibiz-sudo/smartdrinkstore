@@ -1,390 +1,507 @@
 // Chemin: C:\smartdrinkstore\desktop-app\src\modules\module-13-deposits.js
-// Module 13: Gestion des consignes (emballages consignés)
-
-import { api } from './module-1-config.js';
 
 /**
- * Initialise la gestion des consignes
- * @param {Object} state - État global de l'application
- * @param {Object} loaders - Loaders de données
+ * ============================================================================
+ * MODULE 13: GESTION DES CONSIGNES (DEPOSITS - EMBALLAGES CONSIGNES)
+ * ============================================================================
  */
-const initDepositManagement = (state, loaders) => {
-  
-  // ====================================
-  // TYPES D'EMBALLAGES CONSIGNABLES
-  // ====================================
+
+import { ref, computed } from 'vue';
+
+export function initDepositManagement(state, loaders) {
+  // ========================================
+  // 1. ÉTAT DES MODALS
+  // ========================================
+  const showDepositTypeModal = ref(false);
+  const showDepositModal = ref(false);
+  const showDepositReturnModal = ref(false);
+  const depositType= ref('outgoing'); // 'outgoing' | 'incoming'
+
+  // ========================================
+  // 2. FORMULAIRES
+  // ========================================
+  const depositTypeForm = ref({
+    code: '',
+    name: '',
+    description: '',
+    category: '',
+    amount: 0,
+    initial_stock: 0,
+    current_stock: 0,
+    is_active: true,
+  });
+
+  const depositForm = ref({
+    deposit_type_id: '',
+    partner_id: '',
+    quantity: 1,
+    expected_return_at: null,
+    notes: '',
+  });
+
+  const depositReturnForm = ref({
+    quantity: 0,
+    good_condition: 0,
+    damaged: 0,
+    lost: 0,
+    damage_penalty: 0,
+    late_penalty: 0,
+    notes: '',
+  });
+
+  // ========================================
+  // 3. DONNÉES
+  // ========================================
+  const depositTypes = ref([]);
+  const deposits = ref([]);
+  const depositReturns = ref([]);
+  const editingDepositType = ref(null);
+  const selectedDeposit = ref(null);
+  const processingReturn = ref(false);
+
+  // ========================================
+  // 4. FILTRES
+  // ========================================
+  const depositFilters = ref({
+    type: 'all', // 'all' | 'outgoing' | 'incoming'
+    status: 'all',    // 'all' | 'active' | 'partial' | 'returned'
+    search: '',
+  });
+
+  // ========================================
+  // 5. COMPUTED PROPERTIES
+  // ========================================
 
   /**
-   * Charge tous les types d'emballages
+   * Types d'emballages filtrés
+   */
+  const filteredDepositTypes = computed(() => {
+    let result = depositTypes.value;
+
+    if (depositFilters.value.search) {
+      const query = depositFilters.value.search.toLowerCase();
+      result = result.filter(type =>
+        type.name?.toLowerCase().includes(query) ||
+        type.code?.toLowerCase().includes(query) ||
+        type.category?.toLowerCase().includes(query)
+      );
+    }
+
+    return result;
+  });
+
+  /**
+   * Types d'emballages actifs uniquement
+   */
+  const activeDepositTypes = computed(() => {
+    return depositTypes.value.filter(type => type.is_active);
+  });
+
+  /**
+   * Consignes filtrées
+   */
+  const filteredDeposits = computed(() => {
+    let result = deposits.value;
+
+    // Filtre par direction
+    if (depositFilters.value.direction !== 'all') {
+      result = result.filter(d => d.type=== depositFilters.value.direction);
+    }
+
+    // Filtre par statut
+    if (depositFilters.value.status !== 'all') {
+      result = result.filter(d => d.status === depositFilters.value.status);
+    }
+
+    // Recherche
+    if (depositFilters.value.search) {
+      const query = depositFilters.value.search.toLowerCase();
+      result = result.filter(d =>
+        d.reference?.toLowerCase().includes(query) ||
+        d.customer?.name?.toLowerCase().includes(query) ||
+        d.supplier?.name?.toLowerCase().includes(query) ||
+        d.deposit_type?.name?.toLowerCase().includes(query)
+      );
+    }
+
+    return result;
+  });
+
+  /**
+   * Consignes en attente
+   */
+  const pendingDeposits = computed(() => {
+    return deposits.value.filter(d => d.quantity_pending > 0);
+  });
+
+  /**
+   * Consignes retournées
+   */
+  const returnedDeposits = computed(() => {
+    return deposits.value.filter(d => d.status === 'returned');
+  });
+
+  /**
+   * Valeur totale des consignes en circulation
+   */
+  const totalDepositValue = computed(() => {
+    return deposits.value
+      .filter(d => d.quantity_pending > 0)
+      .reduce((sum, d) => sum + (d.quantity_pending * d.unit_deposit_amount), 0);
+  });
+
+  // ========================================
+  // 6. STATISTIQUES
+  // ========================================
+  const depositStats = computed(() => {
+    const active = deposits.value.filter(d => d.status === 'active').length;
+    const partial = deposits.value.filter(d => d.status === 'partial').length;
+    const returned = deposits.value.filter(d => d.status === 'returned').length;
+
+    const totalUnitsOut = deposits.value
+      .filter(d => d.type=== 'outgoing')
+      .reduce((sum, d) => sum + d.quantity_pending, 0);
+
+    const totalValue = totalDepositValue.value;
+
+    const totalPenalties = depositReturns.value
+      .reduce((sum, r) => sum + (r.damage_penalty || 0) + (r.late_penalty || 0), 0);
+
+    return {
+      active,
+      partial,
+      returned,
+      totalUnitsOut,
+      totalValue,
+      totalPenalties,
+    };
+  });
+
+  // ========================================
+  // 7. CHARGEMENT DES DONNÉES
+  // ========================================
+
+  /**
+   * Charger les types d'emballages
    */
   const loadDepositTypes = async () => {
     try {
-      console.log('🔄 Chargement des types d\'emballages...');
-      const response = await api.get('/deposit-types');
-      
-      if (response.success) {
-        state.depositTypes.value = response.data || [];
-        console.log(`✅ ${state.depositTypes.value.length} types chargés`);
+      const apiBase = window.electron 
+        ? await window.electron.getApiBase() 
+        : 'http://localhost:8000';
+
+      console.log('📦 Chargement des types d\'emballages...');
+
+      const response = await fetch(`${apiBase}/api/v1/deposit-types`, {
+        method: 'GET',
+        headers: window.authHeaders || {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}`);
       }
+
+      const data = await response.json();
+      depositTypes.value = data.data || data;
+
+      console.log(`✅ ${depositTypes.value.length} types chargés`);
     } catch (error) {
       console.error('❌ Erreur chargement types:', error);
-      state.depositTypes.value = [];
+      depositTypes.value = [];
     }
   };
 
   /**
-   * Crée un nouveau type d'emballage
-   */
-  const createDepositType = async (formData) => {
-    try {
-      console.log('➕ Création type d\'emballage:', formData);
-      const response = await api.post('/deposit-types', formData);
-      
-      if (response.success) {
-        console.log('✅ Type créé:', response.data);
-        await loadDepositTypes();
-        return { success: true, data: response.data };
-      }
-    } catch (error) {
-      console.error('❌ Erreur création type:', error);
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erreur lors de la création' 
-      };
-    }
-  };
-
-  /**
-   * Met à jour un type d'emballage
-   */
-  const updateDepositType = async (id, formData) => {
-    try {
-      console.log('✏️ Mise à jour type:', id, formData);
-      const response = await api.put(`/deposit-types/${id}`, formData);
-      
-      if (response.success) {
-        console.log('✅ Type mis à jour');
-        await loadDepositTypes();
-        return { success: true, data: response.data };
-      }
-    } catch (error) {
-      console.error('❌ Erreur mise à jour type:', error);
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erreur lors de la mise à jour' 
-      };
-    }
-  };
-
-  /**
-   * Supprime un type d'emballage
-   */
-  const deleteDepositType = async (id) => {
-    try {
-      if (!confirm('Êtes-vous sûr de vouloir supprimer ce type d\'emballage ?')) {
-        return { success: false, cancelled: true };
-      }
-
-      console.log('🗑️ Suppression type:', id);
-      const response = await api.delete(`/deposit-types/${id}`);
-      
-      if (response.success) {
-        console.log('✅ Type supprimé');
-        await loadDepositTypes();
-        return { success: true };
-      }
-    } catch (error) {
-      console.error('❌ Erreur suppression type:', error);
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erreur lors de la suppression' 
-      };
-    }
-  };
-
-  // ====================================
-  // CONSIGNES (TRANSACTIONS)
-  // ====================================
-
-  /**
-   * Charge toutes les consignes
+   * Charger les consignes
    */
   const loadDeposits = async () => {
     try {
-      console.log('🔄 Chargement des consignes...');
-      const response = await api.get('/deposits');
-      
-      if (response.success) {
-        state.deposits.value = response.data || [];
-        console.log(`✅ ${state.deposits.value.length} consignes chargées`);
+      const apiBase = window.electron 
+        ? await window.electron.getApiBase() 
+        : 'http://localhost:8000';
+
+      console.log('📋 Chargement des consignes...');
+
+      const response = await fetch(`${apiBase}/api/v1/deposits`, {
+        method: 'GET',
+        headers: window.authHeaders || {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}`);
       }
+
+      const data = await response.json();
+      deposits.value = data.data || data;
+
+      console.log(`✅ ${deposits.value.length} consignes chargées`);
     } catch (error) {
       console.error('❌ Erreur chargement consignes:', error);
-      state.deposits.value = [];
+      deposits.value = [];
     }
   };
 
   /**
-   * Crée une nouvelle consigne
-   * @param {Object} data - Données de la consigne
-   * @param {string} data.direction - 'outgoing' (vers client) ou 'incoming' (du fournisseur)
-   */
-  const createDeposit = async (data) => {
-    try {
-      console.log('➕ Création consigne:', data);
-      
-      const endpoint = data.direction === 'outgoing' 
-        ? '/deposits/outgoing' 
-        : '/deposits/incoming';
-      
-      const response = await api.post(endpoint, data);
-      
-      if (response.success) {
-        console.log('✅ Consigne créée:', response.data);
-        await loadDeposits();
-        await loadDepositTypes(); // Mettre à jour les stocks
-        return { success: true, data: response.data };
-      }
-    } catch (error) {
-      console.error('❌ Erreur création consigne:', error);
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erreur lors de la création' 
-      };
-    }
-  };
-
-  /**
-   * Traite un retour d'emballages
-   */
-  const processDepositReturn = async (depositId, returnData) => {
-    try {
-      console.log('🔄 Traitement retour:', depositId, returnData);
-      const response = await api.post(`/deposits/${depositId}/return`, returnData);
-      
-      if (response.success) {
-        console.log('✅ Retour traité:', response.data);
-        await loadDeposits();
-        await loadDepositTypes(); // Mettre à jour les stocks
-        await loadDepositReturns();
-        return { success: true, data: response.data };
-      }
-    } catch (error) {
-      console.error('❌ Erreur traitement retour:', error);
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erreur lors du traitement du retour' 
-      };
-    }
-  };
-
-  // ====================================
-  // HISTORIQUE DES RETOURS
-  // ====================================
-
-  /**
-   * Charge l'historique des retours
+   * Charger les retours
    */
   const loadDepositReturns = async () => {
     try {
-      console.log('🔄 Chargement historique retours...');
-      const response = await api.get('/deposit-returns');
-      
-      if (response.success) {
-        state.depositReturns.value = response.data || [];
-        console.log(`✅ ${state.depositReturns.value.length} retours chargés`);
+      const apiBase = window.electron 
+        ? await window.electron.getApiBase() 
+        : 'http://localhost:8000';
+
+      const response = await fetch(`${apiBase}/api/v1/deposit-returns`, {
+        method: 'GET',
+        headers: window.authHeaders || {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}`);
       }
+
+      const data = await response.json();
+      depositReturns.value = data.data || data;
+
+      console.log(`✅ ${depositReturns.value.length} retours chargés`);
     } catch (error) {
       console.error('❌ Erreur chargement retours:', error);
-      state.depositReturns.value = [];
+      depositReturns.value = [];
     }
   };
 
-  // ====================================
-  // GESTION DES CONSIGNES DANS LE POS
-  // ====================================
+  // ========================================
+  // 8. GESTION DES TYPES D'EMBALLAGES
+  // ========================================
 
   /**
-   * Ajoute automatiquement les consignes au panier POS
-   * @param {Object} product - Produit ajouté au panier
-   * @param {number} quantity - Quantité du produit
+   * Créer un type d'emballage
    */
-  const addDepositToCart = (product, quantity) => {
-    // Vérifier si le produit a une consigne
-    if (!product.has_deposit || !product.deposit_type_id) {
-      return;
-    }
+  const createDepositType = async (formData) => {
+    try {
+      const apiBase = window.electron 
+        ? await window.electron.getApiBase() 
+        : 'http://localhost:8000';
 
-    // Calculer la quantité d'emballages nécessaires
-    const unitsPerDeposit = product.units_per_deposit || 1;
-    const depositQuantity = Math.ceil(quantity / unitsPerDeposit);
-
-    // Trouver le type d'emballage
-    const depositType = state.depositTypes.value.find(
-      dt => dt.id === product.deposit_type_id
-    );
-
-    if (!depositType) {
-      console.warn('⚠️ Type d\'emballage introuvable:', product.deposit_type_id);
-      return;
-    }
-
-    // Vérifier le stock d'emballages
-    if (depositType.current_stock < depositQuantity) {
-      console.warn('⚠️ Stock d\'emballages insuffisant');
-      alert(`Stock d'emballages insuffisant pour ${product.name}\nDisponible: ${depositType.current_stock}\nNécessaire: ${depositQuantity}`);
-      return;
-    }
-
-    // Chercher si ce type de consigne est déjà dans le panier
-    const existingIndex = state.cartDeposits.value.findIndex(
-      d => d.deposit_type_id === product.deposit_type_id
-    );
-
-    if (existingIndex >= 0) {
-      // Mettre à jour la quantité
-      state.cartDeposits.value[existingIndex].quantity += depositQuantity;
-      state.cartDeposits.value[existingIndex].total_amount = 
-        state.cartDeposits.value[existingIndex].quantity * depositType.amount;
-    } else {
-      // Ajouter nouvelle consigne au panier
-      state.cartDeposits.value.push({
-        deposit_type_id: product.deposit_type_id,
-        deposit_type_name: depositType.name,
-        quantity: depositQuantity,
-        unit_amount: depositType.amount,
-        total_amount: depositQuantity * depositType.amount
+      const response = await fetch(`${apiBase}/api/v1/deposit-types`, {
+        method: 'POST',
+        headers: window.authHeaders || {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
       });
-    }
 
-    // Recalculer le total des consignes
-    updateTotalDepositsAmount();
-    
-    console.log('✅ Consigne ajoutée au panier:', {
-      product: product.name,
-      depositType: depositType.name,
-      quantity: depositQuantity
-    });
-  };
+      const data = await response.json();
 
-  /**
-   * Retire des consignes du panier POS
-   * @param {Object} product - Produit retiré du panier
-   * @param {number} quantity - Quantité retirée
-   */
-  const removeDepositFromCart = (product, quantity) => {
-    if (!product.has_deposit || !product.deposit_type_id) {
-      return;
-    }
-
-    const unitsPerDeposit = product.units_per_deposit || 1;
-    const depositQuantity = Math.ceil(quantity / unitsPerDeposit);
-
-    const existingIndex = state.cartDeposits.value.findIndex(
-      d => d.deposit_type_id === product.deposit_type_id
-    );
-
-    if (existingIndex >= 0) {
-      state.cartDeposits.value[existingIndex].quantity -= depositQuantity;
-
-      // Si la quantité tombe à 0 ou moins, retirer du panier
-      if (state.cartDeposits.value[existingIndex].quantity <= 0) {
-        state.cartDeposits.value.splice(existingIndex, 1);
-      } else {
-        // Mettre à jour le total
-        const depositType = state.depositTypes.value.find(
-          dt => dt.id === product.deposit_type_id
-        );
-        state.cartDeposits.value[existingIndex].total_amount = 
-          state.cartDeposits.value[existingIndex].quantity * depositType.amount;
+      if (!response.ok) {
+        throw new Error(data.message || 'Erreur lors de la création');
       }
 
-      updateTotalDepositsAmount();
-      console.log('✅ Consigne retirée du panier');
+      await loadDepositTypes();
+      return { success: true, data: data.data || data };
+    } catch (error) {
+      console.error('❌ Erreur création type:', error);
+      return { success: false, error: error.message };
     }
   };
 
   /**
-   * Met à jour le total des consignes dans le panier
+   * Mettre à jour un type d'emballage
    */
-  const updateTotalDepositsAmount = () => {
-    state.totalDepositsAmount.value = state.cartDeposits.value.reduce(
-      (sum, deposit) => sum + deposit.total_amount, 
-      0
-    );
-  };
+  const updateDepositType = async (id, formData) => {
+    try {
+      const apiBase = window.electron 
+        ? await window.electron.getApiBase() 
+        : 'http://localhost:8000';
 
-  /**
-   * Vide toutes les consignes du panier
-   */
-  const clearCartDeposits = () => {
-    state.cartDeposits.value = [];
-    state.totalDepositsAmount.value = 0;
-    console.log('✅ Consignes du panier vidées');
-  };
+      const response = await fetch(`${apiBase}/api/v1/deposit-types/${id}`, {
+        method: 'PUT',
+        headers: window.authHeaders || {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
 
-  /**
-   * Enregistre les consignes lors de la validation d'une vente
-   * @param {number} saleId - ID de la vente
-   * @param {number} customerId - ID du client
-   */
-  const recordSaleDeposits = async (saleId, customerId) => {
-    if (state.cartDeposits.value.length === 0) {
-      return { success: true };
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Erreur lors de la modification');
+      }
+
+      await loadDepositTypes();
+      return { success: true, data: data.data || data };
+    } catch (error) {
+      console.error('❌ Erreur modification type:', error);
+      return { success: false, error: error.message };
     }
+  };
 
-    console.log('💾 Enregistrement des consignes de la vente...');
+  /**
+   * Supprimer un type d'emballage
+   */
+  const deleteDepositType = async (id) => {
+    if (!confirm('Supprimer ce type d\'emballage ?')) return;
 
     try {
-      // Créer une consigne pour chaque type d'emballage
-      for (const deposit of state.cartDeposits.value) {
-        await createDeposit({
-          direction: 'outgoing',
-          deposit_type_id: deposit.deposit_type_id,
-          partner_type: 'customer',
-          partner_id: customerId,
-          quantity: deposit.quantity,
-          notes: `Vente #${saleId}`
-        });
+      const apiBase = window.electron 
+        ? await window.electron.getApiBase() 
+        : 'http://localhost:8000';
+
+      const response = await fetch(`${apiBase}/api/v1/deposit-types/${id}`, {
+        method: 'DELETE',
+        headers: window.authHeaders || {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Erreur lors de la suppression');
       }
 
-      console.log('✅ Consignes enregistrées');
+      await loadDepositTypes();
       return { success: true };
     } catch (error) {
-      console.error('❌ Erreur enregistrement consignes:', error);
-      return { 
-        success: false, 
-        message: 'Erreur lors de l\'enregistrement des consignes' 
-      };
+      console.error('❌ Erreur suppression type:', error);
+      alert(error.message);
+      return { success: false, error: error.message };
     }
   };
 
-  // ====================================
-  // RETURN: FONCTIONS EXPORTÉES
-  // ====================================
+  // ========================================
+  // 9. GESTION DES CONSIGNES
+  // ========================================
 
+  /**
+   * Créer une consigne
+   */
+  const createDeposit = async (formData) => {
+    try {
+      const apiBase = window.electron 
+        ? await window.electron.getApiBase() 
+        : 'http://localhost:8000';
+
+      const endpoint = formData.type=== 'outgoing' 
+        ? 'deposits/outgoing' 
+        : 'deposits/incoming';
+
+      const response = await fetch(`${apiBase}/api/v1/${endpoint}`, {
+        method: 'POST',
+        headers: window.authHeaders || {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Erreur lors de la création');
+      }
+
+      await loadDeposits();
+      await loadDepositTypes(); // Mettre à jour les stocks
+      return { success: true, data: data.data || data };
+    } catch (error) {
+      console.error('❌ Erreur création consigne:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  /**
+   * Traiter un retour d'emballages
+   */
+  const processDepositReturn = async (depositId, returnData) => {
+    try {
+      processingReturn.value = true;
+
+      const apiBase = window.electron 
+        ? await window.electron.getApiBase() 
+        : 'http://localhost:8000';
+
+      const response = await fetch(`${apiBase}/api/v1/deposits/${depositId}/return`, {
+        method: 'POST',
+        headers: window.authHeaders || {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(returnData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Erreur lors du traitement');
+      }
+
+      await loadDeposits();
+      await loadDepositReturns();
+      await loadDepositTypes(); // Mettre à jour les stocks
+
+      return { success: true, data: data.data || data };
+    } catch (error) {
+      console.error('❌ Erreur retour:', error);
+      return { success: false, error: error.message };
+    } finally {
+      processingReturn.value = false;
+    }
+  };
+
+  // ========================================
+  // 10. EXPORT
+  // ========================================
   return {
-    // Types d'emballages
+    // États
+    showDepositTypeModal,
+    showDepositModal,
+    showDepositReturnModal,
+    depositType,
+
+    // Formulaires
+    depositTypeForm,
+    depositForm,
+    depositReturnForm,
+    editingDepositType,
+    selectedDeposit,
+    processingReturn,
+
+    // Données
+    depositTypes,
+    deposits,
+    depositReturns,
+
+    // Filtres
+    depositFilters,
+
+    // Computed
+    filteredDepositTypes,
+    activeDepositTypes,
+    filteredDeposits,
+    pendingDeposits,
+    returnedDeposits,
+    totalDepositValue,
+    depositStats,
+
+    // Fonctions
     loadDepositTypes,
+    loadDeposits,
+    loadDepositReturns,
     createDepositType,
     updateDepositType,
     deleteDepositType,
-    
-    // Consignes (transactions)
-    loadDeposits,
     createDeposit,
     processDepositReturn,
-    
-    // Historique des retours
-    loadDepositReturns,
-    
-    // Gestion POS
-    addDepositToCart,
-    removeDepositFromCart,
-    updateTotalDepositsAmount,
-    clearCartDeposits,
-    recordSaleDeposits
   };
-};
-
-export { initDepositManagement };
+}

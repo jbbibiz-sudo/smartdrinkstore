@@ -1,0 +1,127 @@
+/* ================================================
+   STYLES D'IMPRESSION GLOBAUX
+   Fichier: src/assets/styles/print.css
+   ================================================ */
+
+@media print {
+  /* Réinitialiser tous les éléments */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  
+  /* Masquer TOUT par défaut */
+  body * {
+    visibility: hidden !important;
+  }
+  
+  /* Afficher uniquement les éléments avec la classe .printable */
+  .printable,
+  .printable * {
+    visibility: visible !important;
+  }
+  
+  /* Masquer les éléments de navigation */
+  nav,
+  .sidebar,
+  .header,
+  .footer,
+  .no-print,
+  button:not(.print-button),
+  .modal-overlay:not(.printing),
+  .toolbar,
+  .navigation,
+  [class*="sidebar"],
+  [class*="header"],
+  [class*="footer"],
+  [class*="nav"] {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  
+  /* Configuration de la page */
+  @page {
+    margin: 1.5cm;
+    size: A4 portrait;
+  }
+  
+  /* Éviter les sauts de page */
+  h1, h2, h3, h4, h5, h6,
+  .print-section,
+  .no-page-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  /* Optimisation des sauts de page */
+  .page-break-before {
+    page-break-before: always !important;
+    break-before: always !important;
+  }
+  
+  .page-break-after {
+    page-break-after: always !important;
+    break-after: always !important;
+  }
+  
+  /* Supprimer les ombres et effets */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  
+  /* Optimiser les images */
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid !important;
+  }
+  
+  /* Liens */
+  a[href]:after {
+    content: none !important;
+  }
+  
+  /* Fond blanc partout */
+  body {
+    background: white !important;
+  }
+}
+
+/* ================================================
+   CLASSES UTILITAIRES D'IMPRESSION
+   ================================================ */
+
+/* Masquer à l'impression */
+.no-print {
+  /* Masqué uniquement à l'impression via @media print */
+}
+
+/* Afficher uniquement à l'impression */
+.print-only {
+  display: none;
+}
+
+@media print {
+  .print-only {
+    display: block !important;
+  }
+}
+
+/* Document imprimable */
+.printable {
+  /* Visible à l'impression via @media print */
+}
+
+@media print {
+  .printable {
+    position: static !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}

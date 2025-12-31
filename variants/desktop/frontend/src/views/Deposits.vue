@@ -5,7 +5,7 @@
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-3xl font-bold text-gray-800">Gestion des Consignes</h1>
-          <p class="text-gray-600 mt-1">Gérez vos emballages consignés de manière bidirectionnelle</p>
+          <p class="text-gray-600 mt-1">Gérez vos emballages consignés de manière biTypenelle</p>
         </div>
         <div class="flex items-center space-x-3">
           <button 
@@ -111,7 +111,7 @@
           <DepositsListTable
             :deposits="customerDeposits"
             :loading="loading"
-            direction="outgoing"
+            type="outgoing"
             @process-return="openReturnModal"
             @refresh="loadDeposits"
           />
@@ -122,7 +122,7 @@
           <DepositsListTable
             :deposits="supplierDeposits"
             :loading="loading"
-            direction="incoming"
+            type="incoming"
             @process-return="openReturnModal"
             @refresh="loadDeposits"
           />
@@ -201,7 +201,7 @@
     <!-- Modals -->
     <CreateDepositModal
       v-if="showCreateModal"
-      :direction="createModalDirection"
+      :type="createModalType"
       :deposit-types="depositTypes"
       :partners="currentPartners"
       @close="showCreateModal = false"
@@ -260,7 +260,7 @@ export default {
 
     // Modals
     const showCreateModal = ref(false);
-    const createModalDirection = ref('outgoing');
+    const createModalType = ref('outgoing');
     const showReturnModal = ref(false);
     const selectedDeposit = ref(null);
     const showDepositTypeModal = ref(false);
@@ -275,15 +275,15 @@ export default {
 
     // Computed
     const customerDeposits = computed(() => {
-      return deposits.value.filter(d => d.direction === 'outgoing');
+      return deposits.value.filter(d => d.type=== 'outgoing');
     });
 
     const supplierDeposits = computed(() => {
-      return deposits.value.filter(d => d.direction === 'incoming');
+      return deposits.value.filter(d => d.type=== 'incoming');
     });
 
     const currentPartners = computed(() => {
-      return createModalDirection.value === 'outgoing' ? customers.value : suppliers.value;
+      return createModalType.value === 'outgoing' ? customers.value : suppliers.value;
     });
 
     // Methods
@@ -308,6 +308,10 @@ export default {
           }
         });
         
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
         const data = await response.json();
         deposits.value = data.data || [];
       } catch (error) {
@@ -330,6 +334,10 @@ export default {
           }
         });
         
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
         const data = await response.json();
         depositTypes.value = data.data || [];
       } catch (error) {
@@ -350,11 +358,17 @@ export default {
 
         // Charger les clients
         const customersResponse = await fetch(`${apiBase}/api/v1/customers`, { headers });
+        if (!customersResponse.ok) {
+          throw new Error(`HTTP ${customersResponse.status}`);
+        }
         const customersData = await customersResponse.json();
         customers.value = customersData.data || customersData;
 
         // Charger les fournisseurs
         const suppliersResponse = await fetch(`${apiBase}/api/v1/suppliers`, { headers });
+        if (!suppliersResponse.ok) {
+          throw new Error(`HTTP ${suppliersResponse.status}`);
+        }
         const suppliersData = await suppliersResponse.json();
         suppliers.value = suppliersData.data || suppliersData;
       } catch (error) {
@@ -364,21 +378,38 @@ export default {
 
     const loadStatistics = async () => {
       try {
-        const apiBase = window.electron 
-          ? await window.electron.getApiBase() 
+        const apiBase = window.electron
+          ? await window.electron.getApiBase()
           : 'http://localhost:8000';
-
-        const response = await fetch(`${apiBase}/api/v1/deposits/statistics`, {
+        
+        const response = await fetch(`${apiBase}/api/v1/deposits/stats/summary`, {
           headers: window.authHeaders || {
             'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
             'Content-Type': 'application/json',
           }
         });
-        
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
         const data = await response.json();
-        statistics.value = data.data || statistics.value;
+        
+        // Adaptez selon votre structure (data.data ou data directement)
+        statistics.value = data.data || data;
+        
+        console.log('✅ Statistiques consignes chargées:', statistics.value);
+        
       } catch (error) {
-        console.error('Erreur lors du chargement des statistiques:', error);
+        console.warn('⚠️ Statistiques indisponibles:', error.message);
+        
+        // Valeurs par défaut
+        statistics.value = {
+          active_deposits: 0,
+          total_units_out: 0,
+          total_deposits_amount: 0,
+          total_penalties: 0
+        };
       }
     };
 
@@ -396,6 +427,10 @@ export default {
           }
         });
         
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
         const data = await response.json();
         returnsHistory.value = data.data || [];
       } catch (error) {
@@ -405,8 +440,8 @@ export default {
       }
     };
 
-    const openCreateModal = (direction) => {
-      createModalDirection.value = direction;
+    const openCreateModal = (Type) => {
+      createModalType.value = Type;
       showCreateModal.value = true;
     };
 
@@ -466,7 +501,7 @@ export default {
       supplierDeposits,
       currentPartners,
       showCreateModal,
-      createModalDirection,
+      createModalType,
       showReturnModal,
       selectedDeposit,
       showDepositTypeModal,

@@ -111,7 +111,7 @@
           <DepositsTable
             :deposits="customerDeposits"
             :loading="loading"
-            direction="outgoing"
+            type="outgoing"
             @process-return="openReturnModal"
             @refresh="loadDeposits"
           />
@@ -122,7 +122,7 @@
           <DepositsTable
             :deposits="supplierDeposits"
             :loading="loading"
-            direction="incoming"
+            type="incoming"
             @process-return="openReturnModal"
             @refresh="loadDeposits"
           />
@@ -201,7 +201,7 @@
     <!-- Modals -->
     <CreateDepositModal
       :is-open="showCreateModal"
-      :direction="createModalDirection"
+      :type="createModalDirection"
       :deposit-types="depositTypes"
       :partners="currentPartners"
       @close="showCreateModal = false"
@@ -262,7 +262,7 @@ export default {
 
     // Modals
     const showCreateModal = ref(false);
-    const createModalDirection = ref('outgoing');
+    const createModaltype= ref('outgoing');
     const showReturnModal = ref(false);
     const selectedDeposit = ref(null);
     const showDepositTypeModal = ref(false);
@@ -277,11 +277,11 @@ export default {
 
     // Computed
     const customerDeposits = computed(() => {
-      return deposits.value.filter(d => d.direction === 'outgoing');
+      return deposits.value.filter(d => d.type=== 'outgoing');
     });
 
     const supplierDeposits = computed(() => {
-      return deposits.value.filter(d => d.direction === 'incoming');
+      return deposits.value.filter(d => d.type=== 'incoming');
     });
 
     const currentPartners = computed(() => {

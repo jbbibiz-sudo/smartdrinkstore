@@ -239,7 +239,7 @@ const initDataLoaders = (state) => {
       state.salesStats.value = { total: 0, count: 0, average: 0 };
       
       // ✅ AJOUT: Afficher l'erreur de connexion si l'API ne répond pas
-      if (error.message && error.message.includes('500')) {
+      if (error.status === 500) {
         state.connectionError.value = true;
       }
     } finally {
@@ -288,10 +288,14 @@ const initDataLoaders = (state) => {
     } catch (err) {
       console.error('❌ Erreur chargement types d\'emballages:', err);
       state.depositTypes.value = [];
+      if (err.status === 500) {
+        state.connectionError.value = true;
+      }
     }
   };
 
   /** Charge toutes les consignes (transactions) */
+  /** Charge toutes les consignes (transactions) ET leurs statistiques */
   const loadDeposits = async () => {
     try {
       console.log('🔄 Chargement des consignes...');
@@ -301,9 +305,46 @@ const initDataLoaders = (state) => {
         state.deposits.value = response.data || [];
         console.log(`✅ ${state.deposits.value.length} consignes chargées`);
       }
+
+      // Charger les statistiques (non bloquant)
+      try {
+        console.log('🔄 Chargement des statistiques consignes...');
+        const statsResponse = await safeApiGet('/deposits/stats/summary');
+        
+        if (statsResponse.success && statsResponse.data) {
+          state.depositStats = statsResponse.data;
+          console.log('✅ Statistiques consignes chargées:', statsResponse.data);
+        } else {
+          console.warn('⚠️ Stats indisponibles, valeurs par défaut');
+          state.depositStats = {
+            active_deposits: 0,
+            total_units_out: 0,
+            total_deposits_amount: 0,
+            total_penalties: 0
+          };
+        }
+      } catch (statsError) {
+        console.warn('⚠️ Erreur stats consignes (non bloquant):', statsError.message);
+        state.depositStats = {
+          active_deposits: 0,
+          total_units_out: 0,
+          total_deposits_amount: 0,
+          total_penalties: 0
+        };
+      }
+
     } catch (err) {
       console.error('❌ Erreur chargement consignes:', err);
       state.deposits.value = [];
+      state.depositStats = {
+        active_deposits: 0,
+        total_units_out: 0,
+        total_deposits_amount: 0,
+        total_penalties: 0
+      };
+      if (err.status === 500) {
+        state.connectionError.value = true;
+      }
     }
   };
 
@@ -320,6 +361,9 @@ const initDataLoaders = (state) => {
     } catch (err) {
       console.error('❌ Erreur chargement retours:', err);
       state.depositReturns.value = [];
+      if (err.status === 500) {
+        state.connectionError.value = true;
+      }
     }
   };
 

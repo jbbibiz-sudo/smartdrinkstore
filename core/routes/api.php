@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\ProductSupplierController;
 use App\Http\Controllers\Api\CreditPaymentController;
 use App\Http\Controllers\Api\DepositController;
+use App\Http\Controllers\Api\DepositTypeController;
 
 
 
@@ -229,71 +230,63 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
         Route::get('/statistics', [CreditPaymentController::class, 'statistics']);
     });
 
+    /// ========================================
+    // TYPES D'EMBALLAGES
     // ========================================
-    // TYPES D'EMBALLAGES CONSIGNABLES
-    // ========================================
-    
-    Route::prefix('deposit-types')->group(function () {
-        // Liste des types
-        Route::get('/', [DepositController::class, 'depositTypes']);
-        
-        // Créer un type
-        Route::post('/', [DepositController::class, 'storeDepositType']);
-        
-        // Détails d'un type
-        Route::get('/{id}', [DepositController::class, 'showDepositType']);
-        
-        // Mettre à jour un type
-        Route::put('/{id}', [DepositController::class, 'updateDepositType']);
-        
-        // Supprimer un type
-        Route::delete('/{id}', [DepositController::class, 'destroyDepositType']);
-    });
+    Route::apiResource('deposit-types', DepositTypeController::class);
 
     // ========================================
     // CONSIGNES (TRANSACTIONS)
     // ========================================
     
-    Route::prefix('deposits')->group(function () {
-        // Liste avec filtres
-        Route::get('/', [DepositController::class, 'index']);
-        
-        // Statistiques
-        Route::get('/statistics', [DepositController::class, 'statistics']);
-        
-        // Consignes en attente
-        Route::get('/pending', [DepositController::class, 'pending']);
-        
-        // Créer consigne sortante (vers client)
-        Route::post('/outgoing', [DepositController::class, 'storeOutgoing']);
-        
-        // Créer consigne entrante (du fournisseur)
-        Route::post('/incoming', [DepositController::class, 'storeIncoming']);
-        
-        // Détails d'une consigne
-        Route::get('/{id}', [DepositController::class, 'show']);
-        
-        // Traiter un retour
-        Route::post('/{id}/return', [DepositController::class, 'processReturn']);
-        
-        // Historique des retours d'une consigne
-        Route::get('/{id}/returns', [DepositController::class, 'returnHistory']);
-        
-        // Annuler une consigne (si aucun retour)
-        Route::delete('/{id}', [DepositController::class, 'destroy']);
-    });
+    // Liste toutes les consignes
+    Route::get('deposits', [DepositController::class, 'index'])
+        ->name('deposits.index');
+
+    // ========================================
+    // STATISTIQUES
+    // ========================================
+    Route::get('/deposits/stats/summary', [DepositController::class, 'statistics']);
+    
+    // Afficher une consigne
+    Route::get('deposits/{id}', [DepositController::class, 'show'])
+        ->name('deposits.show');
+    
+    // Créer consigne sortante (vers client)
+    Route::post('deposits/outgoing', [DepositController::class, 'storeOutgoing'])
+        ->name('deposits.store-outgoing');
+    
+    // Créer consigne entrante (du fournisseur)
+    Route::post('deposits/incoming', [DepositController::class, 'storeIncoming'])
+        ->name('deposits.store-incoming');
+    
+    // Traiter un retour d'emballages
+    Route::post('deposits/{id}/return', [DepositController::class, 'processReturn'])
+        ->name('deposits.return');
+    
+    // Supprimer une consigne
+    Route::delete('deposits/{id}', [DepositController::class, 'destroy'])
+        ->name('deposits.destroy');
+    
+    // Consignes en attente
+    Route::get('deposits/pending/list', [DepositController::class, 'pending'])
+        ->name('deposits.pending');
 
     // ========================================
     // RETOURS D'EMBALLAGES
     // ========================================
     
-    Route::prefix('deposit-returns')->group(function () {
-        // Liste des retours
-        Route::get('/', [DepositController::class, 'returns']);
-        
-        // Détails d'un retour
-        Route::get('/{id}', [DepositController::class, 'showReturn']);
-    });   
+    // Liste tous les retours
+    Route::get('deposit-returns', [DepositController::class, 'returns'])
+        ->name('deposit-returns.index');
+    
+    // Afficher un retour
+    Route::get('deposit-returns/{id}', [DepositController::class, 'showReturn'])
+        ->name('deposit-returns.show');
+    
+    // Historique des retours d'une consigne
+    Route::get('deposits/{id}/returns', [DepositController::class, 'returnHistory'])
+        ->name('deposits.return-history');    
 });
 
 // ========================================

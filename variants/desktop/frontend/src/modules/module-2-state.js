@@ -1,76 +1,24 @@
 // Chemin: C:\smartdrinkstore\desktop-app\src\modules\module-2-state.js
-// Module 2: État global de l'application - AVEC CONSIGNES
-// ✅ Ajout de la gestion des consignes pour le POS
+// Module 2: État global de l'application - VERSION COMPLÈTE AVEC CONSIGNES
 
-import { ref } from 'vue';
+import { ref, reactive } from 'vue';
 
 // ====================================
-// ÉTAT GLOBAL
+// NAVIGATION & UI
 // ====================================
-
-// Chargement
+export const currentView = ref('dashboard');
 export const loading = ref(false);
 export const connectionError = ref(false);
 
-// Données principales
+// ====================================
+// PRODUITS
+// ====================================
 export const products = ref([]);
 export const categories = ref([]);
 export const subcategories = ref([]);
-export const customers = ref([]);
-export const suppliers = ref([]);
-export const movements = ref([]);
-export const sales = ref([]);
-
-// ✅ NOUVEAU: Données consignes
-export const depositTypes = ref([]);
-export const deposits = ref([]);
-export const depositReturns = ref([]);
-
-// Vue courante
-export const currentView = ref('dashboard');
-
-// Recherche et filtres
 export const searchQuery = ref('');
-export const customerSearchQuery = ref('');
-export const supplierSearchQuery = ref('');
-export const salesSearch = ref('');
 
-// ✅ PAGINATION DES VENTES
-export const salesCurrentPage = ref(1);
-export const salesPerPage = ref(3);
-
-export const movementFilters = ref({
-  type: '',
-  reason: '',
-  date: '',
-  product_id: '',
-  date_from: '',
-  date_to: ''
-});
-
-export const salesFilters = ref({
-  period: 'all',
-  date_from: '',
-  date_to: ''
-});
-
-// Modals
-export const showProductModal = ref(false);
-export const showCategoryModal = ref(false);
-export const showViewModal = ref(false);
-export const showRestockModal = ref(false);
-export const showStockOutModal = ref(false);
-export const showCheckoutModal = ref(false);
-export const showCustomerModal = ref(false);
-export const showSupplierModal = ref(false);
-export const showInvoiceModal = ref(false);
-
-// ✅ NOUVEAU: Modals consignes
-export const showDepositTypeModal = ref(false);
-export const showDepositModal = ref(false);
-export const showDepositReturnModal = ref(false);
-
-// Formulaires produits
+// Formulaire produit
 export const productForm = ref({
   name: '',
   sku: '',
@@ -80,7 +28,7 @@ export const productForm = ref({
   unit_price: 0,
   min_stock: 0,
   stock: 0,
-  // ✅ NOUVEAU: Champs consignes
+  // ✅ AJOUT: Support des consignes dans les produits
   has_deposit: false,
   deposit_type_id: null,
   units_per_deposit: 1
@@ -90,24 +38,46 @@ export const editingProduct = ref(null);
 export const viewingProduct = ref(null);
 export const savingProduct = ref(false);
 
-// Gestion des catégories
+// Modals produits
+export const showProductModal = ref(false);
+export const showCategoryModal = ref(false);
+export const showViewModal = ref(false);
+
+// Catégories
 export const newCategoryName = ref('');
 export const editingCategoryId = ref(null);
 export const editingCategoryName = ref('');
 
-// Gestion du stock
+// ====================================
+// STOCK
+// ====================================
+export const movements = ref([]);
+export const loadingMovements = ref(false);
+export const movementFilters = ref({
+  type: '',
+  product_id: '',
+  date_from: '',
+  date_to: ''
+});
+
+export const showRestockModal = ref(false);
 export const restockProduct = ref(null);
 export const restockQuantity = ref(0);
 export const restockReason = ref('');
 
+export const showStockOutModal = ref(false);
 export const stockOutProduct = ref(null);
 export const stockOutQuantity = ref(0);
 export const stockOutReason = ref('');
 export const stockOutReasonType = ref('damage');
 
-export const loadingMovements = ref(false);
-
-// Clients et fournisseurs
+// ====================================
+// CLIENTS & FOURNISSEURS
+// ====================================
+export const customers = ref([]);
+export const customerSearchQuery = ref('');
+export const showCustomerModal = ref(false);
+export const editingCustomer = ref(null);
 export const customerForm = ref({
   name: '',
   phone: '',
@@ -115,6 +85,10 @@ export const customerForm = ref({
   address: ''
 });
 
+export const suppliers = ref([]);
+export const supplierSearchQuery = ref('');
+export const showSupplierModal = ref(false);
+export const editingSupplier = ref(null);
 export const supplierForm = ref({
   name: '',
   phone: '',
@@ -122,39 +96,48 @@ export const supplierForm = ref({
   address: ''
 });
 
-export const editingCustomer = ref(null);
-export const editingSupplier = ref(null);
-
 // ====================================
-// POINT DE VENTE (POS) - AVEC CONSIGNES
+// VENTES
 // ====================================
+export const sales = ref([]);
+export const loadingSales = ref(false);
+export const salesSearch = ref('');
+export const salesFilters = ref({
+  period: 'all',
+  type: '',
+  payment_method: ''
+});
 
-export const cart = ref([]);
-export const posSearch = ref('');
-export const saleType = ref('counter');
-export const selectedCustomerId = ref('');
-export const paymentMethod = ref('cash');
-
-// ✅ NOUVEAU: Gestion des consignes dans le POS
-export const depositTypesInPOS = ref([]); // Types de consignes disponibles
-export const cartDeposits = ref([]);       // Consignes dans le panier actuel
-export const totalDepositsAmount = ref(0); // Total des consignes
-
-// Dernière vente
-export const lastSaleItems = ref([]);
-export const lastSaleTotal = ref(0);
-
-// Factures
+export const showInvoiceModal = ref(false);
 export const currentInvoice = ref(null);
 export const invoiceType = ref('standard');
-export const loadingSales = ref(false);
+
 export const salesStats = ref({
   total: 0,
   count: 0,
   average: 0
 });
 
-// Statistiques
+// Pagination ventes
+export const salesCurrentPage = ref(1);
+export const salesPerPage = ref(10);
+
+// ====================================
+// POS (POINT DE VENTE)
+// ====================================
+export const cart = ref([]);
+export const posSearch = ref('');
+export const saleType = ref('counter');
+export const selectedCustomerId = ref('');
+export const paymentMethod = ref('cash');
+
+export const showCheckoutModal = ref(false);
+export const lastSaleItems = ref([]);
+export const lastSaleTotal = ref(0);
+
+// ====================================
+// DASHBOARD
+// ====================================
 export const stats = ref({
   totalProducts: 0,
   totalStock: 0,
@@ -169,37 +152,94 @@ export const stats = ref({
 export const alerts = ref([]);
 export const alertsCount = ref(0);
 
-// ✅ NOUVEAU: Formulaires consignes
+// Panier POS - Consignes
+export const cartDeposits = ref([]);
+export const totalDepositsAmount = ref(0);
+
+// ====================================
+// MODALS CONSIGNES
+// ====================================
+
+// Modal Type d'emballage
+export const showDepositTypeModal = ref(false);
+export const editingDepositType = ref(null);
 export const depositTypeForm = ref({
   name: '',
+  code: '',
+  category: '',
+  amount: 0,
+  initial_stock: 0,
+  current_stock: 0,
   description: '',
-  deposit_amount: 0,
-  quantity_in_stock: 0
+  is_active: true
 });
 
+// Modal Créer une consigne
+export const showDepositModal = ref(false);
+export const deposittype= ref('outgoing'); // 'outgoing' ou 'incoming'
 export const depositForm = ref({
-  deposit_type_id: null,
-  entity_type: 'customer',
-  entity_id: null,
-  quantity: 0,
+  deposit_type_id: '',
+  partner_id: '',
+  quantity: 1,
+  expected_return_at: null,
   notes: ''
 });
 
+// Modal Retour d'emballages
+export const showDepositReturnModal = ref(false);
+export const selectedDeposit = ref(null);
+export const processingReturn = ref(false);
 export const depositReturnForm = ref({
-  deposit_id: null,
-  quantity_returned: 0,
-  condition: 'good',
-  penalty_amount: 0,
+  quantity: 1,
+  good_condition: 0,
+  damaged: 0,
+  lost: 0,
+  damage_penalty: 0,
+  late_penalty: 0,
   notes: ''
 });
 
-export const editingDepositType = ref(null);
-export const editingDeposit = ref(null);
-export const processingReturn = ref(null);
+// ====================================
+// FILTRES CONSIGNES
+// ====================================
+export const depositFilters = ref({
+  type: 'all', // 'all', 'outgoing', 'incoming'
+  status: 'all',    // 'all', 'active', 'partial', 'returned'
+  partner_type: 'all' // 'all', 'customer', 'supplier'
+});
 
-// Informations app
+// ====================================
+// STATISTIQUES CONSIGNES
+// ====================================
+export const depositStats = ref({
+  active_deposits: 0,
+  total_units_out: 0,
+  total_deposits_amount: 0,
+  total_penalties: 0,
+  total_refunds: 0
+});
+
+// ========================================
+// EXPORTS POUR LES CONSIGNES (À AJOUTER)
+// ========================================
+
+export const depositTypes = ref([]);
+export const deposits = ref([]);
+export const depositReturns = ref([]);
+
+// Ces états seront initialisés par le module-13-deposits.js
+// mais doivent être déclarés ici pour être accessibles partout
+
+// ====================================
+// ✅ NOUVEAU: GESTION DES CONSIGNES
+// ====================================
+
+// Types d'emballages consignables
+
+export const depositTypesInPOS = ref([]); // Types actifs disponibles au POS
+
+// Informations application
 export const appInfo = ref({
-  name: 'SmartDrinkStore',
   version: '1.0.0',
-  company: 'Entreprises KAMDEM'
+  environment: 'development'
 });

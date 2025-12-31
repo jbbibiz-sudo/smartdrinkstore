@@ -1,300 +1,147 @@
-<template>
-  <div v-if="isOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-      <!-- Header -->
-      <div class="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-        <h2 class="text-xl font-bold text-gray-800">
-          {{ direction === 'outgoing' ? '📤 Créer une Consigne Sortante' : '📥 Créer une Consigne Entrante' }}
-        </h2>
-        <button @click="close" class="text-gray-400 hover:text-gray-600">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-          </svg>
-        </button>
+﻿<template>
+  <div v-if="isOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click.self="$emit('close')">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl">
+      <div :class="['text-white p-6 rounded-t-lg', type === 'outgoing' ? 'bg-blue-600' : 'bg-green-600']">
+        <div class="flex justify-between items-center">
+          <h3 class="text-2xl font-bold">{{ type === 'outgoing' ? '📤 Consigne Sortante' : '📥 Consigne Entrante' }}</h3>
+          <button @click="$emit('close')" class="text-white hover:text-gray-200 text-2xl">×</button>
+        </div>
       </div>
-
-      <!-- Body -->
-      <div class="p-6 space-y-4">
-        <!-- Direction Info -->
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p class="text-sm text-blue-800">
-            <span v-if="direction === 'outgoing'">
-              <strong>Consigne sortante :</strong> Vous prêtez des emballages à un client contre caution.
-            </span>
-            <span v-else>
-              <strong>Consigne entrante :</strong> Vous empruntez des emballages à un fournisseur contre caution.
-            </span>
-          </p>
-        </div>
-
-        <!-- Type d'emballage -->
+      <form @submit.prevent="handleSubmit" class="p-6 space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">
-            Type d'emballage *
+            {{ type === 'outgoing' ? 'Client' : 'Fournisseur' }} <span class="text-red-500">*</span>
           </label>
-          <select 
-            v-model="form.deposit_type_id" 
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            required
-          >
-            <option value="">Sélectionner un type</option>
-            <option 
-              v-for="type in depositTypes" 
-              :key="type.id" 
-              :value="type.id"
-              :disabled="type.current_stock <= 0 && direction === 'outgoing'"
-            >
-              {{ type.name }} - {{ type.amount }} FCFA 
-              (Stock: {{ type.current_stock }})
-            </option>
+          <select v-model="form.partner_id" required class="w-full px-4 py-2 border rounded-lg">
+            <option value="">Sélectionner...</option>
+            <option v-for="partner in partners" :key="partner.id" :value="partner.id">{{ partner.name }}</option>
           </select>
         </div>
-
-        <!-- Partenaire (Client ou Fournisseur) -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            {{ direction === 'outgoing' ? 'Client *' : 'Fournisseur *' }}
-          </label>
-          <select 
-            v-model="form.partner_id" 
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            required
-          >
-            <option value="">{{ direction === 'outgoing' ? 'Sélectionner un client' : 'Sélectionner un fournisseur' }}</option>
-            <option 
-              v-for="partner in partners" 
-              :key="partner.id" 
-              :value="partner.id"
-            >
-              {{ partner.name }}
-            </option>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Type d'emballage <span class="text-red-500">*</span></label>
+          <select v-model="form.deposit_type_id" required class="w-full px-4 py-2 border rounded-lg" @change="updateUnitAmount">
+            <option value="">Sélectionner...</option>
+            <option v-for="dt in depositTypes" :key="dt.id" :value="dt.id">{{ dt.name }} - {{ formatCurrency(dt.amount) }}</option>
           </select>
         </div>
-
-        <!-- Quantité -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Quantité *
-          </label>
-          <input 
-            v-model.number="form.quantity" 
-            type="number" 
-            min="1"
-            :max="direction === 'outgoing' ? selectedTypeStock : 999999"
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Ex: 10"
-            required
-          />
-          <p v-if="direction === 'outgoing' && selectedTypeStock > 0" class="text-xs text-gray-500 mt-1">
-            Stock disponible: {{ selectedTypeStock }} unités
-          </p>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Quantité <span class="text-red-500">*</span></label>
+          <input v-model.number="form.quantity" type="number" min="1" required class="w-full px-4 py-2 border rounded-lg" @input="calculateTotal">
         </div>
-
-        <!-- Montant total (calculé automatiquement) -->
-        <div class="bg-gray-50 rounded-lg p-4">
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-medium text-gray-700">Montant de la caution</span>
-            <span class="text-2xl font-bold text-blue-600">
-              {{ formatCurrency(totalAmount) }}
-            </span>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Montant unitaire</label>
+          <input v-model="form.unit_deposit_amount" type="number" readonly class="w-full px-4 py-2 border rounded-lg bg-gray-100">
+        </div>
+        <div class="bg-blue-50 rounded-lg p-4">
+          <div class="flex justify-between items-center">
+            <span class="font-semibold">Total:</span>
+            <span class="text-2xl font-bold text-blue-600">{{ formatCurrency(form.total_deposit_amount) }}</span>
           </div>
         </div>
-
-        <!-- Date de retour prévue -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Date de retour prévue
-          </label>
-          <input 
-            v-model="form.expected_return_at" 
-            type="date"
-            :min="today"
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-          <p class="text-xs text-gray-500 mt-1">
-            Par défaut: {{ defaultReturnDate }}
-          </p>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+          <textarea v-model="form.notes" rows="2" class="w-full px-4 py-2 border rounded-lg"></textarea>
         </div>
-
-        <!-- Notes -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Notes (optionnel)
-          </label>
-          <textarea 
-            v-model="form.notes" 
-            rows="3"
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Ajouter des notes ou remarques..."
-          ></textarea>
+        <div class="flex gap-3 pt-4">
+          <button type="button" @click="$emit('close')" class="flex-1 px-6 py-3 border rounded-lg hover:bg-gray-50">Annuler</button>
+          <button type="submit" :disabled="saving" :class="['flex-1 px-6 py-3 text-white rounded-lg', type === 'outgoing' ? 'bg-blue-600' : 'bg-green-600']">
+            {{ saving ? 'Enregistrement...' : '✓ Créer' }}
+          </button>
         </div>
-
-        <!-- Message d'erreur -->
-        <div v-if="errorMessage" class="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p class="text-sm text-red-800">{{ errorMessage }}</p>
-        </div>
-      </div>
-
-      <!-- Footer -->
-      <div class="sticky bottom-0 bg-gray-50 px-6 py-4 flex items-center justify-end space-x-3 border-t">
-        <button 
-          @click="close" 
-          class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition"
-        >
-          Annuler
-        </button>
-        <button 
-          @click="submit" 
-          :disabled="!isFormValid || isSubmitting"
-          class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center space-x-2"
-        >
-          <span v-if="isSubmitting">Création...</span>
-          <span v-else>✓ Créer la consigne</span>
-        </button>
-      </div>
+      </form>
     </div>
   </div>
 </template>
 
 <script>
-import { ref, computed, watch } from 'vue';
-import axios from 'axios';
+import { ref, watch } from 'vue';
 
 export default {
   name: 'CreateDepositModal',
-  
   props: {
-    isOpen: {
-      type: Boolean,
-      default: false
-    },
-    direction: {
-      type: String,
-      required: true,
-      validator: (value) => ['outgoing', 'incoming'].includes(value)
-    },
-    depositTypes: {
-      type: Array,
-      default: () => []
-    },
-    partners: {
-      type: Array,
-      default: () => []
-    }
+    isOpen: Boolean,
+    type: { type: String, required: true },
+    depositTypes: { type: Array, default: () => [] },
+    partners: { type: Array, default: () => [] }
   },
   emits: ['close', 'created'],
   setup(props, { emit }) {
+    const saving = ref(false);
     const form = ref({
-      deposit_type_id: '',
       partner_id: '',
+      deposit_type_id: '',
       quantity: 1,
-      expected_return_at: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
+      unit_deposit_amount: 0,
+      total_deposit_amount: 0,
       notes: ''
     });
 
-    const isSubmitting = ref(false);
-    const errorMessage = ref('');
-
-    const today = computed(() => {
-      return new Date().toISOString().split('T')[0];
-    });
-
-    const defaultReturnDate = computed(() => {
-      const date = new Date(Date.now() + 30*24*60*60*1000);
-      return date.toLocaleDateString('fr-FR');
-    });
-
-    const selectedType = computed(() => {
-      if (!form.value.deposit_type_id) return null;
-      return props.depositTypes.find(t => t.id === form.value.deposit_type_id);
-    });
-
-    const selectedTypeStock = computed(() => {
-      return selectedType.value ? selectedType.value.current_stock : 0;
-    });
-
-    const totalAmount = computed(() => {
-      if (!selectedType.value || !form.value.quantity) return 0;
-      return selectedType.value.amount * form.value.quantity;
-    });
-
-    const isFormValid = computed(() => {
-      return form.value.deposit_type_id && 
-             form.value.partner_id && 
-             form.value.quantity > 0 &&
-             (props.direction === 'incoming' || form.value.quantity <= selectedTypeStock.value);
-    });
-
     const formatCurrency = (amount) => {
-      return new Intl.NumberFormat('fr-FR', {
-        style: 'currency',
-        currency: 'XAF',
-        minimumFractionDigits: 0
-      }).format(amount);
+      return new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 0 }).format(amount || 0) + ' FCFA';
     };
 
-    const resetForm = () => {
-      form.value = {
-        deposit_type_id: '',
-        partner_id: '',
-        quantity: 1,
-        expected_return_at: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
-        notes: ''
-      };
-      errorMessage.value = '';
+    const updateUnitAmount = () => {
+      const selectedType = props.depositTypes.find(dt => dt.id === form.value.deposit_type_id);
+      if (selectedType) {
+        form.value.unit_deposit_amount = selectedType.amount;
+        calculateTotal();
+      }
     };
 
-    const close = () => {
-      resetForm();
-      emit('close');
+    const calculateTotal = () => {
+      form.value.total_deposit_amount = form.value.quantity * form.value.unit_deposit_amount;
     };
 
-    const submit = async () => {
-      if (!isFormValid.value || isSubmitting.value) return;
+    watch(() => props.isOpen, (isOpen) => {
+      if (isOpen) {
+        form.value = { partner_id: '', deposit_type_id: '', quantity: 1, unit_deposit_amount: 0, total_deposit_amount: 0, notes: '' };
+      }
+    });
 
-      isSubmitting.value = true;
-      errorMessage.value = '';
-
+    const handleSubmit = async () => {
+      if (saving.value) return;
+      saving.value = true;
+      
       try {
+        const apiBase = window.electron ? await window.electron.getApiBase() : 'http://localhost:8000';
         const payload = {
-          ...form.value,
-          direction: props.direction,
-          partner_type: props.direction === 'outgoing' ? 'customer' : 'supplier'
+          type: props.type,
+          deposit_type_id: form.value.deposit_type_id,
+          quantity: form.value.quantity,
+          unit_deposit_amount: form.value.unit_deposit_amount,
+          total_deposit_amount: form.value.total_deposit_amount,
+          notes: form.value.notes
         };
 
-        const response = await axios.post('/api/deposits', payload);
-        
-        emit('created', response.data.data);
-        close();
+        if (props.type === 'outgoing') {
+          payload.customer_id = form.value.partner_id;
+        } else {
+          payload.supplier_id = form.value.partner_id;
+        }
+
+        const response = await fetch("${apiBase}/api/v1/deposits", {
+          method: 'POST',
+          headers: window.authHeaders || {
+            'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Erreur');
+
+        alert('✅ Consigne créée avec succès');
+        emit('created', data.data || data);
+        emit('close');
       } catch (error) {
-        console.error('Erreur lors de la création de la consigne:', error);
-        errorMessage.value = error.response?.data?.message || 'Une erreur est survenue lors de la création de la consigne';
+        alert('❌ ' + error.message);
       } finally {
-        isSubmitting.value = false;
+        saving.value = false;
       }
     };
 
-    // Reset form when modal opens
-    watch(() => props.isOpen, (newVal) => {
-      if (newVal) {
-        resetForm();
-      }
-    });
-
-    return {
-      form,
-      isSubmitting,
-      errorMessage,
-      today,
-      defaultReturnDate,
-      selectedType,
-      selectedTypeStock,
-      totalAmount,
-      isFormValid,
-      formatCurrency,
-      close,
-      submit
-    };
+    return { saving, form, formatCurrency, updateUnitAmount, calculateTotal, handleSubmit };
   }
 };
 </script>

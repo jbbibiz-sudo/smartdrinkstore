@@ -185,7 +185,14 @@
                     <!-- Total final -->
                     <div class="flex justify-between text-lg">
                       <span class="text-gray-600">Total produits:</span>
-                      <span class="font-semibold">{{ formatCurrency(finalTotal) }}</span>
+                      <span class="font-semibold">{{ formatCurrency(grandTotal) }}</span>
+                    </div>
+
+                    <!-- Badge consigne sur les produits -->
+                    <div v-if="product.has_deposit" class="mt-1 flex items-center gap-1">
+                      <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                        🍾Consigné
+                      </span>
                     </div>
 
                     <!-- ✅ NOUVEAU : Section consignes -->
@@ -268,7 +275,7 @@
                       <div class="bg-white rounded-lg p-3 border border-blue-200">
                         <div class="flex justify-between items-center">
                           <span class="text-sm text-gray-600">Montant à payer:</span>
-                          <span class="text-lg font-bold text-gray-900">{{ formatCurrency(finalTotal) }}</span>
+                          <span class="text-lg font-bold text-gray-900">{{ formatCurrency(grandTotal) }}</span>
                         </div>
                       </div>
 
@@ -280,7 +287,7 @@
                         <input
                           v-model.number="amountReceived"
                           type="number"
-                          :min="finalTotal"
+                          :min="grandTotal"
                           step="500"
                           placeholder="Ex: 10000"
                           class="w-full px-4 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-semibold"
@@ -292,7 +299,7 @@
                       </div>
 
                       <!-- Résultat: Monnaie à rendre -->
-                      <div v-if="amountReceived && amountReceived >= finalTotal" class="bg-green-50 border-2 border-green-300 rounded-lg p-4">
+                      <div v-if="amountReceived && amountReceived >= grandTotal" class="bg-green-50 border-2 border-green-300 rounded-lg p-4">
                         <div class="flex justify-between items-center mb-3">
                           <span class="text-sm font-medium text-green-700">💰 Monnaie à rendre:</span>
                           <span class="text-2xl font-bold text-green-600">{{ formatCurrency(changeToReturn) }}</span>
@@ -322,10 +329,10 @@
                       </div>
 
                       <!-- Avertissement si montant insuffisant -->
-                      <div v-else-if="amountReceived && amountReceived < finalTotal" class="bg-red-50 border-2 border-red-300 rounded-lg p-3">
+                      <div v-else-if="amountReceived && amountReceived < grandTotal" class="bg-red-50 border-2 border-red-300 rounded-lg p-3">
                         <p class="text-sm text-red-700 font-medium flex items-center gap-2">
                           ⚠️ Montant insuffisant !
-                          <span class="font-bold">Manque: {{ formatCurrency(finalTotal - amountReceived) }}</span>
+                          <span class="font-bold">Manque: {{ formatCurrency(grandTotal - amountReceived) }}</span>
                         </p>
                       </div>
 
@@ -1248,34 +1255,12 @@ import { perfMonitor, measureAsync } from './utils/performance-monitor';
 import StockMovementsView from './views/StockMovementsView.vue';
 import ProductSuppliersModal from './components/ProductSuppliersModal.vue';
 import CreditManagement from './components/CreditManagement.vue';
-import {// ✅ NOUVEAUX : États consignes
-  depositTypes,
-  deposits,
-  depositReturns,
-  depositTypesInPOS,
-  cartDeposits,
-  totalDepositsAmount,
-  
-  // ✅ NOUVEAUX : Modals consignes
-  showDepositTypeModal,
-  showDepositModal,
-  showDepositReturnModal,
-  
-  // ✅ NOUVEAUX : Formulaires consignes
-  depositTypeForm,
-  depositForm,
-  depositReturnForm,
-  editingDepositType,
-  editingDeposit,
-  processingReturn
-} from './modules/module-2-state.js';
+import * as depositState from './modules/module-2-state.js';
 import DepositsView from './views/Deposits.vue';
 
 export default {
   name: 'App',
   components: {
-    ProductSuppliersModal,
-    StockMovementsView,
     Login,
     Sidebar,
     Header,
@@ -1286,7 +1271,7 @@ export default {
     StockMovementsView,
     CreditManagement,
     DepositsView,
-    
+    ProductSuppliersModal,
   },
   setup() {
     console.log('🔍 Setup() démarré...');
@@ -1405,7 +1390,7 @@ export default {
 
     // ✅ NOUVEAU: Gestion des crédits
     const creditsCount = ref(0);
-
+  
     /**
      * Charger le nombre de crédits impayés
      */
@@ -1459,10 +1444,10 @@ export default {
     const calculateChange = () => {
       console.log('💰 Calcul de la monnaie...');
       console.log('  Montant reçu:', amountReceived.value);
-      console.log('  Total à payer:', computedProps.finalTotal.value);
+      console.log('  Total à payer:', computedProps.grandTotal.value);
 
       // Valider que le montant est suffisant
-      if (!amountReceived.value || amountReceived.value < computedProps.finalTotal.value) {
+      if (!amountReceived.value || amountReceived.value < computedProps.grandTotal.value) {
         changeToReturn.value = 0;
         changeBreakdown.value = [];
         console.log('  ❌ Montant insuffisant ou invalide');
@@ -1470,7 +1455,7 @@ export default {
       }
 
       // Calculer la monnaie
-      const change = amountReceived.value - computedProps.finalTotal.value;
+      const change = amountReceived.value - computedProps.grandTotal.value;
       changeToReturn.value = change;
       
       console.log('  ✅ Monnaie à rendre:', change, 'FCFA');
@@ -1506,7 +1491,7 @@ export default {
      * Montants suggérés basés sur le total
      */
     const suggestedCashAmounts = computed(() => {
-      const total = computedProps.finalTotal.value;
+      const total = computedProps.grandTotal.value;
       const suggestions = [];
 
       // Arrondir au millier supérieur
@@ -1528,7 +1513,7 @@ export default {
     });
 
     // Réinitialiser le calculateur quand le total change
-    watch(() => computedProps.finalTotal.value, () => {
+    watch(() => computedProps.grandTotal.value, () => {
       amountReceived.value = null;
       changeToReturn.value = 0;
       changeBreakdown.value = [];
@@ -1874,6 +1859,10 @@ export default {
         await loadCreditsCount();
         setInterval(loadCreditsCount, 30000); // Rafraîchir toutes les 30s
 
+        // ✅ NOUVEAU: Charger les consignes
+        await depositMgmt.loadDepositTypes();
+        await depositMgmt.loadDeposits();
+
       } else {
         console.log('⏳ En attente de connexion...');
       }
@@ -2031,6 +2020,10 @@ export default {
       handleLoginSuccess,
       handleLogout,
       handleSidebarNavigation,
+
+      // 
+      depositTypes: depositState.depositTypes, // ✅ État réactif
+      deposits: depositState.deposits,         // ✅ État réactif
       
       // ========== LOADERS ==========
       loaders, 
@@ -2064,31 +2057,46 @@ export default {
       viewingProduct: state.viewingProduct,
       savingProduct: state.savingProduct,
       
-      // ✅ NOUVEAUX : Modals consignes
-      showDepositTypeModal,
-      showDepositModal,
-      showDepositReturnModal,
+      // ✅ NOUVEAUX: États consignes
+      depositTypes: depositState.depositTypes,
+      deposits: depositState.deposits,
+      depositReturns: depositState.depositReturns,
+      
+      // ✅ NOUVEAUX: Modals
+      showDepositTypeModal: depositState.showDepositTypeModal,
+      showDepositModal: depositState.showDepositModal,
+      showDepositReturnModal: depositState.showDepositReturnModal,
       showDepositDetails,
+      deposittype: depositState.depositType,
       
+      // ✅ NOUVEAUX: Formulaires
+      depositTypeForm: depositState.depositTypeForm,
+      depositForm: depositState.depositForm,
+      depositReturnForm: depositState.depositReturnForm,
+      editingDepositType: depositState.editingDepositType,
+      selectedDeposit: depositState.selectedDeposit,
+      processingReturn: depositState.processingReturn,
       
-      // ✅ NOUVEAUX : Formulaires consignes
-      depositTypeForm,
-      depositForm,
-      depositReturnForm,
-      editingDepositType,
-      editingDeposit,
-      processingReturn,
+      // ✅ NOUVEAUX: Filtres et stats
+      depositFilters: depositState.depositFilters,
+      depositStats: depositState.depositStats,
+    
       
-      // ✅ NOUVEAUX : Computed properties consignes
+      // ✅ NOUVEAUX: Computed properties
       filteredDepositTypes: computedProps.filteredDepositTypes,
       activeDepositTypes: computedProps.activeDepositTypes,
+      depositTypesInPOS: computedProps.depositTypesInPOS,
       filteredDeposits: computedProps.filteredDeposits,
       pendingDeposits: computedProps.pendingDeposits,
       returnedDeposits: computedProps.returnedDeposits,
       totalDepositValue: computedProps.totalDepositValue,
-      grandTotal: computedProps.grandTotal,
       cartDepositsCount: computedProps.cartDepositsCount,
-      // ✅ Fonctions gestion consignes
+      cartDeposits: computedProps.cartDeposits,
+      totalDepositsAmount: computedProps.totalDepositsAmount,
+      totalDepositsCount: computedProps.totalDepositsCount,
+      grandTotal: computedProps.grandTotal,
+      
+      // ✅ NOUVEAUX: Fonctions
       loadDepositTypes: depositMgmt.loadDepositTypes,
       loadDeposits: depositMgmt.loadDeposits,
       loadDepositReturns: depositMgmt.loadDepositReturns,
@@ -2204,7 +2212,7 @@ export default {
       consignedProducts: computedProps.consignedProducts,
       totalEmptyContainers: computedProps.totalEmptyContainers,
       cartTotal: computedProps.cartTotal,
-      finalTotal: computedProps.finalTotal,
+      grandTotal: computedProps.grandTotal,
       filteredCustomers: computedProps.filteredCustomers,
       filteredSuppliers: computedProps.filteredSuppliers,
       filteredMovements: computedProps.filteredMovements,

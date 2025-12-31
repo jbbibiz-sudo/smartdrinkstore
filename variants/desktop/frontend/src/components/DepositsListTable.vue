@@ -25,7 +25,7 @@
     <div v-else-if="filteredDeposits.length === 0" class="text-center py-12">
       <p class="text-gray-500 text-lg">Aucune consigne trouvée</p>
       <p class="text-sm text-gray-400 mt-2">
-        {{ direction === 'outgoing' ? 'Créez votre première consigne client' : 'Créez votre première consigne fournisseur' }}
+        {{ type=== 'outgoing' ? 'Créez votre première consigne client' : 'Créez votre première consigne fournisseur' }}
       </p>
     </div>
 
@@ -36,7 +36,7 @@
           <tr>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Référence</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-              {{ direction === 'outgoing' ? 'Client' : 'Fournisseur' }}
+              {{ type=== 'outgoing' ? 'Client' : 'Fournisseur' }}
             </th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type emballage</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
@@ -53,7 +53,7 @@
             </td>
             <td class="px-4 py-3">
               <div class="font-medium">
-                {{ direction === 'outgoing' ? deposit.customer?.name : deposit.supplier?.name }}
+                {{ type=== 'outgoing' ? deposit.customer?.name : deposit.supplier?.name }}
               </div>
             </td>
             <td class="px-4 py-3">
@@ -123,7 +123,7 @@ export default {
       type: Boolean,
       default: false,
     },
-    direction: {
+    type: {
       type: String,
       required: true,
       validator: (value) => ['outgoing', 'incoming'].includes(value),
@@ -151,7 +151,7 @@ export default {
       if (searchQuery.value) {
         const query = searchQuery.value.toLowerCase();
         result = result.filter(d => {
-          const entityName = props.direction === 'outgoing'
+          const entityName = props.type=== 'outgoing'
             ? d.customer?.name
             : d.supplier?.name;
           return d.reference?.toLowerCase().includes(query) ||
