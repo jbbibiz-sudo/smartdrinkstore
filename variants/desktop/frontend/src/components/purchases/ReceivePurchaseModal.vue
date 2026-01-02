@@ -100,6 +100,17 @@
                 class="form-input"
               />
             </div>
+
+            <!-- Notes -->
+            <div class="form-group" style="margin-top: 1rem;">
+              <label class="form-label">Notes de réception</label>
+              <textarea
+                v-model="receiveForm.notes"
+                class="form-textarea"
+                rows="2"
+                placeholder="Observations sur la réception (état des cartons, remarques...)"
+              ></textarea>
+            </div>
           </div>
 
           <!-- Résumé -->
@@ -189,6 +200,10 @@
           <div class="supplier-banner">
             <span class="label">Fournisseur :</span>
             <span class="value">{{ purchase.supplier?.name }}</span>
+          </div>
+
+          <div v-if="receiveForm.notes" class="print-notes">
+            <strong>Notes :</strong> {{ receiveForm.notes }}
           </div>
 
           <table class="print-table">
@@ -283,6 +298,7 @@ const submitting = ref(false);
 const receiveForm = ref({
   items: [],
   received_date: new Date().toISOString().split('T')[0],
+  notes: '',
 });
 
 // Initialiser le module
@@ -558,6 +574,21 @@ onMounted(() => {
 }
 
 .form-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.form-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+  resize: vertical;
+}
+
+.form-textarea:focus {
   outline: none;
   border-color: #3b82f6;
 }
@@ -866,6 +897,13 @@ onMounted(() => {
     border: 1px solid #ccc;
     margin-bottom: 1.5rem;
     font-size: 1.1rem;
+  }
+
+  .print-notes {
+    margin-bottom: 1.5rem;
+    padding: 0.5rem;
+    border: 1px dashed #ccc;
+    background-color: #fafafa;
   }
 
   .print-summary {

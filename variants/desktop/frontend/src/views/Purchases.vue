@@ -97,6 +97,17 @@
           </select>
         </div>
 
+        <!-- Filtre statut paiement -->
+        <div class="filter-group">
+          <select v-model="purchaseFilters.payment_status" class="filter-select">
+            <option value="all">💰 Tous les paiements</option>
+            <option value="paid">✅ Payés</option>
+            <option value="partial">⚠️ Partiels</option>
+            <option value="unpaid">❌ Non payés</option>
+            <option value="overdue">⏰ En retard</option>
+          </select>
+        </div>
+
         <!-- Filtre fournisseur -->
         <div class="filter-group">
           <select v-model="purchaseFilters.supplier_id" class="filter-select">
@@ -415,6 +426,7 @@ const deletePurchase = async (id) => {
 const resetFilters = () => {
   purchaseFilters.value = {
     status: 'all',
+    payment_status: 'all',
     supplier_id: '',
     date_from: '',
     date_to: '',
