@@ -7,6 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use App\Models\PurchaseItem;
+use App\Models\StockMovement;
+use App\Models\SaleItem;
+use App\Models\Supplier;
+
+
 
 class Product extends Model
 {
@@ -181,5 +187,38 @@ class Product extends Model
     public function scopeOutOfStock($query)
     {
         return $query->where('stock', 0);
+    }
+
+    /**
+     * Relation avec les lignes d'achat
+     */
+    public function purchaseItems()
+    {
+        return $this->hasMany(PurchaseItem::class);
+    }
+
+    /**
+     * Dernier prix d'achat
+     */
+    public function getLastPurchasePriceAttribute()
+    {
+        $lastItem = $this->purchaseItems()
+            ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
+            ->where('purchases.status', 'received')
+            ->orderBy('purchases.received_date', 'desc')
+            ->first();
+            
+        return $lastItem ? $lastItem->unit_cost : null;
+    }
+
+    /**
+     * Prix moyen d'achat
+     */
+    public function getAveragePurchasePriceAttribute()
+    {
+        return $this->purchaseItems()
+            ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
+            ->where('purchases.status', 'received')
+            ->avg('purchase_items.unit_cost');
     }
 }

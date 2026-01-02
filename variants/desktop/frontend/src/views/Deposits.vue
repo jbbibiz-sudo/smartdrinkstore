@@ -5,7 +5,7 @@
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-3xl font-bold text-gray-800">Gestion des Consignes</h1>
-          <p class="text-gray-600 mt-1">Gérez vos emballages consignés de manière biTypenelle</p>
+          <p class="text-gray-600 mt-1">Gérez vos emballages consignés de manière professionelle</p>
         </div>
         <div class="flex items-center space-x-3">
           <button 
@@ -39,7 +39,7 @@
         <div class="flex items-center justify-between">
           <div>
             <p class="text-sm text-gray-600">Consignes Actives</p>
-            <p class="text-2xl font-bold text-blue-600">{{ statistics.active_deposits }}</p>
+            <p class="text-2xl font-bold text-blue-600">{{ statistics?.active_deposits || 0 }}</p>
           </div>
           <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
             <span class="text-2xl">📦</span>
@@ -51,7 +51,7 @@
         <div class="flex items-center justify-between">
           <div>
             <p class="text-sm text-gray-600">Emballages en circulation</p>
-            <p class="text-2xl font-bold text-orange-600">{{ statistics.total_units_out }}</p>
+            <p class="text-2xl font-bold text-orange-600">{{ statistics?.total_units_out || 0 }}</p>
           </div>
           <div class="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
             <span class="text-2xl">🔄</span>
@@ -63,7 +63,7 @@
         <div class="flex items-center justify-between">
           <div>
             <p class="text-sm text-gray-600">Montant Total Cautions</p>
-            <p class="text-2xl font-bold text-green-600">{{ formatCurrency(statistics.total_deposits_amount) }}</p>
+            <p class="text-2xl font-bold text-green-600">{{ formatCurrency(statistics?.total_deposits_amount || 0) }}</p>
           </div>
           <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
             <span class="text-2xl">💰</span>
@@ -75,7 +75,7 @@
         <div class="flex items-center justify-between">
           <div>
             <p class="text-sm text-gray-600">Pénalités Perçues</p>
-            <p class="text-2xl font-bold text-red-600">{{ formatCurrency(statistics.total_penalties) }}</p>
+            <p class="text-2xl font-bold text-red-600">{{ formatCurrency(statistics?.total_penalties || 0) }}</p>
           </div>
           <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
             <span class="text-2xl">⚠️</span>
@@ -113,6 +113,7 @@
             :loading="loading"
             type="outgoing"
             @process-return="openReturnModal"
+            @create="openCreateModal('outgoing')"
             @refresh="loadDeposits"
           />
         </div>
@@ -124,6 +125,7 @@
             :loading="loading"
             type="incoming"
             @process-return="openReturnModal"
+            @create="openCreateModal('incoming')"
             @refresh="loadDeposits"
           />
         </div>
@@ -199,8 +201,9 @@
     </div>
 
     <!-- Modals -->
+    <!-- Modal de création de consigne -->
     <CreateDepositModal
-      v-if="showCreateModal"
+      :is-open="showCreateModal"
       :type="createModalType"
       :deposit-types="depositTypes"
       :partners="currentPartners"
@@ -208,6 +211,7 @@
       @created="handleDepositCreated"
     />
 
+    <!-- Modal de traitement de retour -->
     <ProcessReturnModal
       :is-open="showReturnModal"
       :deposit="selectedDeposit"
@@ -215,8 +219,9 @@
       @returned="handleReturnProcessed"
     />
 
+    <!-- Modal de gestion des types d'emballage -->
     <DepositTypeModal
-      v-if="showDepositTypeModal"
+      :is-open="showDepositTypeModal"
       :deposit-type="editingDepositType"
       @close="closeDepositTypeModal"
       @saved="handleDepositTypeSaved"
@@ -231,6 +236,7 @@ import ReturnsHistory from '../components/ReturnsHistory.vue';
 import CreateDepositModal from '../components/CreateDepositModal.vue';
 import ProcessReturnModal from '../components/ProcessReturnModal.vue';
 import DepositTypeModal from '../components/DepositTypeModal.vue';
+import { api, getHeaders } from '../modules/module-1-config.js';
 
 export default {
   name: 'DepositsView',
@@ -275,11 +281,11 @@ export default {
 
     // Computed
     const customerDeposits = computed(() => {
-      return deposits.value.filter(d => d.type=== 'outgoing');
+      return deposits.value.filter(d => d.type === 'outgoing');
     });
 
     const supplierDeposits = computed(() => {
-      return deposits.value.filter(d => d.type=== 'incoming');
+      return deposits.value.filter(d => d.type === 'incoming');
     });
 
     const currentPartners = computed(() => {
@@ -297,25 +303,20 @@ export default {
     const loadDeposits = async () => {
       loading.value = true;
       try {
-        const apiBase = window.electron 
-          ? await window.electron.getApiBase() 
-          : 'http://localhost:8000';
-
-        const response = await fetch(`${apiBase}/api/v1/deposits`, {
-          headers: window.authHeaders || {
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-            'Content-Type': 'application/json',
-          }
-        });
+        const data = await api.get('/deposits');
         
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+        if (data.data && Array.isArray(data.data)) {
+          deposits.value = data.data;
+        } else if (Array.isArray(data)) {
+          deposits.value = data;
+        } else {
+          deposits.value = [];
         }
-
-        const data = await response.json();
-        deposits.value = data.data || [];
+        
+        console.log('📦 Consignes chargées:', deposits.value.length);
       } catch (error) {
-        console.error('Erreur lors du chargement des consignes:', error);
+        console.error('❌ Erreur chargement consignes:', error);
+        deposits.value = [];
       } finally {
         loading.value = false;
       }
@@ -323,87 +324,96 @@ export default {
 
     const loadDepositTypes = async () => {
       try {
-        const apiBase = window.electron 
-          ? await window.electron.getApiBase() 
-          : 'http://localhost:8000';
-
-        const response = await fetch(`${apiBase}/api/v1/deposit-types`, {
-          headers: window.authHeaders || {
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-            'Content-Type': 'application/json',
-          }
-        });
+        const data = await api.get('/deposit-types');
         
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+        if (data.data && Array.isArray(data.data)) {
+          depositTypes.value = data.data;
+        } else if (Array.isArray(data)) {
+          depositTypes.value = data;
+        } else {
+          depositTypes.value = [];
         }
-
-        const data = await response.json();
-        depositTypes.value = data.data || [];
+        
+        console.log('🏷️ Types chargés:', depositTypes.value.length);
       } catch (error) {
-        console.error('Erreur lors du chargement des types:', error);
+        console.error('❌ Erreur chargement types:', error);
+        depositTypes.value = [];
       }
     };
 
     const loadPartners = async () => {
       try {
-        const apiBase = window.electron 
-          ? await window.electron.getApiBase() 
-          : 'http://localhost:8000';
-
-        const headers = window.authHeaders || {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-          'Content-Type': 'application/json',
-        };
-
-        // Charger les clients
-        const customersResponse = await fetch(`${apiBase}/api/v1/customers`, { headers });
-        if (!customersResponse.ok) {
-          throw new Error(`HTTP ${customersResponse.status}`);
+        const customersData = await api.get('/customers');
+        if (customersData.data && Array.isArray(customersData.data)) {
+          customers.value = customersData.data;
+        } else if (Array.isArray(customersData)) {
+          customers.value = customersData;
+        } else {
+          customers.value = [];
         }
-        const customersData = await customersResponse.json();
-        customers.value = customersData.data || customersData;
-
-        // Charger les fournisseurs
-        const suppliersResponse = await fetch(`${apiBase}/api/v1/suppliers`, { headers });
-        if (!suppliersResponse.ok) {
-          throw new Error(`HTTP ${suppliersResponse.status}`);
+        
+        const suppliersData = await api.get('/suppliers');
+        if (suppliersData.data && Array.isArray(suppliersData.data)) {
+          suppliers.value = suppliersData.data;
+        } else if (Array.isArray(suppliersData)) {
+          suppliers.value = suppliersData;
+        } else {
+          suppliers.value = [];
         }
-        const suppliersData = await suppliersResponse.json();
-        suppliers.value = suppliersData.data || suppliersData;
+        
+        console.log('👥 Partenaires chargés:', {
+          clients: customers.value.length,
+          fournisseurs: suppliers.value.length
+        });
       } catch (error) {
-        console.error('Erreur lors du chargement des partenaires:', error);
+        console.error('❌ Erreur chargement partenaires:', error);
+        customers.value = [];
+        suppliers.value = [];
+      }
+    };
+
+    const loadReturnsHistory = async () => {
+      loading.value = true;
+      try {
+        const data = await api.get('/deposit-returns');
+        
+        if (data.data && Array.isArray(data.data)) {
+          returnsHistory.value = data.data;
+        } else if (Array.isArray(data)) {
+          returnsHistory.value = data;
+        } else {
+          returnsHistory.value = [];
+        }
+        
+        console.log('📜 Retours chargés:', returnsHistory.value.length);
+      } catch (error) {
+        console.error('❌ Erreur chargement retours:', error);
+        returnsHistory.value = [];
+      } finally {
+        loading.value = false;
       }
     };
 
     const loadStatistics = async () => {
       try {
-        const apiBase = window.electron
-          ? await window.electron.getApiBase()
-          : 'http://localhost:8000';
+        const data = await api.get('/deposits/stats/summary');
         
-        const response = await fetch(`${apiBase}/api/v1/deposits/stats/summary`, {
-          headers: window.authHeaders || {
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-            'Content-Type': 'application/json',
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+        if (data.data && typeof data.data === 'object') {
+          statistics.value = data.data;
+        } else if (data && typeof data === 'object' && !data.success) {
+          statistics.value = data;
+        } else {
+          statistics.value = {
+            active_deposits: 0,
+            total_units_out: 0,
+            total_deposits_amount: 0,
+            total_penalties: 0
+          };
         }
-
-        const data = await response.json();
         
-        // Adaptez selon votre structure (data.data ou data directement)
-        statistics.value = data.data || data;
-        
-        console.log('✅ Statistiques consignes chargées:', statistics.value);
-        
+        console.log('📊 Stats chargées:', statistics.value);
       } catch (error) {
-        console.warn('⚠️ Statistiques indisponibles:', error.message);
-        
-        // Valeurs par défaut
+        console.warn('⚠️ Stats non disponibles');
         statistics.value = {
           active_deposits: 0,
           total_units_out: 0,
@@ -413,73 +423,134 @@ export default {
       }
     };
 
-    const loadReturnsHistory = async () => {
-      loading.value = true;
+    const printReceipt = async (data, type = 'deposit') => {
+      if (!window.electron || !window.electron.print) {
+        console.warn('⚠️ Impression ignorée: API Electron non disponible');
+        return;
+      }
+
+      const isReturn = type === 'return';
+      const title = isReturn ? 'REÇU DE RETOUR' : 'TICKET DE CONSIGNE';
+      const date = new Date().toLocaleString('fr-FR');
+      
+      // Récupération des noms (gestion des relations potentiellement manquantes)
+      const partnerName = data.customer?.name || data.supplier?.name || 
+                         (data.customer_id ? 'Client #' + data.customer_id : 'Fournisseur #' + data.supplier_id);
+      
+      const typeName = data.deposit_type?.name || 'Emballage consigné';
+      const quantity = isReturn ? (data.quantity_returned || data.quantity) : data.quantity;
+      const amount = isReturn ? (data.refund_amount || 0) : data.total_deposit_amount;
+
+      const htmlContent = `
+        <html>
+        <head>
+          <style>
+            body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; margin: 0 auto; }
+            .header { text-align: center; margin-bottom: 15px; border-bottom: 1px dashed #000; padding-bottom: 10px; }
+            .title { font-size: 16px; font-weight: bold; margin: 5px 0; }
+            .info { margin-bottom: 15px; }
+            .row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+            .total { border-top: 1px dashed #000; margin-top: 10px; padding-top: 10px; font-weight: bold; font-size: 14px; }
+            .footer { text-align: center; margin-top: 20px; font-size: 10px; color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="title">SmartDrink Store</div>
+            <div>${title}</div>
+            <div>${date}</div>
+          </div>
+          
+          <div class="info">
+            <div><strong>Partenaire:</strong> ${partnerName}</div>
+            <div><strong>Réf:</strong> #${data.id}</div>
+          </div>
+
+          <div class="items">
+            <div class="row">
+              <span>${typeName}</span>
+              <span>x${quantity}</span>
+            </div>
+          </div>
+
+          <div class="row total">
+            <span>TOTAL</span>
+            <span>${formatCurrency(amount)}</span>
+          </div>
+
+          <div class="footer">
+            <p>Merci de votre confiance !</p>
+          </div>
+        </body>
+        </html>
+      `;
+
       try {
-        const apiBase = window.electron 
-          ? await window.electron.getApiBase() 
-          : 'http://localhost:8000';
-
-        const response = await fetch(`${apiBase}/api/v1/deposit-returns`, {
-          headers: window.authHeaders || {
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-            'Content-Type': 'application/json',
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-        returnsHistory.value = data.data || [];
+        await window.electron.print(htmlContent);
       } catch (error) {
-        console.error('Erreur lors du chargement de l\'historique:', error);
-      } finally {
-        loading.value = false;
+        console.error('Erreur impression:', error);
+        alert('Impossible d\'imprimer le reçu');
       }
     };
 
-    const openCreateModal = (Type) => {
-      createModalType.value = Type;
+    const openCreateModal = (type) => {
+      console.log('🔓 Ouverture modal création:', type);
+      createModalType.value = type;
       showCreateModal.value = true;
     };
 
     const openReturnModal = (deposit) => {
+      console.log('🔓 Ouverture modal retour:', deposit);
       selectedDeposit.value = deposit;
       showReturnModal.value = true;
     };
 
     const editDepositType = (type) => {
+      console.log('🔓 Ouverture modal édition type:', type);
       editingDepositType.value = type;
       showDepositTypeModal.value = true;
     };
 
     const closeDepositTypeModal = () => {
+      console.log('🔒 Fermeture modal type');
       showDepositTypeModal.value = false;
       editingDepositType.value = null;
     };
 
-    const handleDepositCreated = () => {
-      loadDeposits();
-      loadStatistics();
-      loadDepositTypes();
+    const handleDepositCreated = async (newDeposit) => {
+      console.log('✅ Consigne créée, rechargement...');
+      showCreateModal.value = false;
+      await loadDeposits();
+      await loadStatistics();
+      await loadDepositTypes();
+
+      if (newDeposit && confirm('Voulez-vous imprimer un reçu pour cette consigne ?')) {
+        printReceipt(newDeposit, 'deposit');
+      }
     };
 
-    const handleReturnProcessed = () => {
-      loadDeposits();
-      loadStatistics();
-      loadReturnsHistory();
-      loadDepositTypes();
+    const handleReturnProcessed = async (returnData) => {
+      console.log('✅ Retour traité, rechargement...');
+      showReturnModal.value = false;
+      await loadDeposits();
+      await loadStatistics();
+      await loadReturnsHistory();
+      await loadDepositTypes();
+
+      if (returnData && confirm('Voulez-vous imprimer un reçu pour ce retour ?')) {
+        printReceipt(returnData, 'return');
+      }
     };
 
-    const handleDepositTypeSaved = () => {
-      loadDepositTypes();
+    const handleDepositTypeSaved = async () => {
+      console.log('✅ Type sauvegardé, rechargement...');
+      await loadDepositTypes();
       closeDepositTypeModal();
     };
 
     // Load data on mount
     onMounted(() => {
+      console.log('🚀 Initialisation page Consignes');
       loadDeposits();
       loadDepositTypes();
       loadPartners();
@@ -488,6 +559,7 @@ export default {
     });
 
     return {
+      // State
       activeTab,
       loading,
       tabs,
@@ -497,17 +569,26 @@ export default {
       suppliers,
       returnsHistory,
       statistics,
+      
+      // Computed
       customerDeposits,
       supplierDeposits,
       currentPartners,
+      
+      // Modals state
       showCreateModal,
       createModalType,
       showReturnModal,
       selectedDeposit,
       showDepositTypeModal,
       editingDepositType,
+      
+      // Methods
       formatCurrency,
       loadDeposits,
+      loadDepositTypes,
+      loadPartners,
+      loadStatistics,
       loadReturnsHistory,
       openCreateModal,
       openReturnModal,

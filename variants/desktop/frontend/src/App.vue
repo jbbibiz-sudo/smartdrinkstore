@@ -41,6 +41,7 @@
           :products-count="products?.length || 0"
           :customers-count="customers?.length || 0"
           :suppliers-count="suppliers?.length || 0"
+          :purchases-count="purchases?.length || 0"
           :sales-count="sales?.length || 0"
           :movements-count="movements?.length || 0"
           
@@ -380,6 +381,15 @@
 
           <!-- Gestion des Consignes -->
           <DepositsView v-if="currentView === 'deposits'" />
+
+          <!-- Gestion des Achats -->
+          <Purchases 
+            v-if="currentView === 'purchases'" 
+            :products="products"
+            :suppliers="suppliers"
+            :purchases="purchases"
+            :format-currency="formatCurrency"
+          />
 
           <!-- Customers View -->
           <div v-if="currentView === 'customers'" class="space-y-6">
@@ -1257,6 +1267,9 @@ import ProductSuppliersModal from './components/ProductSuppliersModal.vue';
 import CreditManagement from './components/CreditManagement.vue';
 import * as depositState from './modules/module-2-state.js';
 import DepositsView from './views/Deposits.vue';
+import { initAuthHeaders } from './modules/module-1-config.js';
+import { initPurchaseManagement } from './modules/module-14-purchases.js';
+import Purchases from './views/Purchases.vue';
 
 export default {
   name: 'App',
@@ -1271,6 +1284,7 @@ export default {
     StockMovementsView,
     CreditManagement,
     DepositsView,
+    Purchases,
     ProductSuppliersModal,
   },
   setup() {
@@ -1776,6 +1790,11 @@ export default {
       }
     });
 
+    const purchaseModule = initPurchaseManagement(state, loaders);
+
+    // Déstructurer le module purchases
+    const { purchases } = purchaseModule;
+
     // Fonction de déconnexion
     const handleLogout = async () => {
       // ✅ NOUVEAU: Supprimer le token du store Electron
@@ -1837,33 +1856,55 @@ export default {
       }
     };
 
+  // ⭐ INITIALISER LE TOKEN AU DÉMARRAGE
+  
     onMounted(async () => {
       console.log('🎯 Démarrage de l\'application...');
       perfMonitor.start('Initialisation App');
       
+      // ⭐ ÉTAPE 1: Charger la session AVANT initAuthHeaders
       const wasAuthenticated = await loadUserFromStorage();
       
-      if (wasAuthenticated) {
-        console.log('✅ Session existante trouvée');
+      // ⭐ ÉTAPE 2: Initialiser window.authHeaders AVEC LE BON TOKEN
+      if (wasAuthenticated && authToken.value) {
+        console.log('✅ Session trouvée, initialisation des headers avec le token chargé');
+        
+        // ✅ Configurer window.authHeaders avec le token chargé depuis le storage
         window.authHeaders = {
           'Authorization': `Bearer ${authToken.value}`,
           'Content-Type': 'application/json',
         };
         
-        await measureAsync('Chargement produits', async () => {
-          await loaders.loadProducts();
-        });
+        console.log('✅ window.authHeaders configuré:', window.authHeaders);
         
-        await loaders.init();
-
-        await loadCreditsCount();
-        setInterval(loadCreditsCount, 30000); // Rafraîchir toutes les 30s
-
-        // ✅ NOUVEAU: Charger les consignes
-        await depositMgmt.loadDepositTypes();
-        await depositMgmt.loadDeposits();
-
+        // ⭐ ÉTAPE 3: Charger les données de l'application
+        try {
+          await measureAsync('Chargement produits', async () => {
+            await loaders.loadProducts();
+          });
+          
+          await loaders.init();
+          await loadCreditsCount();
+          
+          // Rafraîchir toutes les 30s
+          setInterval(loadCreditsCount, 30000);
+          
+          // ✅ Charger les consignes
+          await depositMgmt.loadDepositTypes();
+          await depositMgmt.loadDeposits();
+          
+          console.log('✅ Toutes les données chargées avec succès');
+        } catch (error) {
+          console.error('❌ Erreur lors du chargement des données:', error);
+        }
+        
       } else {
+        console.log('ℹ️ Aucune session trouvée ou token manquant');
+        
+        // ⭐ Même sans session, on initialise quand même les headers
+        // (au cas où le token serait dans Electron Store mais pas encore chargé)
+        await initAuthHeaders();
+        
         console.log('⏳ En attente de connexion...');
       }
       
@@ -2147,6 +2188,9 @@ export default {
       supplierSearchQuery: state.supplierSearchQuery,
       editingSupplier: state.editingSupplier,
       supplierForm: state.supplierForm,
+      
+      // Achats
+      purchases: state.purchases,
       
       // Ventes
       sales: state.sales,

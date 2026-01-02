@@ -20,9 +20,8 @@ class Kernel extends HttpKernel
         \App\Http\Middleware\PreventRequestsDuringMaintenance::class,
         \Illuminate\Foundation\Http\Middleware\ValidatePostSize::class,
         \App\Http\Middleware\TrimStrings::class,
-        \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
-        //'can' => \App\Http\Middleware\CheckPermission::class,
-        \App\Http\Middleware\RemoveBomFromResponse::class,
+        \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class, // 'can' => \App\Http\Middleware\CheckPermission::class,
+        \App\Http\Middleware\RemoveBomFromResponse::class, // Use Laravel's built-in HandleCors
     ];
 
     /**

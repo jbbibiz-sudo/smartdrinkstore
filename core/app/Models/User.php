@@ -9,6 +9,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use App\Models\Purchase;
+use App\Models\Role;
+use App\Models\Permission;
+
+
 
 class User extends Authenticatable
 {
@@ -160,5 +165,13 @@ class User extends Authenticatable
         return $query->whereHas('roles', function ($q) use ($roleName) {
             $q->where('name', $roleName);
         });
+    }
+
+    /**
+     * Achats créés par cet utilisateur
+     */
+    public function purchases()
+    {
+        return $this->hasMany(Purchase::class);
     }
 }

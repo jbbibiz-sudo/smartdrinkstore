@@ -25,8 +25,7 @@ use App\Http\Controllers\Api\ProductSupplierController;
 use App\Http\Controllers\Api\CreditPaymentController;
 use App\Http\Controllers\Api\DepositController;
 use App\Http\Controllers\Api\DepositTypeController;
-
-
+use App\Http\Controllers\Api\PurchaseController;
 
 /*
 |--------------------------------------------------------------------------
@@ -287,6 +286,41 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     // Historique des retours d'une consigne
     Route::get('deposits/{id}/returns', [DepositController::class, 'returnHistory'])
         ->name('deposits.return-history');    
+
+    // ======================================
+    // ROUTES ACHATS
+    // ======================================
+    Route::middleware(['auth:sanctum'])->group(function () {
+        
+        // Statistiques
+        Route::get('purchases/stats/summary', [PurchaseController::class, 'statistics']);
+        
+        // Actions sur un achat
+        Route::post('purchases/{id}/confirm', [PurchaseController::class, 'confirm']);
+        Route::post('purchases/{id}/receive', [PurchaseController::class, 'receive']);
+        Route::post('purchases/{id}/cancel', [PurchaseController::class, 'cancel']);
+        
+        // CRUD
+        Route::apiResource('purchases', PurchaseController::class);
+    });
+
+    /**
+     * =================================================================
+     * LISTE DES ENDPOINTS DISPONIBLES
+     * =================================================================
+     * 
+     * GET    /api/v1/purchases                 - Liste tous les achats
+     * POST   /api/v1/purchases                 - Créer un achat
+     * GET    /api/v1/purchases/{id}            - Voir un achat
+     * PUT    /api/v1/purchases/{id}            - Modifier un achat (brouillon uniquement)
+     * DELETE /api/v1/purchases/{id}            - Supprimer un achat (brouillon uniquement)
+     * 
+     * POST   /api/v1/purchases/{id}/confirm    - Confirmer un achat
+     * POST   /api/v1/purchases/{id}/receive    - Réceptionner un achat
+     * POST   /api/v1/purchases/{id}/cancel     - Annuler un achat
+     * 
+     * GET    /api/v1/purchases/stats/summary   - Statistiques des achats
+     */
 });
 
 // ========================================

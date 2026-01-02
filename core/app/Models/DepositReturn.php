@@ -2,18 +2,6 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-
-/**
- * ============================================================================
- * MODÈLE: DepositReturn (Retour d'emballage)
- * ============================================================================
- */
-namespace App\Models;
-
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -22,65 +10,37 @@ class DepositReturn extends Model
     use HasFactory;
 
     protected $fillable = [
+        'reference',
         'deposit_id',
-        'quantity',
-        'good_condition',
-        'damaged',
-        'lost',
-        'damage_penalty',
-        'late_penalty',
-        'total_penalty',
+        'quantity_returned',
+        'quantity_good_condition',
+        'quantity_damaged',
+        'quantity_lost',
         'refund_amount',
+        'damage_penalty',
+        'delay_penalty',
+        'total_penalty',
+        'net_refund',
         'notes',
         'returned_at',
     ];
 
     protected $casts = [
-        'quantity' => 'integer',
-        'good_condition' => 'integer',
-        'damaged' => 'integer',
-        'lost' => 'integer',
+        'quantity_returned' => 'integer',
+        'quantity_good_condition' => 'integer',
+        'quantity_damaged' => 'integer',
+        'quantity_lost' => 'integer',
         'damage_penalty' => 'decimal:2',
-        'late_penalty' => 'decimal:2',
+        'delay_penalty' => 'decimal:2',
         'total_penalty' => 'decimal:2',
         'refund_amount' => 'decimal:2',
+        'net_refund' => 'decimal:2',
         'returned_at' => 'datetime',
     ];
 
-    /**
-     * Boot method pour gérer automatiquement les stocks et statuts
-     */
-    protected static function boot()
-    {
-        parent::boot();
-
-        // Après création du retour
-        static::created(function ($return) {
-            $deposit = $return->deposit;
-            $depositType = $deposit->depositType;
-
-            // Mettre à jour la quantité en attente
-            $deposit->quantity_pending -= $return->quantity;
-
-            // Mettre à jour le statut
-            if ($deposit->quantity_pending <= 0) {
-                $deposit->status = 'returned';
-            } elseif ($deposit->quantity_pending < $deposit->quantity) {
-                $deposit->status = 'partial';
-            }
-
-            $deposit->save();
-
-            // Mettre à jour le stock d'emballages
-            if ($deposit->direction === 'outgoing') {
-                // Retour client -> augmente stock (seulement les bons)
-                $depositType->increment('current_stock', $return->good_condition);
-            } else {
-                // Retour fournisseur -> diminue stock
-                $depositType->decrement('current_stock', $return->quantity);
-            }
-        });
-    }
+    // ✅ CORRIGÉ: Boot method retiré car le controller gère déjà
+    // la mise à jour du statut et du stock
+    // Cela évite les problèmes de double mise à jour
 
     /**
      * Consigne associée

@@ -4,13 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\PurchaseItem;
+
+
 
 /**
  * ============================================================================
- * MODÈLE: DepositType (Type d'emballage consignable)
+ * MODELE: DepositType (Type d'emballage consignable)
  * ============================================================================
  */
 class DepositType extends Model
@@ -50,5 +50,13 @@ class DepositType extends Model
     {
         return $this->hasMany(Deposit::class)
             ->whereIn('status', ['active', 'partial']);
+    }
+
+    /**
+     * Lignes d'achat utilisant ce type d'emballage
+     */
+    public function purchaseItems()
+    {
+        return $this->hasMany(PurchaseItem::class);
     }
 }

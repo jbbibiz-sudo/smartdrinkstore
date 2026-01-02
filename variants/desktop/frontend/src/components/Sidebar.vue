@@ -76,6 +76,19 @@
       </a>
       
       <a 
+        @click.prevent="$emit('navigate', 'purchases')"
+        :class="['nav-item', {'nav-item-active': currentView === 'purchases'}]"
+        href="#"
+        :title="isCollapsed ? 'Achats' : ''"
+      >
+        <span class="text-xl">🛍️</span>
+        <span v-if="!isCollapsed" class="flex-1 ml-2">Achats</span>
+        <span v-if="!isCollapsed && purchasesCount > 0" class="ml-2 px-2 py-0.5 bg-teal-500 text-white text-xs font-bold rounded-full">
+          {{ purchasesCount }}
+        </span>
+      </a>
+      
+      <a 
         @click.prevent="$emit('navigate', 'invoices')" 
         :class="['nav-item', {'nav-item-active': currentView === 'invoices'}]"
         href="#"
@@ -188,6 +201,7 @@
 
 <script>
 import { ref } from 'vue';
+import { logout } from '../modules/module-1-config.js';
 
 export default {
   name: 'Sidebar',
@@ -203,6 +217,7 @@ export default {
     productsCount: { type: Number, default: 0 },
     customersCount: { type: Number, default: 0 },
     suppliersCount: { type: Number, default: 0 },
+    purchasesCount: { type: Number, default: 0 },
     salesCount: { type: Number, default: 0 },
     movementsCount: { type: Number, default: 0 }
   },
@@ -222,9 +237,9 @@ export default {
       showUserMenu.value = !showUserMenu.value;
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
       showUserMenu.value = false;
-      emit('logout');
+      await logout();
     };
 
     const hasPermission = (permissionName) => {

@@ -213,6 +213,7 @@
 
 <script>
 import { ref, computed, watch } from 'vue';
+import { api } from '../modules/module-1-config.js';
 
 export default {
   name: 'ProcessReturnModal',
@@ -301,24 +302,7 @@ export default {
 
       saving.value = true;
       try {
-        const apiBase = window.electron 
-          ? await window.electron.getApiBase() 
-          : 'http://localhost:8000';
-
-        const response = await fetch(`${apiBase}/api/v1/deposits/${props.deposit.id}/return`, {
-          method: 'POST',
-          headers: window.authHeaders || {
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(form.value),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || 'Erreur lors du traitement');
-        }
+        const data = await api.post(`/deposits/${props.deposit.id}/return`, form.value);
 
         alert('✅ Retour traité avec succès');
         emit('returned', data.data || data);

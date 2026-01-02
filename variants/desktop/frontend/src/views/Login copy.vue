@@ -132,7 +132,6 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
-import { setAuthToken } from '../modules/module-1-config.js';
 
 // ✅ DÉFINIR L'ÉMETTEUR D'ÉVÉNEMENTS
 const emit = defineEmits(['login-success']);
@@ -197,15 +196,18 @@ const handleLogin = async () => {
     });
 
     console.log('📥 Réponse brute reçue:', response.data);
+    console.log('🔍 Type de response.data:', typeof response.data);
 
     // ✅ FIX POUR LE BOM : Si response.data est une STRING, la parser
     let data;
     if (typeof response.data === 'string') {
       console.log('⚠️ response.data est une STRING, parsing JSON...');
+      // Retirer le BOM si présent (caractère \uFEFF)
       const cleanedData = response.data.replace(/^\uFEFF/, '');
       data = JSON.parse(cleanedData);
       console.log('✅ JSON parsé:', data);
     } else {
+      // response.data est déjà un objet
       data = response.data;
     }
 
@@ -223,12 +225,9 @@ const handleLogin = async () => {
       
       console.log('✅ Connexion réussie pour:', user.name);
 
-      // ✅ UTILISER setAuthToken du module-1-config.js
-      // Cela garantit la cohérence avec getAuthToken()
-      await setAuthToken(token, rememberMe.value);
-      
-      // ✅ Sauvegarder aussi l'utilisateur
+      // ✅ SAUVEGARDER LE TOKEN ET L'UTILISATEUR
       if (window.electron) {
+        await window.electron.store.set('token', token);
         await window.electron.store.set('user', JSON.stringify(user));
         
         if (rememberMe.value) {
@@ -239,19 +238,14 @@ const handleLogin = async () => {
         
         console.log('💾 Données sauvegardées dans Electron Store');
       } else {
-        // Pour le mode web, sauvegarder selon le choix "Se souvenir"
-        if (rememberMe.value) {
-          localStorage.setItem('user', JSON.stringify(user));
-        } else {
-          sessionStorage.setItem('user', JSON.stringify(user));
-        }
-        console.log('💾 Données sauvegardées dans', rememberMe.value ? 'localStorage' : 'sessionStorage');
+        localStorage.setItem('auth_token', token);
+        localStorage.setItem('user', JSON.stringify(user));
+        console.log('💾 Données sauvegardées dans localStorage');
       }
 
-      // ✅ Configurer axios pour les prochaines requêtes
+      // Configurer axios
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       
-      // ✅ Configurer window.authHeaders (prioritaire dans module-1-config.js)
       window.authHeaders = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',

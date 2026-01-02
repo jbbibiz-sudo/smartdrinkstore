@@ -4,53 +4,39 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Purchase;
 
 class Deposit extends Model
 {
     use HasFactory;
 
     protected $fillable = [
+        'reference',
+        'type',  // ✅ CORRIGÉ: était 'direction'
+        'customer_id',  // ✅ AJOUTÉ
+        'supplier_id',  // ✅ AJOUTÉ
         'deposit_type_id',
-        'direction',
-        'partner_type',
-        'partner_id',
         'quantity',
-        'unit_amount',
-        'total_amount',
         'quantity_pending',
-        'expected_return_at',
-        'notes',
+        'quantity_returned',  // ✅ AJOUTÉ
+        'unit_deposit_amount',  // ✅ AJOUTÉ
+        'total_deposit_amount',  // ✅ AJOUTÉ
         'status',
+        'notes',
+        'expected_return_at',
     ];
 
     protected $casts = [
         'quantity' => 'integer',
         'quantity_pending' => 'integer',
-        'unit_amount' => 'decimal:2',
-        'total_amount' => 'decimal:2',
+        'quantity_returned' => 'integer',
+        'unit_deposit_amount' => 'decimal:2',
+        'total_deposit_amount' => 'decimal:2',
         'expected_return_at' => 'date',
     ];
 
-    /**
-     * Boot method pour gérer automatiquement les stocks
-     */
-    protected static function boot()
-    {
-        parent::boot();
-
-        // Après création de la consigne
-        static::created(function ($deposit) {
-            $depositType = $deposit->depositType;
-
-            if ($deposit->direction === 'outgoing') {
-                // Sortie client -> diminue stock
-                $depositType->decrement('current_stock', $deposit->quantity);
-            } else {
-                // Entrée fournisseur -> augmente stock
-                $depositType->increment('current_stock', $deposit->quantity);
-            }
-        });
-    }
+    // ✅ CORRIGÉ: Boot method retiré car le controller gère déjà le stock
+    // Cela évite le double décrément et les erreurs SQL
 
     /**
      * Type d'emballage
@@ -65,8 +51,7 @@ class Deposit extends Model
      */
     public function customer()
     {
-        return $this->belongsTo(Customer::class, 'partner_id')
-            ->where('partner_type', 'customer');
+        return $this->belongsTo(Customer::class);
     }
 
     /**
@@ -74,8 +59,7 @@ class Deposit extends Model
      */
     public function supplier()
     {
-        return $this->belongsTo(Supplier::class, 'partner_id')
-            ->where('partner_type', 'supplier');
+        return $this->belongsTo(Supplier::class);
     }
 
     /**
@@ -91,7 +75,7 @@ class Deposit extends Model
      */
     public function scopeActive($query)
     {
-        return $query->whereIn('status', ['active', 'partial']);
+        return $query->whereIn('status', ['active', 'partially_returned']);
     }
 
     /**
@@ -99,7 +83,7 @@ class Deposit extends Model
      */
     public function scopeOutgoing($query)
     {
-        return $query->where('direction', 'outgoing');
+        return $query->where('type', 'outgoing');
     }
 
     /**
@@ -107,6 +91,14 @@ class Deposit extends Model
      */
     public function scopeIncoming($query)
     {
-        return $query->where('direction', 'incoming');
+        return $query->where('type', 'incoming');
+    }
+
+    /**
+     * Relation avec l'achat (pour consignes entrantes)
+     */
+    public function purchase()
+    {
+        return $this->belongsTo(Purchase::class);
     }
 }

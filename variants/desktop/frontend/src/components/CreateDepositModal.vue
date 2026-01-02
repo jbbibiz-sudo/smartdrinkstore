@@ -1,50 +1,103 @@
-﻿<template>
+﻿﻿﻿﻿<!-- CreateDepositModal.vue - Version optimisée -->
+<template>
   <div v-if="isOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click.self="$emit('close')">
-    <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl">
-      <div :class="['text-white p-6 rounded-t-lg', type === 'outgoing' ? 'bg-blue-600' : 'bg-green-600']">
+    <!-- ✅ Changé de max-w-2xl à max-w-lg -->
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div :class="['text-white p-4 rounded-t-lg', type === 'outgoing' ? 'bg-blue-600' : 'bg-green-600']">
         <div class="flex justify-between items-center">
-          <h3 class="text-2xl font-bold">{{ type === 'outgoing' ? '📤 Consigne Sortante' : '📥 Consigne Entrante' }}</h3>
-          <button @click="$emit('close')" class="text-white hover:text-gray-200 text-2xl">×</button>
+          <h3 class="text-xl font-bold">
+            {{ type === 'outgoing' ? '📤 Consigne Sortante' : '📥 Consigne Entrante' }}
+          </h3>
+          <button @click="$emit('close')" class="text-white hover:text-gray-200 text-2xl leading-none">×</button>
         </div>
       </div>
-      <form @submit.prevent="handleSubmit" class="p-6 space-y-4">
+      
+      <form @submit.prevent="handleSubmit" class="p-4 space-y-3">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">
             {{ type === 'outgoing' ? 'Client' : 'Fournisseur' }} <span class="text-red-500">*</span>
           </label>
-          <select v-model="form.partner_id" required class="w-full px-4 py-2 border rounded-lg">
+          <select v-model="form.partner_id" required class="w-full px-3 py-2 border rounded-lg text-sm">
             <option value="">Sélectionner...</option>
-            <option v-for="partner in partners" :key="partner.id" :value="partner.id">{{ partner.name }}</option>
+            <option v-for="partner in partners" :key="partner.id" :value="partner.id">
+              {{ partner.name }}
+            </option>
           </select>
         </div>
+
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Type d'emballage <span class="text-red-500">*</span></label>
-          <select v-model="form.deposit_type_id" required class="w-full px-4 py-2 border rounded-lg" @change="updateUnitAmount">
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            Type d'emballage <span class="text-red-500">*</span>
+          </label>
+          <select v-model="form.deposit_type_id" required class="w-full px-3 py-2 border rounded-lg text-sm" @change="updateUnitAmount">
             <option value="">Sélectionner...</option>
-            <option v-for="dt in depositTypes" :key="dt.id" :value="dt.id">{{ dt.name }} - {{ formatCurrency(dt.amount) }}</option>
+            <option v-for="dt in depositTypes" :key="dt.id" :value="dt.id">
+              {{ dt.name }} - {{ formatCurrency(dt.amount) }}
+            </option>
           </select>
         </div>
+
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Quantité <span class="text-red-500">*</span></label>
-          <input v-model.number="form.quantity" type="number" min="1" required class="w-full px-4 py-2 border rounded-lg" @input="calculateTotal">
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            Quantité <span class="text-red-500">*</span>
+          </label>
+          <input 
+            v-model.number="form.quantity" 
+            type="number" 
+            min="1" 
+            required 
+            class="w-full px-3 py-2 border rounded-lg text-sm" 
+            @input="calculateTotal"
+          >
         </div>
+
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Montant unitaire</label>
-          <input v-model="form.unit_deposit_amount" type="number" readonly class="w-full px-4 py-2 border rounded-lg bg-gray-100">
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            Montant unitaire
+          </label>
+          <input 
+            v-model="form.unit_deposit_amount" 
+            type="number" 
+            readonly 
+            class="w-full px-3 py-2 border rounded-lg bg-gray-100 text-sm"
+          >
         </div>
-        <div class="bg-blue-50 rounded-lg p-4">
+
+        <div class="bg-blue-50 rounded-lg p-3">
           <div class="flex justify-between items-center">
-            <span class="font-semibold">Total:</span>
-            <span class="text-2xl font-bold text-blue-600">{{ formatCurrency(form.total_deposit_amount) }}</span>
+            <span class="font-semibold text-sm">Total:</span>
+            <span class="text-xl font-bold text-blue-600">
+              {{ formatCurrency(form.total_deposit_amount) }}
+            </span>
           </div>
         </div>
+
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-          <textarea v-model="form.notes" rows="2" class="w-full px-4 py-2 border rounded-lg"></textarea>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+          <textarea 
+            v-model="form.notes" 
+            rows="2" 
+            class="w-full px-3 py-2 border rounded-lg text-sm"
+          ></textarea>
         </div>
-        <div class="flex gap-3 pt-4">
-          <button type="button" @click="$emit('close')" class="flex-1 px-6 py-3 border rounded-lg hover:bg-gray-50">Annuler</button>
-          <button type="submit" :disabled="saving" :class="['flex-1 px-6 py-3 text-white rounded-lg', type === 'outgoing' ? 'bg-blue-600' : 'bg-green-600']">
+
+        <div class="flex gap-2 pt-2">
+          <button 
+            type="button" 
+            @click="$emit('close')" 
+            class="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 text-sm"
+          >
+            Annuler
+          </button>
+          <button 
+            type="submit" 
+            :disabled="saving" 
+            :class="[
+              'flex-1 px-4 py-2 text-white rounded-lg text-sm font-medium',
+              type === 'outgoing' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700',
+              saving ? 'opacity-50 cursor-not-allowed' : ''
+            ]"
+          >
             {{ saving ? 'Enregistrement...' : '✓ Créer' }}
           </button>
         </div>
@@ -55,6 +108,7 @@
 
 <script>
 import { ref, watch } from 'vue';
+import { api } from '../modules/module-1-config.js';
 
 export default {
   name: 'CreateDepositModal',
@@ -94,16 +148,29 @@ export default {
 
     watch(() => props.isOpen, (isOpen) => {
       if (isOpen) {
-        form.value = { partner_id: '', deposit_type_id: '', quantity: 1, unit_deposit_amount: 0, total_deposit_amount: 0, notes: '' };
+        form.value = { 
+          partner_id: '', 
+          deposit_type_id: '', 
+          quantity: 1, 
+          unit_deposit_amount: 0, 
+          total_deposit_amount: 0, 
+          notes: '' 
+        };
       }
     });
 
     const handleSubmit = async () => {
       if (saving.value) return;
+
+      // Validation de la quantité
+      if (form.value.quantity <= 0) {
+        alert('❌ La quantité doit être supérieure à 0');
+        return;
+      }
+
       saving.value = true;
       
       try {
-        const apiBase = window.electron ? await window.electron.getApiBase() : 'http://localhost:8000';
         const payload = {
           type: props.type,
           deposit_type_id: form.value.deposit_type_id,
@@ -119,17 +186,8 @@ export default {
           payload.supplier_id = form.value.partner_id;
         }
 
-        const response = await fetch("${apiBase}/api/v1/deposits", {
-          method: 'POST',
-          headers: window.authHeaders || {
-            'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Erreur');
+        const endpoint = props.type === 'outgoing' ? '/deposits/outgoing' : '/deposits/incoming';
+        const data = await api.post(endpoint, payload);
 
         alert('✅ Consigne créée avec succès');
         emit('created', data.data || data);

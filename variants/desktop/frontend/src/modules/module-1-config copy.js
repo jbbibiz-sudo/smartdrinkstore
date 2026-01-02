@@ -20,28 +20,6 @@ const getAuthToken = async () => {
   return localStorage.getItem('auth_token');
 };
 
-// ⭐ Fonction pour initialiser window.authHeaders au démarrage de l'app
-const initAuthHeaders = async () => {
-  if (window.authHeaders) {
-    console.log('✅ window.authHeaders déjà défini');
-    return true;
-  }
-  
-  const token = await getAuthToken();
-  
-  if (token) {
-    window.authHeaders = {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
-    console.log('✅ window.authHeaders initialisé depuis le storage');
-    return true;
-  }
-  
-  console.warn('⚠️ Aucun token trouvé pour initialiser authHeaders');
-  return false;
-};
-
 // ⭐ Fonction pour définir le token (à utiliser lors du Login)
 const setAuthToken = async (token, remember = false) => {
   if (remember) {
@@ -114,8 +92,6 @@ const getHeaders = async () => {
   
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
-  } else {
-    console.warn('⚠️ Aucun token d\'authentification trouvé');
   }
   
   return headers;
@@ -123,65 +99,39 @@ const getHeaders = async () => {
 
 // ⭐ Fonction pour gérer les erreurs de manière détaillée
 const handleApiError = async (response, endpoint, method) => {
-  let errorMessage = 'Erreur réseau';
-  let errorDetails = null;
+  let errorMessage = 'Network error';
   
   try {
-    errorDetails = await response.json();
-    errorMessage = errorDetails.message || errorDetails.error || errorMessage;
+    const errorData = await response.json();
+    errorMessage = errorData.message || errorData.error || errorMessage;
   } catch (e) {
     // Si on ne peut pas parser le JSON, utiliser le message par défaut
-    errorMessage = response.statusText || errorMessage;
   }
   
-  // ✅ GESTION GLOBALE DES ERREURS PAR CODE HTTP
-  switch (response.status) {
-    case 401:
-      console.error('🔒 Session expirée ou non authentifié');
-      await logout();
-      throw new Error('Session expirée. Veuillez vous reconnecter.');
-      
-    case 403:
-      console.error('🚫 Accès refusé - Permissions insuffisantes');
-      throw new Error('Vous n\'avez pas les permissions nécessaires pour cette action.');
-      
-    case 404:
-      console.error('🔍 Ressource non trouvée:', endpoint);
-      throw new Error(`Ressource non trouvée: ${endpoint}`);
-      
-    case 422:
-      console.error('📝 Erreur de validation:', errorDetails);
-      throw new Error(`Erreur de validation: ${errorMessage}`);
-      
-    case 500:
-    case 502:
-    case 503:
-      console.error('💥 Erreur serveur:', errorMessage);
-      throw new Error('Erreur serveur. Veuillez réessayer plus tard.');
-      
-    default:
-      console.error(`❌ Erreur API [${method}] ${endpoint}:`, {
-        status: response.status,
-        message: errorMessage,
-        details: errorDetails
-      });
-      throw new Error(`Erreur ${response.status}: ${errorMessage}`);
+  // ✅ GESTION GLOBALE 401 (Token expiré)
+  if (response.status === 401) {
+    console.warn('🔒 Session expirée, redirection vers login...');
+    await logout();
   }
-};
-
-// ⭐ Fonction utilitaire pour logger les requêtes (mode debug)
-const logRequest = (method, endpoint, data = null) => {
-  if (import.meta.env.DEV) {
-    console.log(`📤 ${method} ${endpoint}`, data ? { data } : '');
-  }
+  
+  // Créer une erreur enrichie avec le code HTTP
+  const error = new Error(`${response.status}: ${errorMessage}`);
+  error.status = response.status;
+  error.endpoint = endpoint;
+  error.method = method;
+  
+  console.error(`❌ API Error [${method}] ${endpoint}:`, {
+    status: response.status,
+    message: errorMessage
+  });
+  
+  throw error;
 };
 
 const api = {
   get: async (endpoint) => {
-    logRequest('GET', endpoint);
     const baseUrl = await getApiBaseUrl();
     const headers = await getHeaders();
-    
     const response = await fetch(baseUrl + endpoint, {
       headers
     });
@@ -194,10 +144,8 @@ const api = {
   },
   
   post: async (endpoint, data) => {
-    logRequest('POST', endpoint, data);
     const baseUrl = await getApiBaseUrl();
     const headers = await getHeaders();
-    
     const response = await fetch(baseUrl + endpoint, {
       method: 'POST',
       headers,
@@ -212,10 +160,8 @@ const api = {
   },
   
   put: async (endpoint, data) => {
-    logRequest('PUT', endpoint, data);
     const baseUrl = await getApiBaseUrl();
     const headers = await getHeaders();
-    
     const response = await fetch(baseUrl + endpoint, {
       method: 'PUT',
       headers,
@@ -230,9 +176,13 @@ const api = {
   },
   
   delete: async (endpoint) => {
-    logRequest('DELETE', endpoint);
     const baseUrl = await getApiBaseUrl();
     const headers = await getHeaders();
+    
+    console.log('🗑️ DELETE Request:', {
+      url: baseUrl + endpoint,
+      headers
+    });
     
     const response = await fetch(baseUrl + endpoint, {
       method: 'DELETE',
@@ -241,11 +191,6 @@ const api = {
     
     if (!response.ok) {
       await handleApiError(response, endpoint, 'DELETE');
-    }
-    
-    // DELETE peut retourner 204 No Content
-    if (response.status === 204) {
-      return { success: true };
     }
     
     return response.json();
@@ -258,7 +203,6 @@ export {
   api, 
   setAuthToken, 
   getAuthToken, 
-  initAuthHeaders, // Export ajouté pour debug
   getHeaders, // Export ajouté pour debug
   logout 
 };
@@ -271,29 +215,22 @@ export {
 /*
 Codes d'erreur courants et leur signification :
 
-✅ 200 - OK : Requête réussie
-✅ 201 - Created : Ressource créée
-✅ 204 - No Content : Succès sans contenu (souvent pour DELETE)
+400 - Bad Request : Données invalides
+401 - Unauthorized : Non authentifié (token manquant/invalide)
+403 - Forbidden : Pas de permissions
+404 - Not Found : Ressource introuvable
+405 - Method Not Allowed : Méthode HTTP non supportée par l'endpoint
+422 - Unprocessable Entity : Erreur de validation
+500 - Internal Server Error : Erreur serveur
 
-❌ 400 - Bad Request : Données invalides
-❌ 401 - Unauthorized : Non authentifié (token manquant/invalide)
-❌ 403 - Forbidden : Pas de permissions
-❌ 404 - Not Found : Ressource introuvable
-❌ 405 - Method Not Allowed : Méthode HTTP non supportée par l'endpoint
-❌ 422 - Unprocessable Entity : Erreur de validation
-❌ 500 - Internal Server Error : Erreur serveur
-❌ 502 - Bad Gateway : Serveur intermédiaire en erreur
-❌ 503 - Service Unavailable : Service temporairement indisponible
+Si vous obtenez une erreur 405 sur DELETE /customers/:id,
+cela signifie que :
+1. La route n'existe pas dans votre backend Laravel
+2. OU la route existe mais n'accepte pas la méthode DELETE
+3. OU il y a un problème de configuration CORS
 
-PROBLÈME ACTUEL (401):
-Si vous obtenez une erreur 401, cela signifie que :
-1. Le token n'est PAS présent dans les headers
-2. OU le token est expiré
-3. OU le token est invalide
-
-SOLUTION :
-1. Vérifiez que vous êtes bien connecté
-2. Vérifiez que le token est stocké (sessionStorage ou localStorage)
-3. Vérifiez que le token est ajouté aux headers
-4. Testez avec Postman/Insomnia pour vérifier que l'API fonctionne
+Solution backend Laravel :
+Route::delete('/customers/{id}', [CustomerController::class, 'destroy'])
+    ->middleware('auth:sanctum')
+    ->name('customers.destroy');
 */

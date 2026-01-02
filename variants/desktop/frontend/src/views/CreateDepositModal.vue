@@ -1,140 +1,329 @@
+<!-- CreateDepositModal.vue - Version optimisée -->
 <template>
-  <div 
-    v-if="direction"
-    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" 
-    @click.self="$emit('close')"
-  >
-    <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl">
-      <!-- En-tête -->
-      <div :class="[
-        'text-white p-6 rounded-t-lg',
-        type === 'outgoing' ? 'bg-blue-600' : 'bg-green-600'
-      ]">
+  <div v-if="isOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click.self="$emit('close')">
+    <!-- ✅ Changé de max-w-2xl à max-w-lg -->
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div :class="['text-white p-4 rounded-t-lg', type === 'outgoing' ? 'bg-blue-600' : 'bg-green-600']">
         <div class="flex justify-between items-center">
-          <div>
-            <h3 class="text-2xl font-bold">
-              {{ type === 'outgoing' ? '📤 Consigne Sortante' : '📥 Consigne Entrante' }}
-            </h3>
-            <p class="text-sm mt-1 opacity-90">
-              {{ type === 'outgoing' ? 'Emballages consignés à un client' : 'Emballages reçus d\'un fournisseur' }}
-            </p>
-          </div>
-          <button @click="$emit('close')" class="text-white hover:text-gray-200 text-2xl">×</button>
+          <h3 class="text-xl font-bold">
+            {{ type === 'outgoing' ? '📤 Consigne Sortante' : '📥 Consigne Entrante' }}
+          </h3>
+          <button @click="$emit('close')" class="text-white hover:text-gray-200 text-2xl leading-none">×</button>
         </div>
       </div>
-
-      <!-- Formulaire -->
-      <form @submit.prevent="handleSubmit" class="p-6 space-y-4">
-        <!-- Sélection entité -->
+      
+      <form @submit.prevent="handleSubmit" class="p-4 space-y-3">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">
             {{ type === 'outgoing' ? 'Client' : 'Fournisseur' }} <span class="text-red-500">*</span>
           </label>
-          <select
-            v-model="form.entity_id"
-            required
-            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
+          <select v-model="form.partner_id" required class="w-full px-3 py-2 border rounded-lg text-sm">
             <option value="">Sélectionner...</option>
-            <option
-              v-for="entity in entities"
-              :key="entity.id"
-              :value="entity.id"
-            >
-              {{ entity.name }}
+            <option v-for="partner in partners" :key="partner.id" :value="partner.id">
+              {{ partner.name }}
             </option>
           </select>
         </div>
 
-        <!-- Type d'emballage -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">
             Type d'emballage <span class="text-red-500">*</span>
           </label>
-          <select
-            v-model="form.deposit_type_id"
-            required
-            @change="updateUnitAmount"
-            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
+          <select v-model="form.deposit_type_id" required class="w-full px-3 py-2 border rounded-lg text-sm" @change="updateUnitAmount">
             <option value="">Sélectionner...</option>
-            <option
-              v-for="dt in depositTypes"
-              :key="dt.id"
-              :value="dt.id"
-            >
-              {{ dt.name }} - {{ formatCurrency(dt.deposit_amount) }}
+            <option v-for="dt in depositTypes" :key="dt.id" :value="dt.id">
+              {{ dt.name }} - {{ formatCurrency(dt.amount) }}
             </option>
           </select>
         </div>
 
-        <!-- Quantité -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">
             Quantité <span class="text-red-500">*</span>
           </label>
-          <input
-            v-model.number="form.quantity"
-            type="number"
-            min="1"
-            required
-            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+          <input 
+            v-model.number="form.quantity" 
+            type="number" 
+            min="1" 
+            required 
+            class="w-full px-3 py-2 border rounded-lg text-sm" 
             @input="calculateTotal"
           >
         </div>
 
-        <!-- Montant unitaire (lecture seule) -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">
             Montant unitaire
           </label>
-          <input
-            :value="formatCurrency(form.unit_deposit_amount)"
-            type="text"
-            readonly
-            class="w-full px-4 py-2 border rounded-lg bg-gray-50 text-gray-600"
+          <input 
+            v-model="form.unit_deposit_amount" 
+            type="number" 
+            readonly 
+            class="w-full px-3 py-2 border rounded-lg bg-gray-100 text-sm"
           >
         </div>
 
-        <!-- Total (calculé) -->
-        <div class="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
+        <div class="bg-blue-50 rounded-lg p-3">
           <div class="flex justify-between items-center">
-            <span class="font-semibold text-blue-900">Total consigne:</span>
-            <span class="text-2xl font-bold text-blue-600">{{ formatCurrency(totalAmount) }}</span>
+            <span class="font-semibold text-sm">Total:</span>
+            <span class="text-xl font-bold text-blue-600">
+              {{ formatCurrency(form.total_deposit_amount) }}
+            </span>
           </div>
         </div>
 
-        <!-- Notes -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Notes (optionnel)
-          </label>
-          <textarea
-            v-model="form.notes"
-            rows="2"
-            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-            placeholder="Observations..."
+          <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+          <textarea 
+            v-model="form.notes" 
+            rows="2" 
+            class="w-full px-3 py-2 border rounded-lg text-sm"
           ></textarea>
         </div>
 
-        <!-- Boutons -->
-        <div class="flex gap-3 pt-4">
+        <div class="flex gap-2 pt-2">
+          <button 
+            type="button" 
+            @click="$emit('close')" 
+            class="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 text-sm"
+          >
+            Annuler
+          </button>
+          <button 
+            type="submit" 
+            :disabled="saving" 
+            :class="[
+              'flex-1 px-4 py-2 text-white rounded-lg text-sm font-medium',
+              type === 'outgoing' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700',
+              saving ? 'opacity-50 cursor-not-allowed' : ''
+            ]"
+          >
+            {{ saving ? 'Enregistrement...' : '✓ Créer' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</template>
+
+<script>
+import { ref, watch } from 'vue';
+import { api } from '../modules/module-1-config.js';
+
+export default {
+  name: 'CreateDepositModal',
+  props: {
+    isOpen: Boolean,
+    type: { type: String, required: true },
+    depositTypes: { type: Array, default: () => [] },
+    partners: { type: Array, default: () => [] }
+  },
+  emits: ['close', 'created'],
+  setup(props, { emit }) {
+    const saving = ref(false);
+    const form = ref({
+      partner_id: '',
+      deposit_type_id: '',
+      quantity: 1,
+      unit_deposit_amount: 0,
+      total_deposit_amount: 0,
+      notes: ''
+    });
+
+    const formatCurrency = (amount) => {
+      return new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 0 }).format(amount || 0) + ' FCFA';
+    };
+
+    const updateUnitAmount = () => {
+      const selectedType = props.depositTypes.find(dt => dt.id === form.value.deposit_type_id);
+      if (selectedType) {
+        form.value.unit_deposit_amount = selectedType.amount;
+        calculateTotal();
+      }
+    };
+
+    const calculateTotal = () => {
+      form.value.total_deposit_amount = form.value.quantity * form.value.unit_deposit_amount;
+    };
+
+    watch(() => props.isOpen, (isOpen) => {
+      if (isOpen) {
+        form.value = { 
+          partner_id: '', 
+          deposit_type_id: '', 
+          quantity: 1, 
+          unit_deposit_amount: 0, 
+          total_deposit_amount: 0, 
+          notes: '' 
+        };
+      }
+    });
+
+    const handleSubmit = async () => {
+      if (saving.value) return;
+      saving.value = true;
+      
+      try {
+        const payload = {
+          deposit_type_id: form.value.deposit_type_id,
+          quantity: form.value.quantity,
+          unit_deposit_amount: form.value.unit_deposit_amount,
+          total_deposit_amount: form.value.total_deposit_amount,
+          notes: form.value.notes
+        };
+
+        if (props.type === 'outgoing') {
+          payload.customer_id = form.value.partner_id;
+        } else {
+          payload.supplier_id = form.value.partner_id;
+        }
+
+        // ✅ Utiliser le bon endpoint selon le type
+        const endpoint = props.type === 'outgoing' ? '/deposits/outgoing' : '/deposits/incoming';
+        const data = await api.post(endpoint, payload);
+
+        alert('✅ Consigne créée avec succès');
+        emit('created', data.data || data);
+        emit('close');
+      } catch (error) {
+        alert('❌ ' + error.message);
+      } finally {
+        saving.value = false;
+      }
+    };
+
+    return { saving, form, formatCurrency, updateUnitAmount, calculateTotal, handleSubmit };
+  }
+};
+</script>
+
+<!-- ========================================= -->
+<!-- DepositTypeModal.vue - Version optimisée -->
+<!-- ========================================= -->
+<template>
+  <div 
+    v-if="isOpen" 
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" 
+    @click.self="$emit('close')"
+  >
+    <!-- ✅ Changé de max-w-2xl à max-w-lg -->
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div class="bg-purple-600 text-white p-4 rounded-t-lg sticky top-0">
+        <div class="flex justify-between items-center">
+          <h3 class="text-xl font-bold">
+            {{ depositType ? '✏️ Modifier' : '➕ Nouveau' }} Type d'emballage
+          </h3>
+          <button @click="$emit('close')" class="text-white hover:text-gray-200 text-2xl leading-none">×</button>
+        </div>
+      </div>
+
+      <form @submit.prevent="handleSubmit" class="p-4 space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Code <span class="text-red-500">*</span>
+            </label>
+            <input
+              v-model="form.code"
+              type="text"
+              required
+              class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+              placeholder="Ex: BOT-1L"
+            >
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Nom <span class="text-red-500">*</span>
+            </label>
+            <input
+              v-model="form.name"
+              type="text"
+              required
+              class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+              placeholder="Ex: Bouteille 1L"
+            >
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <textarea
+            v-model="form.description"
+            rows="2"
+            class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+            placeholder="Description optionnelle..."
+          ></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
+            <select
+              v-model="form.category"
+              class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+            >
+              <option value="">Aucune</option>
+              <option value="bouteille">Bouteille</option>
+              <option value="casier">Casier</option>
+              <option value="bidon">Bidon</option>
+              <option value="fût">Fût</option>
+              <option value="autre">Autre</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Montant <span class="text-red-500">*</span>
+            </label>
+            <input
+              v-model.number="form.amount"
+              type="number"
+              min="0"
+              step="100"
+              required
+              class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+            >
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Stock initial</label>
+            <input
+              v-model.number="form.initial_stock"
+              type="number"
+              min="0"
+              class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+            >
+          </div>
+
+          <div class="flex items-end">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                v-model="form.is_active"
+                type="checkbox"
+                class="w-4 h-4 text-purple-600 rounded focus:ring-2 focus:ring-purple-500"
+              >
+              <span class="text-sm font-medium text-gray-700">Type actif</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="flex gap-2 pt-2">
           <button
             type="button"
             @click="$emit('close')"
-            class="flex-1 px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
           >
             Annuler
           </button>
           <button
             type="submit"
             :disabled="saving"
-            :class="[
-              'flex-1 px-6 py-3 text-white rounded-lg transition disabled:opacity-50',
-              type === 'outgoing' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'
-            ]"
+            class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium"
           >
-            {{ saving ? 'Enregistrement...' : '✓ Créer la consigne' }}
+            {{ saving ? 'Enregistrement...' : depositType ? '✓ Modifier' : '✓ Créer' }}
           </button>
         </div>
       </form>

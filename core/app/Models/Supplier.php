@@ -2,9 +2,15 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Facades\DB;
+
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use App\Models\Purchase;
+use App\Models\Product;
+use App\Models\Deposit;
+
 
 class Supplier extends Model
 {
@@ -66,5 +72,40 @@ class Supplier extends Model
     public function getHasContactAttribute()
     {
         return !empty($this->phone) || !empty($this->email);
+    }
+
+    /**
+     * Relation avec les achats
+     */
+    public function purchases()
+    {
+        return $this->hasMany(Purchase::class);
+    }
+
+    /**
+     * Consignes entrantes de ce fournisseur
+     */
+    public function deposits()
+    {
+        return $this->hasMany(Deposit::class)->where('type', 'incoming');
+    }
+
+    /**
+     * Montant total des achats auprès de ce fournisseur
+     */
+    public function getTotalPurchasesAmountAttribute()
+    {
+        return $this->purchases()->where('status', 'received')->sum('total_amount');
+    }
+
+    /**
+     * Dette actuelle envers ce fournisseur
+     */
+    public function getCurrentDebtAttribute()
+    {
+        return $this->purchases()
+            ->where('payment_method', 'credit')
+            ->whereColumn('paid_amount', '<', 'total_amount')
+            ->sum(DB::raw('total_amount - paid_amount'));
     }
 }
