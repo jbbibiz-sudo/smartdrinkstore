@@ -157,16 +157,23 @@ class Purchase extends Model
     /**
      * Créer les consignes entrantes pour cet achat
      */
-    public function createDeposits()
+    public function createDeposits($userId = null)
     {
         if (!$this->has_deposits) {
             return;
         }
 
+        // ✅ Utiliser le userId passé en paramètre, sinon essayer auth()->id()
+        $userId = $userId ?? auth()->id();
+        
+        if (!$userId) {
+            throw new \Exception('User ID requis pour créer des consignes');
+        }
+
         foreach ($this->items as $item) {
             if ($item->is_consigned && $item->deposit_quantity > 0) {
                 Deposit::create([
-                    'user_id' => auth()->id(),
+                    'user_id' => $userId, // ✅ CORRECTION ICI
                     'reference' => 'DEP-IN-' . date('Ymd') . '-' . strtoupper(Str::random(6)),
                     'type' => 'incoming',
                     'supplier_id' => $this->supplier_id,

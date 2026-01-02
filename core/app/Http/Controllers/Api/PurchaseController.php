@@ -6,8 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
-use App\Models\Product;
-use App\Models\Supplier;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -288,9 +286,9 @@ class PurchaseController extends Controller
             // Mettre à jour le stock
             $purchase->updateStock();
 
-            // Créer les consignes entrantes si nécessaire
+            // ✅ CORRECTION : Passer explicitement le user_id
             if ($purchase->has_deposits) {
-                $purchase->createDeposits();
+                $purchase->createDeposits(auth()->id()); // ✅ ICI
             }
 
             DB::commit();
