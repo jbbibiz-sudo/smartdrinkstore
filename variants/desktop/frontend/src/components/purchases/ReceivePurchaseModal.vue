@@ -196,6 +196,10 @@
               <h2>BON DE RÉCEPTION</h2>
               <div class="detail-row"><strong>Réf:</strong> {{ purchase.reference }}</div>
               <div class="detail-row"><strong>Date:</strong> {{ formatDate(receiveForm.received_date) }}</div>
+              <div style="margin-top: 0.5rem; display: flex; justify-content: flex-end; align-items: center; gap: 1rem;">
+                <canvas id="purchase-qrcode"></canvas>
+                <svg id="purchase-barcode"></svg>
+              </div>
             </div>
           </div>
 
@@ -282,8 +286,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { initPurchaseManagement } from '@/modules/module-14-purchases.js';
+import JsBarcode from 'jsbarcode';
+import QRCode from 'qrcode';
 
 // Props
 const props = defineProps({
@@ -475,6 +481,42 @@ onMounted(() => {
     unit_cost: item.unit_cost || 0,
     quantity_received: item.quantity_received ?? item.quantity, // Par défaut, tout est reçu
   }));
+
+  // Générer le code-barres et le QR Code
+  nextTick(() => {
+    if (props.purchase?.reference) {
+      const reference = props.purchase.reference;
+      
+      // Contenu du QR Code : Par défaut la référence. 
+      // Pour une URL, remplacez par : `https://votre-site.com/suivi/${reference}`
+      const qrContent = reference;
+
+      // Générer le code-barres
+      try {
+        JsBarcode("#purchase-barcode", reference, {
+          format: "CODE128",
+          width: 1.5,
+          height: 40,
+          displayValue: false, // On masque le texte car la référence est déjà affichée au-dessus
+          margin: 0
+        });
+      } catch (e) {
+        console.error("Erreur génération code-barres:", e);
+      }
+
+      // Générer le QR Code
+      const qrCanvas = document.getElementById('purchase-qrcode');
+      if (qrCanvas) {
+        QRCode.toCanvas(qrCanvas, qrContent, {
+          width: 50,
+          margin: 1,
+          errorCorrectionLevel: 'H'
+        }, function (error) {
+          if (error) console.error('Erreur génération QR Code:', error)
+        });
+      }
+    }
+  });
 });
 </script>
 
@@ -850,14 +892,14 @@ onMounted(() => {
 
   .print-only {
     display: block;
-    font-family: Arial, sans-serif;
+    font-family: 'Courier New', Courier, monospace;
     color: black;
   }
 
   .receipt-border {
     border: 2px solid #000;
     padding: 1rem;
-    font-family: Arial, sans-serif;
+    font-family: 'Courier New', Courier, monospace;
     color: black;
   }
 

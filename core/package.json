@@ -8,5 +8,9 @@
         "axios": "^1.1.2",
         "laravel-vite-plugin": "^0.7.2",
         "vite": "^4.0.0"
+    },
+    "dependencies": {
+        "jsbarcode": "^3.12.1",
+        "qrcode": "^1.5.4"
     }
 }
