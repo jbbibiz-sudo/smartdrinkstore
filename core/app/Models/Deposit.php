@@ -12,18 +12,22 @@ class Deposit extends Model
 
     protected $fillable = [
         'reference',
-        'type',  // ✅ CORRIGÉ: était 'direction'
-        'customer_id',  // ✅ AJOUTÉ
-        'supplier_id',  // ✅ AJOUTÉ
+        'type',
+        'user_id',              
+        'customer_id',
+        'supplier_id',
         'deposit_type_id',
+        'sale_id',              
+        'purchase_id',          
         'quantity',
         'quantity_pending',
-        'quantity_returned',  // ✅ AJOUTÉ
-        'unit_deposit_amount',  // ✅ AJOUTÉ
-        'total_deposit_amount',  // ✅ AJOUTÉ
+        'quantity_returned',
+        'unit_deposit_amount',
+        'total_deposit_amount',
         'status',
-        'notes',
+        'issued_at',            
         'expected_return_at',
+        'notes',
     ];
 
     protected $casts = [
@@ -32,11 +36,17 @@ class Deposit extends Model
         'quantity_returned' => 'integer',
         'unit_deposit_amount' => 'decimal:2',
         'total_deposit_amount' => 'decimal:2',
-        'expected_return_at' => 'date',
+        'issued_at' => 'datetime',
+        'expected_return_at' => 'datetime',
     ];
 
-    // ✅ CORRIGÉ: Boot method retiré car le controller gère déjà le stock
-    // Cela évite le double décrément et les erreurs SQL
+    /**
+     * Utilisateur ayant créé la consigne
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 
     /**
      * Type d'emballage
@@ -60,6 +70,22 @@ class Deposit extends Model
     public function supplier()
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    /**
+     * Vente liée (pour consignes sortantes)
+     */
+    public function sale()
+    {
+        return $this->belongsTo(Sale::class);
+    }
+
+    /**
+     * Achat lié (pour consignes entrantes)
+     */
+    public function purchase()
+    {
+        return $this->belongsTo(Purchase::class);
     }
 
     /**
@@ -92,13 +118,5 @@ class Deposit extends Model
     public function scopeIncoming($query)
     {
         return $query->where('type', 'incoming');
-    }
-
-    /**
-     * Relation avec l'achat (pour consignes entrantes)
-     */
-    public function purchase()
-    {
-        return $this->belongsTo(Purchase::class);
     }
 }

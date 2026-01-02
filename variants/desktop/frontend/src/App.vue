@@ -27,6 +27,26 @@
         </div>
       </div>
 
+      <!-- ✅ NOUVEAU : Bannière de Rappels P2P (Livraisons & Paiements) -->
+      <div v-if="p2pReminders.count > 0" class="bg-orange-50 border-l-4 border-orange-500 text-orange-800 p-4 shadow-sm mb-1 mx-6 mt-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🔔</span>
+            <div>
+              <p class="font-bold">Rappels de Gestion (Procure-to-Pay)</p>
+              <div class="text-sm flex gap-4">
+                <span v-if="p2pReminders.overdueDeliveries > 0" class="flex items-center gap-1">
+                  📦 <strong>{{ p2pReminders.overdueDeliveries }}</strong> livraison(s) en retard
+                </span>
+                <span v-if="p2pReminders.overduePayments > 0" class="flex items-center gap-1">
+                  💰 <strong>{{ p2pReminders.overduePayments }}</strong> paiement(s) échu(s)
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="flex min-h-screen">
         <!-- Sidebar -->
         <Sidebar 
@@ -389,6 +409,7 @@
             :suppliers="suppliers"
             :purchases="purchases"
             :format-currency="formatCurrency"
+            :current-user="currentUser"
           />
 
           <!-- Customers View -->
@@ -851,6 +872,13 @@
                   >
                     📦 Réapprovisionner
                   </button>
+                  <!-- ✅ NOUVEAU : Bouton Commander (P2P) -->
+                  <button 
+                    @click="openPurchaseModalFromAlert(alert)"
+                    class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 ml-2"
+                  >
+                    🛒 Commander
+                  </button>
                 </div>
               </div>
             </div>
@@ -1090,6 +1118,16 @@
           @save-stock-out="saveStockOut"
         />
 
+        <!-- ✅ NOUVEAU : Modal d'Achat (P2P) -->
+        <PurchaseFormModal
+          v-if="showPurchaseModal"
+          :products="products"
+          :suppliers="suppliers"
+          :preselected-product="selectedAlertProduct"
+          @close="closePurchaseModal"
+          @success="handlePurchaseSuccess"
+        />
+
         <!-- ✅ MODALES CUSTOMER ET SUPPLIER -->
         <!-- Modal Customer -->
         <div v-if="showCustomerModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1270,6 +1308,7 @@ import DepositsView from './views/Deposits.vue';
 import { initAuthHeaders } from './modules/module-1-config.js';
 import { initPurchaseManagement } from './modules/module-14-purchases.js';
 import Purchases from './views/Purchases.vue';
+import PurchaseFormModal from './components/purchases/PurchaseFormModal.vue';
 
 export default {
   name: 'App',
@@ -1286,6 +1325,7 @@ export default {
     DepositsView,
     Purchases,
     ProductSuppliersModal,
+    PurchaseFormModal,
   },
   setup() {
     console.log('🔍 Setup() démarré...');
@@ -2049,6 +2089,46 @@ export default {
 
         const showDepositDetails = ref(true); // Afficher les détails par défaut
 
+    // ========================================
+    // ✅ GESTION P2P (Alertes -> Achats & Rappels)
+    // ========================================
+    const showPurchaseModal = ref(false);
+    const selectedAlertProduct = ref(null);
+
+    const openPurchaseModalFromAlert = (alertProduct) => {
+      selectedAlertProduct.value = alertProduct;
+      showPurchaseModal.value = true;
+    };
+
+    const closePurchaseModal = () => {
+      showPurchaseModal.value = false;
+      selectedAlertProduct.value = null;
+    };
+
+    const handlePurchaseSuccess = async () => {
+      closePurchaseModal();
+      await handleReloadData(); // Recharger pour mettre à jour les achats
+      // Optionnel : Naviguer vers la vue achats
+      // state.currentView.value = 'purchases';
+    };
+
+    // Calcul des rappels (Livraisons en retard & Paiements échus)
+    const p2pReminders = computed(() => {
+      if (!purchases.value) return { count: 0, overdueDeliveries: 0, overduePayments: 0 };
+
+      const today = new Date().toISOString().split('T')[0];
+
+      const overdueDeliveries = purchases.value.filter(p => 
+        p.status !== 'received' && p.status !== 'cancelled' && p.expected_delivery_date && p.expected_delivery_date < today
+      ).length;
+
+      const overduePayments = purchases.value.filter(p => 
+        p.payment_method === 'credit' && p.paid_amount < p.total_amount && p.due_date && p.due_date < today
+      ).length;
+
+      return { count: overdueDeliveries + overduePayments, overdueDeliveries, overduePayments };
+    });
+
     // ⭐ RETURN CORRIGÉ - VERSION COMPLÈTE
     return {
       // ========== AUTH ==========
@@ -2190,7 +2270,7 @@ export default {
       supplierForm: state.supplierForm,
       
       // Achats
-      purchases: state.purchases,
+      purchases: purchaseModule.purchases,
       
       // Ventes
       sales: state.sales,
@@ -2319,6 +2399,14 @@ export default {
       showHierarchicalCategoryModal,
       openHierarchicalCategoryModal,
       closeHierarchicalCategoryModal,
+
+      // ✅ P2P
+      showPurchaseModal,
+      selectedAlertProduct,
+      openPurchaseModalFromAlert,
+      closePurchaseModal,
+      handlePurchaseSuccess,
+      p2pReminders,
     };
   }
 }

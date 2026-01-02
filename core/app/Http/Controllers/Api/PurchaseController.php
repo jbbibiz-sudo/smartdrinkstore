@@ -140,11 +140,17 @@ class PurchaseController extends Controller
                 $dueDate = date('Y-m-d', strtotime($orderDate . ' + ' . $validated['credit_days'] . ' days'));
             }
 
+            // ✅ LOGIQUE DE VALIDATION : Si pas admin ou manager, statut = awaiting_approval
+            $initialStatus = 'draft';
+            if (!auth()->user()->hasRole('admin') && !auth()->user()->hasRole('manager')) {
+                $initialStatus = 'awaiting_approval';
+            }
+
             // Créer l'achat
             $purchase = Purchase::create([
                 'supplier_id' => $validated['supplier_id'],
                 'user_id' => auth()->id(),
-                'status' => 'draft',
+                'status' => $initialStatus,
                 'subtotal' => $subtotal,
                 'tax' => $tax,
                 'discount' => $discount,
@@ -205,6 +211,37 @@ class PurchaseController extends Controller
     }
 
     /**
+     * Approuver un achat (Workflow P2P)
+     * POST /api/v1/purchases/{id}/approve
+     */
+    public function approve($id)
+    {
+        try {
+            // ✅ Vérification des droits (Admin ou Manager)
+            if (!auth()->user()->hasRole('admin') && !auth()->user()->hasRole('manager')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Action non autorisée. Droits administrateur ou gérant requis.'
+                ], 403);
+            }
+
+            $purchase = Purchase::findOrFail($id);
+
+            $purchase->status = 'approved';
+            $purchase->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Achat approuvé avec succès',
+                'data' => $purchase
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Erreur lors de l\'approbation'], 500);
+        }
+    }
+
+    /**
      * Confirmer un achat
      * POST /api/v1/purchases/{id}/confirm
      */
@@ -213,10 +250,11 @@ class PurchaseController extends Controller
         try {
             $purchase = Purchase::findOrFail($id);
 
-            if ($purchase->status !== 'draft') {
+            // ✅ Accepter 'draft' (admin) ou 'approved' (validé)
+            if (!in_array($purchase->status, ['draft', 'approved'])) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Seuls les achats en brouillon peuvent être confirmés'
+                    'message' => 'L\'achat doit être approuvé avant d\'être confirmé'
                 ], 400);
             }
 
@@ -391,6 +429,7 @@ class PurchaseController extends Controller
             $stats = [
                 'total_purchases' => Purchase::count(),
                 'draft' => Purchase::draft()->count(),
+                'awaiting_approval' => Purchase::where('status', 'awaiting_approval')->count(),
                 'confirmed' => Purchase::confirmed()->count(),
                 'received' => Purchase::received()->count(),
                 'total_amount' => Purchase::received()->sum('total_amount'),

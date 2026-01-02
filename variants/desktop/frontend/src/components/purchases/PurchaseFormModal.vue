@@ -372,6 +372,7 @@ const submitting = ref(false);
 const props = defineProps({
   products: { type: Array, default: () => [] },
   suppliers: { type: Array, default: () => [] },
+  preselectedProduct: { type: Object, default: null }, // Nouveau prop pour l'automatisation
 });
 
 // Initialiser le module
@@ -499,6 +500,22 @@ watch(() => form.value.tax_rate, (newRate) => {
   }
 });
 
+// Automatisation : Pré-remplir si ouvert depuis une alerte
+onMounted(() => {
+  if (props.preselectedProduct) {
+    // Trouver le produit dans la liste complète
+    const product = props.products.find(p => p.id === props.preselectedProduct.id);
+    if (product) {
+      form.value.items[0].product_id = product.id;
+      handleProductChange(0);
+      
+      // Calculer la quantité suggérée (Min Stock - Stock Actuel)
+      const suggestedQty = Math.max(1, (product.min_stock || 0) - (product.stock || 0));
+      form.value.items[0].quantity = suggestedQty;
+      form.value.items[0].notes = "Commande générée suite à une alerte de stock bas.";
+    }
+  }
+});
 </script>
 
 <style scoped>

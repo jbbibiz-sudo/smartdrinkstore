@@ -225,6 +225,14 @@
                     👁️
                   </button>
                   <button
+                    v-if="purchase.status === 'awaiting_approval' && canApprove"
+                    @click="approvePurchase(purchase)"
+                    class="btn-icon btn-approve"
+                    title="Approuver"
+                  >
+                    ✅
+                  </button>
+                  <button
                     v-if="purchase.status === 'draft'"
                     @click="confirmPurchase(purchase.id)"
                     class="btn-icon btn-confirm"
@@ -299,7 +307,8 @@ const props = defineProps({
   products: { type: Array, default: () => [] },
   suppliers: { type: Array, default: () => [] },
   purchases: { type: Array, default: () => [] },
-  formatCurrency: { type: Function, default: null }
+  formatCurrency: { type: Function, default: null },
+  currentUser: { type: Object, default: null }
 });
 
 // Importer le module purchases
@@ -389,6 +398,46 @@ const viewPurchase = (purchase) => {
 const openReceiveModal = (purchase) => {
   selectedPurchase.value = purchase;
   showReceiveModal.value = true;
+};
+
+const canApprove = computed(() => {
+  if (!props.currentUser || !props.currentUser.roles) return false;
+  return props.currentUser.roles.some(role => ['admin', 'manager'].includes(role.name));
+});
+
+const approvePurchase = async (purchase) => {
+  if (!confirm(`Confirmer l'approbation de l'achat ${purchase.reference} ?\nCette action validera la commande pour envoi au fournisseur.`)) {
+    return;
+  }
+
+  loading.value = true;
+  try {
+    const apiBase = window.electron 
+      ? await window.electron.getApiBase() 
+      : 'http://localhost:8000';
+
+    const response = await fetch(`${apiBase}/api/v1/purchases/${purchase.id}/approve`, {
+      method: 'POST',
+      headers: window.authHeaders || {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+      }
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      alert('✅ Achat approuvé avec succès !');
+      await loadPurchases();
+    } else {
+      alert('❌ Erreur : ' + (result.message || 'Impossible d\'approuver cet achat.'));
+    }
+  } catch (error) {
+    console.error('Erreur lors de l\'approbation:', error);
+    alert('❌ Erreur technique lors de la communication avec le serveur.');
+  } finally {
+    loading.value = false;
+  }
 };
 
 const confirmPurchase = async (id) => {
