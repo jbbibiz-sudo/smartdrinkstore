@@ -150,6 +150,7 @@ class DepositController extends Controller
 
             // Créer la consigne
             $deposit = Deposit::create([
+                'user_id' => auth()->id(),
                 'reference' => $reference,
                 'type' => 'outgoing',
                 'customer_id' => $validated['customer_id'],
@@ -221,6 +222,7 @@ class DepositController extends Controller
 
             // Créer la consigne
             $deposit = Deposit::create([
+                'user_id' => auth()->id(),
                 'reference' => $reference,
                 'type' => 'incoming',
                 'supplier_id' => $validated['supplier_id'],
@@ -317,6 +319,7 @@ class DepositController extends Controller
 
             // Créer l'enregistrement du retour
             $depositReturn = DepositReturn::create([
+                'user_id' => auth()->id(),
                 'reference' => $reference,
                 'deposit_id' => $deposit->id,
                 'quantity_returned' => $validated['quantity'],

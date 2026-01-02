@@ -34,16 +34,16 @@
         >
           <option value="">Sélectionner l'opérateur</option>
           <option value="MTN">
-            <span class="operator-icon">🟡</span> MTN Mobile Money
+            🟡 MTN Mobile Money
           </option>
           <option value="ORANGE">
-            <span class="operator-icon">🟠</span> Orange Money
+            🟠 Orange Money
           </option>
           <option value="EU_MOBILE">
-            <span class="operator-icon">🔵</span> Express Union Mobile
+            🔵 Express Union Mobile
           </option>
           <option value="YUP">
-            <span class="operator-icon">💚</span> YUP
+            💚 YUP
           </option>
         </select>
         

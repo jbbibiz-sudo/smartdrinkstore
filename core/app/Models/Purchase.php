@@ -166,6 +166,7 @@ class Purchase extends Model
         foreach ($this->items as $item) {
             if ($item->is_consigned && $item->deposit_quantity > 0) {
                 Deposit::create([
+                    'user_id' => auth()->id(),
                     'reference' => 'DEP-IN-' . date('Ymd') . '-' . strtoupper(Str::random(6)),
                     'type' => 'incoming',
                     'supplier_id' => $this->supplier_id,

@@ -459,6 +459,7 @@ const handleSubmit = async () => {
     const result = await receivePurchase(props.purchase.id, receiveForm.value);
 
     if (result.success) {
+      alert('✅ Réception validée avec succès ! Le stock a été mis à jour.');
       emit('success');
     } else {
       alert('❌ Erreur : ' + result.error);
