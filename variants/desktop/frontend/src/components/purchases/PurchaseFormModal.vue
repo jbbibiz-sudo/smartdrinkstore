@@ -245,14 +245,24 @@
               </div>
 
               <div class="form-group">
-                <label class="form-label">TVA (FCFA)</label>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <label class="form-label" style="margin-bottom: 0;">TVA (%)</label>
+                  <label style="font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 0.25rem;">
+                    <input type="checkbox" v-model="form.apply_tax">
+                    Appliquer
+                  </label>
+                </div>
                 <input
-                  v-model.number="form.tax"
-                  @input="calculateTotals"
+                  v-if="form.apply_tax"
+                  v-model.number="form.tax_rate"
                   type="number"
                   class="form-input"
                   min="0"
+                  step="0.01"
                 />
+                <div v-else class="form-input" style="background: #f1f5f9; color: #94a3b8; font-style: italic;">
+                  Non applicable
+                </div>
               </div>
             </div>
 
@@ -266,9 +276,9 @@
                 <span>Total consignes :</span>
                 <strong>{{ formatAmount(totals.depositTotal) }}</strong>
               </div>
-              <div v-if="form.tax > 0" class="total-row">
-                <span>TVA :</span>
-                <strong>+ {{ formatAmount(form.tax) }}</strong>
+              <div v-if="form.apply_tax && totals.taxAmount > 0" class="total-row">
+                <span>TVA ({{ form.tax_rate }}%) :</span>
+                <strong>+ {{ formatAmount(totals.taxAmount) }}</strong>
               </div>
               <div v-if="form.discount > 0" class="total-row discount">
                 <span>Remise :</span>
@@ -321,7 +331,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import MobilePaymentSelector from '@/components/MobilePaymentSelector.vue';
 import { initPurchaseManagement } from '@/modules/module-14-purchases.js';
 import { depositTypes as globalDepositTypes } from '@/modules/module-2-state.js';
@@ -350,7 +360,8 @@ const form = ref({
   paid_amount: 0,
   credit_days: 30,
   discount: 0,
-  tax: 0,
+  apply_tax: true,
+  tax_rate: Number(localStorage.getItem('app_default_tax_rate')) || 19.25,
   order_date: new Date().toISOString().split('T')[0],
   expected_delivery_date: null,
   notes: '',
@@ -381,11 +392,13 @@ const totals = computed(() => {
     return sum;
   }, 0);
 
-  const total = subtotal + form.value.tax - form.value.discount;
+  const taxAmount = form.value.apply_tax ? Math.round(subtotal * (form.value.tax_rate / 100)) : 0;
+  const total = subtotal + depositTotal + taxAmount - form.value.discount;
 
   return {
     subtotal,
     depositTotal,
+    taxAmount,
     total,
   };
 });
@@ -461,7 +474,11 @@ const handleSubmit = async () => {
   submitting.value = true;
 
   try {
-    const result = await createPurchase(form.value);
+    const payload = {
+      ...form.value,
+      tax: totals.value.taxAmount
+    };
+    const result = await createPurchase(payload);
 
     if (result.success) {
       emit('success');
@@ -474,6 +491,13 @@ const handleSubmit = async () => {
     submitting.value = false;
   }
 };
+
+// Sauvegarder le taux de TVA par défaut lorsqu'il change
+watch(() => form.value.tax_rate, (newRate) => {
+  if (newRate > 0) {
+    localStorage.setItem('app_default_tax_rate', newRate);
+  }
+});
 
 </script>
 

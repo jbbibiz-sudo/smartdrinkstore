@@ -180,14 +180,16 @@
         <!-- VUE POUR L'IMPRESSION -->
         <!-- ================================== -->
         <div class="print-only">
+          <div class="receipt-border">
           <div class="print-header">
             <div class="company-branding">
               <!-- Logo (remplacez /logo.png par le chemin réel si disponible) -->
-              <img src="/logo.png" alt="Logo" class="print-logo" onerror="this.style.display='none'" />
+            <img :src="companyInfo.logo" alt="Logo" class="print-logo" onerror="this.style.display='none'" />
               <div class="company-text">
-                <h1>🍹 SmartDrink Store</h1>
-                <p>Commerce Général & Distribution</p>
-                <p>Yaoundé, Cameroun</p>
+                <h1>{{ companyInfo.name }}</h1>
+                <p>{{ companyInfo.subtitle }}</p>
+                <p>{{ companyInfo.address }}</p>
+                <p v-if="companyInfo.phone">Tél : {{ companyInfo.phone }}</p>
               </div>
             </div>
             <div class="document-details">
@@ -244,6 +246,7 @@
               <p>Signature Fournisseur</p>
             </div>
           </div>
+          </div>
         </div>
       </div>
 
@@ -299,6 +302,15 @@ const receiveForm = ref({
   items: [],
   received_date: new Date().toISOString().split('T')[0],
   notes: '',
+});
+
+// Informations de l'entreprise pour l'impression
+const companyInfo = ref({
+  name: localStorage.getItem('app_company_name') || '🍹 SmartDrink Store',
+  subtitle: localStorage.getItem('app_company_subtitle') || 'Commerce Général & Distribution',
+  address: localStorage.getItem('app_company_address') || 'Yaoundé, Cameroun',
+  logo: localStorage.getItem('app_company_logo') || '/logo.png',
+  phone: localStorage.getItem('app_company_phone') || ''
 });
 
 // Initialiser le module
@@ -372,7 +384,46 @@ const formatAmount = (amount) => {
 };
 
 const printReceipt = () => {
-  window.print();
+  const printContent = document.querySelector('.print-only');
+  if (!printContent) {
+    console.error("Element .print-only introuvable pour l'impression.");
+    return;
+  }
+
+  const iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.setAttribute('title', 'Frame d\'impression');
+  document.body.appendChild(iframe);
+
+  const iframeDoc = iframe.contentWindow.document;
+  iframeDoc.open();
+  iframeDoc.write('<!DOCTYPE html><html><head><title>Bon de Réception</title></head><body></body></html>');
+
+  // Cloner tous les styles pour préserver la mise en page
+  const styles = document.querySelectorAll('style, link[rel="stylesheet"]');
+  styles.forEach(style => {
+    iframeDoc.head.appendChild(style.cloneNode(true));
+  });
+
+  iframeDoc.body.innerHTML = printContent.innerHTML;
+  iframeDoc.close();
+
+  // Attendre que les images soient chargées avant d'imprimer
+  const images = Array.from(iframeDoc.querySelectorAll('img'));
+  const promises = images.map(img => {
+    if (img.complete) return Promise.resolve();
+    return new Promise((resolve) => {
+      img.onload = img.onerror = resolve;
+    });
+  });
+
+  Promise.all(promises).then(() => {
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      document.body.removeChild(iframe);
+    }, 250); // Un court délai pour assurer que tout est bien rendu
+  });
 };
 
 const handleSubmit = async () => {
@@ -803,6 +854,13 @@ onMounted(() => {
     color: black;
   }
 
+  .receipt-border {
+    border: 2px solid #000;
+    padding: 1rem;
+    font-family: Arial, sans-serif;
+    color: black;
+  }
+
   .modal-overlay {
     position: static;
     background: white;
@@ -827,8 +885,11 @@ onMounted(() => {
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 2rem;
-    padding-bottom: 1rem;
+    padding: 1.5rem;
     border-bottom: 2px solid #000;
+    background-color: #f1f5f9; /* Couleur de fond (Gris clair) */
+    -webkit-print-color-adjust: exact; /* Force l'impression de la couleur */
+    print-color-adjust: exact;
   }
 
   .company-branding {
