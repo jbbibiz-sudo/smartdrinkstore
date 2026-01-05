@@ -52,18 +52,16 @@
         <Sidebar 
           :current-view="currentView"
           :current-user="currentUser"
-          :consigned-products="consignedProducts"
-          :total-empty-containers="totalEmptyContainers"
           :alerts-count="alertsCount"
-          :credits-count="creditsCount" 
-          :app-info="appInfo"
-
+          :credits-count="creditsCount"
+          :deposits-count="depositsCount"
+          :purchases-count="purchases?.length || 0"
           :products-count="products?.length || 0"
           :customers-count="customers?.length || 0"
           :suppliers-count="suppliers?.length || 0"
-          :purchases-count="purchases?.length || 0"
           :sales-count="sales?.length || 0"
           :movements-count="movements?.length || 0"
+          :app-info="appInfo"
           
           @navigate="handleSidebarNavigation"
           @logout="handleLogout"
@@ -147,8 +145,18 @@
                   <div v-else class="space-y-3 max-h-[400px] overflow-y-auto">
                     <div v-for="item in cart" :key="item.product_id" class="border rounded p-3">
                       <div class="flex justify-between items-start mb-2">
-                        <span class="font-medium">{{ item.name }}</span>
-                        <button @click="removeFromCart(cart.indexOf(item))" class="text-red-500 hover:text-red-700">
+                        <div class="flex-1">
+                          <span class="font-medium">{{ item.name }}</span>
+
+                            <!-- ✅ BADGE CONSIGNE ICI (à l'intérieur de la boucle) -->
+                            <div v-if="item.has_deposit" class="mt-1 flex items-center gap-1">
+                              <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                                🍾Consigné
+                              </span>
+                            </div>
+                          </div>
+
+                          <button @click="removeFromCart(cart.indexOf(item))" class="text-red-500 hover:text-red-700">
                           ×
                         </button>
                       </div>
@@ -207,13 +215,6 @@
                     <div class="flex justify-between text-lg">
                       <span class="text-gray-600">Total produits:</span>
                       <span class="font-semibold">{{ formatCurrency(grandTotal) }}</span>
-                    </div>
-
-                    <!-- Badge consigne sur les produits -->
-                    <div v-if="product.has_deposit" class="mt-1 flex items-center gap-1">
-                      <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                        🍾Consigné
-                      </span>
                     </div>
 
                     <!-- ✅ NOUVEAU : Section consignes -->
@@ -884,6 +885,9 @@
             </div>
           </div>
 
+          <!-- Users View -->
+          <Users v-if="currentView === 'users'" />
+
           <!-- Modal de visualisation de facture - VERSION CORRIGÉE -->
           <div 
             v-if="showInvoiceModal && currentInvoice" 
@@ -1309,6 +1313,7 @@ import { initAuthHeaders } from './modules/module-1-config.js';
 import { initPurchaseManagement } from './modules/module-14-purchases.js';
 import Purchases from './views/Purchases.vue';
 import PurchaseFormModal from './components/purchases/PurchaseFormModal.vue';
+import Users from './views/Users.vue';
 
 export default {
   name: 'App',
@@ -1326,6 +1331,7 @@ export default {
     Purchases,
     ProductSuppliersModal,
     PurchaseFormModal,
+    Users,
   },
   setup() {
     console.log('🔍 Setup() démarré...');
@@ -1411,6 +1417,10 @@ export default {
 
     // État global
     const state = {
+      // État de navigation
+      currentView: ref('dashboard'),
+      loading: ref(false),
+      connectionError: ref(false),
       ...stateModule
     };
 
@@ -1442,8 +1452,17 @@ export default {
     const navigation = initNavigation(state, loaders);
     const depositMgmt = initDepositManagement(state, loaders);
 
-    // ✅ NOUVEAU: Gestion des crédits
+   // ✅ NOUVEAU: Gestion des crédits
     const creditsCount = ref(0);
+    const deposits = ref([]);              // Liste des consignes
+    const loadingDeposits = ref(false);    // État de chargement
+    const depositsCount = computed(() => {
+      return deposits.value.filter(d => 
+        d.status === 'active' || d.status === 'partially_returned'
+      ).length;
+    });          // Compteur de consignes actives  
+
+    
   
     /**
      * Charger le nombre de crédits impayés
@@ -1477,6 +1496,46 @@ export default {
       } catch (error) {
         console.error('❌ Erreur chargement crédits:', error);
         creditsCount.value = 0;
+      }
+    };
+
+    /**
+     * ✅ NOUVELLE FONCTION : Charger les consignes depuis l'API
+     */
+    const loadDeposits = async () => {
+      try {
+        loadingDeposits.value = true;
+        
+        const apiBase = window.electron 
+          ? await window.electron.getApiBase() 
+          : 'http://localhost:8000';
+
+        const response = await fetch(`${apiBase}/api/v1/deposits`, {
+          method: 'GET',
+          headers: window.authHeaders || {
+            'Authorization': `Bearer ${authToken.value}`,
+            'Content-Type': 'application/json',
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erreur ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.success) {
+          deposits.value = data.data || [];
+                    
+          console.log('✅ Consignes chargées:', depositsCount.value, 'actives');
+        }
+        
+      } catch (error) {
+        console.error('❌ Erreur chargement consignes:', error);
+        deposits.value = [];
+        depositsCount.value = 0;
+      } finally {
+        loadingDeposits.value = false;
       }
     };
 
@@ -1833,7 +1892,12 @@ export default {
     const purchaseModule = initPurchaseManagement(state, loaders);
 
     // Déstructurer le module purchases
-    const { purchases } = purchaseModule;
+    const purchases = purchaseModule.purchases;
+
+    // ✅ AJOUTER ICI (si le module n'a pas déjà loadPurchases)
+    const loadPurchases = purchaseModule.loadPurchases || (async () => {
+      console.log('📦 Module purchases déjà chargé');
+    });
 
     // Fonction de déconnexion
     const handleLogout = async () => {
@@ -1901,7 +1965,25 @@ export default {
     onMounted(async () => {
       console.log('🎯 Démarrage de l\'application...');
       perfMonitor.start('Initialisation App');
-      
+
+      // Restaurer la session
+      const sessionRestored = await loadUserFromStorage();
+
+      if (sessionRestored) {
+        // Charger toutes les données
+        await loaders.loadProducts();
+        await loaders.loadCategories();
+        await loaders.loadCustomers();
+        await loaders.loadSuppliers();
+        await loaders.loadSales();
+        await loaders.loadMovements();
+        await Promise.all([
+            loadCreditsCount(),
+            depositMgmt.loadDepositTypes(),
+            depositMgmt.loadDeposits(),
+            loadPurchases()
+            ]);
+              
       // ⭐ ÉTAPE 1: Charger la session AVANT initAuthHeaders
       const wasAuthenticated = await loadUserFromStorage();
       
@@ -1950,7 +2032,8 @@ export default {
       
       perfMonitor.end('Initialisation App');
       perfMonitor.getReport();
-    });  
+    }
+  });  
 
     // ========== GESTION DES FACTURES ==========
 
@@ -2109,24 +2192,37 @@ export default {
       closePurchaseModal();
       await handleReloadData(); // Recharger pour mettre à jour les achats
       // Optionnel : Naviguer vers la vue achats
-      // state.currentView.value = 'purchases';
+      state.currentView.value = 'purchases';
     };
 
     // Calcul des rappels (Livraisons en retard & Paiements échus)
     const p2pReminders = computed(() => {
-      if (!purchases.value) return { count: 0, overdueDeliveries: 0, overduePayments: 0 };
+      // ✅ CORRECTION : purchases est déjà une ref, pas besoin de .value
+      if (!purchases || !purchases.value || purchases.value.length === 0) {
+        return { count: 0, overdueDeliveries: 0, overduePayments: 0 };
+      }
 
       const today = new Date().toISOString().split('T')[0];
 
       const overdueDeliveries = purchases.value.filter(p => 
-        p.status !== 'received' && p.status !== 'cancelled' && p.expected_delivery_date && p.expected_delivery_date < today
+        p.status !== 'received' && 
+        p.status !== 'cancelled' && 
+        p.expected_delivery_date && 
+        p.expected_delivery_date < today
       ).length;
 
       const overduePayments = purchases.value.filter(p => 
-        p.payment_method === 'credit' && p.paid_amount < p.total_amount && p.due_date && p.due_date < today
+        p.payment_method === 'credit' && 
+        p.paid_amount < p.total_amount && 
+        p.due_date && 
+        p.due_date < today
       ).length;
 
-      return { count: overdueDeliveries + overduePayments, overdueDeliveries, overduePayments };
+      return { 
+        count: overdueDeliveries + overduePayments, 
+        overdueDeliveries, 
+        overduePayments 
+      };
     });
 
     // ⭐ RETURN CORRIGÉ - VERSION COMPLÈTE
@@ -2149,7 +2245,10 @@ export default {
       // ========== LOADERS ==========
       loaders, 
       handleReloadData,
-      loadUserFromStorage,  
+      loadUserFromStorage,
+      deposits,
+      depositsCount,
+      loadingDeposits,  
 
       // 💵 Calculateur de monnaie
       amountReceived,

@@ -33,6 +33,17 @@ class DatabaseSeeder extends Seeder
             // 4️⃣ TRANSACTIONS (en dernier car dépendent des autres)
             StockMovementSeeder::class,
             SalesSeeder::class,
+
+            // Seeders des consignes
+            DepositTypesSeeder::class,
+            DepositsSeeder::class,
+            DepositReturnsSeeder::class,
+
+            // Seeders des achats
+            PurchasesSeeder::class,
+
+            // Seeders des paiements
+            CreditPaymentsSeeder::class,
         ]);
 
         $this->command->newLine();

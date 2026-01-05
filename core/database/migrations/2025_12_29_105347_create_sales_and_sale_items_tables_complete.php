@@ -44,6 +44,7 @@ return new class extends Migration
             $table->decimal('total_amount', 15, 2)->comment('Montant total TTC');
             $table->decimal('discount', 15, 2)->default(0)->comment('Montant de la remise');
             $table->decimal('paid_amount', 15, 2)->default(0)->comment('Montant payé');
+            $table->decimal('deposit_amount', 10, 2)->default(0)->comment('Montant de la consigne');
             
             $table->timestamps();
             

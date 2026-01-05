@@ -20,6 +20,7 @@ return new class extends Migration
             // Statut de la commande
             $table->enum('status', [
                 'draft',      // Brouillon
+                'awaiting_approval', // En attente
                 'confirmed',  // Confirmée
                 'received',   // Reçue
                 'cancelled'   // Annulée
@@ -42,6 +43,8 @@ return new class extends Migration
             // Consignes
             $table->decimal('total_deposit_amount', 15, 2)->default(0); // Montant total des consignes
             $table->boolean('has_deposits')->default(false);
+            $table->foreignId('approved_by')->nullable()->constrained('users')->onDelete('set null');
+            $table->timestamp('approved_at')->nullable();
             
             // Dates
             $table->date('order_date')->nullable();

@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\CreditPaymentController;
 use App\Http\Controllers\Api\DepositController;
 use App\Http\Controllers\Api\DepositTypeController;
 use App\Http\Controllers\Api\PurchaseController;
+use App\Http\Controllers\Api\UserController;
 
 /*
 |--------------------------------------------------------------------------
@@ -35,6 +36,7 @@ use App\Http\Controllers\Api\PurchaseController;
 
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/register', [AuthController::class, 'register']);
 });
 
 /*
@@ -228,6 +230,14 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
         // Statistiques des paiements
         Route::get('/statistics', [CreditPaymentController::class, 'statistics']);
     });
+
+    // ========================================
+    // UTILISATEURS
+    // ========================================
+    
+    Route::patch('/users/{user}/toggle-active', [UserController::class, 'toggleActive']);
+    Route::get('/users/stats', [UserController::class, 'stats']);
+    Route::apiResource('users', UserController::class);
 
     /// ========================================
     // TYPES D'EMBALLAGES

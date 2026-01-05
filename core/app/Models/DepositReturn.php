@@ -12,6 +12,7 @@ class DepositReturn extends Model
     protected $fillable = [
         'reference',
         'deposit_id',
+        'user_id', 
         'quantity_returned',
         'quantity_good_condition',
         'quantity_damaged',

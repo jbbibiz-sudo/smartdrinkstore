@@ -128,150 +128,6 @@ class DepositController extends Controller
     }
 
     /**
-     * Créer une consigne sortante (vers client)
-     * POST /api/v1/deposits/outgoing
-     */
-    public function storeOutgoing(Request $request)
-    {
-        try {
-            $validated = $request->validate([
-                'customer_id' => 'required|exists:customers,id',
-                'deposit_type_id' => 'required|exists:deposit_types,id',
-                'quantity' => 'required|integer|min:1',
-                'unit_deposit_amount' => 'required|numeric|min:0',
-                'total_deposit_amount' => 'required|numeric|min:0',
-                'notes' => 'nullable|string|max:500',
-            ]);
-
-            DB::beginTransaction();
-
-            // Générer une référence unique
-            $reference = 'DEP-OUT-' . date('Ymd') . '-' . strtoupper(Str::random(6));
-
-            // Créer la consigne
-            $deposit = Deposit::create([
-                'user_id' => auth()->id(),
-                'reference' => $reference,
-                'type' => 'outgoing',
-                'customer_id' => $validated['customer_id'],
-                'deposit_type_id' => $validated['deposit_type_id'],
-                'quantity' => $validated['quantity'],
-                'quantity_pending' => $validated['quantity'],
-                'quantity_returned' => 0,
-                'unit_deposit_amount' => $validated['unit_deposit_amount'],
-                'total_deposit_amount' => $validated['total_deposit_amount'],
-                'status' => 'active',
-                'notes' => $validated['notes'] ?? null,
-            ]);
-
-            // Mettre à jour le stock du type d'emballage
-            $depositType = DepositType::find($validated['deposit_type_id']);
-            if ($depositType) {
-                $depositType->decrement('current_stock', $validated['quantity']);
-            }
-
-            DB::commit();
-
-            // ✅ CORRECTION TEMPORAIRE : Recharger sans relations pour éviter l'erreur purchases
-            $deposit->refresh();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Consigne sortante créée avec succès',
-                'data' => $deposit
-            ], 201);
-            
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur de validation',
-                'errors' => $e->errors()
-            ], 422);
-            
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Erreur création consigne sortante: ' . $e->getMessage());
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la création: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Créer une consigne entrante (du fournisseur)
-     * POST /api/v1/deposits/incoming
-     */
-    public function storeIncoming(Request $request)
-    {
-        try {
-            $validated = $request->validate([
-                'supplier_id' => 'required|exists:suppliers,id',
-                'deposit_type_id' => 'required|exists:deposit_types,id',
-                'quantity' => 'required|integer|min:1',
-                'unit_deposit_amount' => 'required|numeric|min:0',
-                'total_deposit_amount' => 'required|numeric|min:0',
-                'notes' => 'nullable|string|max:500',
-            ]);
-
-            DB::beginTransaction();
-
-            // Générer une référence unique
-            $reference = 'DEP-IN-' . date('Ymd') . '-' . strtoupper(Str::random(6));
-
-            // Créer la consigne
-            $deposit = Deposit::create([
-                'user_id' => auth()->id(),
-                'reference' => $reference,
-                'type' => 'incoming',
-                'supplier_id' => $validated['supplier_id'],
-                'deposit_type_id' => $validated['deposit_type_id'],
-                'quantity' => $validated['quantity'],
-                'quantity_pending' => $validated['quantity'],
-                'quantity_returned' => 0,
-                'unit_deposit_amount' => $validated['unit_deposit_amount'],
-                'total_deposit_amount' => $validated['total_deposit_amount'],
-                'status' => 'active',
-                'notes' => $validated['notes'] ?? null,
-            ]);
-
-            // Mettre à jour le stock du type d'emballage
-            $depositType = DepositType::find($validated['deposit_type_id']);
-            if ($depositType) {
-                $depositType->increment('current_stock', $validated['quantity']);
-            }
-
-            DB::commit();
-
-            // ✅ CORRECTION TEMPORAIRE : Recharger sans relations pour éviter l'erreur purchases
-            $deposit->refresh();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Consigne entrante créée avec succès',
-                'data' => $deposit
-            ], 201);
-            
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur de validation',
-                'errors' => $e->errors()
-            ], 422);
-            
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Erreur création consigne entrante: ' . $e->getMessage());
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la création: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
      * Traiter un retour d'emballages
      * POST /api/v1/deposits/{id}/return
      */
@@ -381,6 +237,150 @@ class DepositController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors du traitement: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Créer une consigne sortante (vers client)
+     * POST /api/v1/deposits/outgoing
+     */
+    public function storeOutgoing(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'customer_id' => 'required|exists:customers,id',
+                'deposit_type_id' => 'required|exists:deposit_types,id',
+                'quantity' => 'required|integer|min:1',
+                'unit_deposit_amount' => 'required|numeric|min:0',
+                'total_deposit_amount' => 'required|numeric|min:0',
+                'notes' => 'nullable|string|max:500',
+            ]);
+
+            DB::beginTransaction();
+
+            // Générer une référence unique
+            $reference = 'DEP-OUT-' . date('Ymd') . '-' . strtoupper(Str::random(6));
+
+            // Créer la consigne
+            $deposit = Deposit::create([
+                'user_id' => auth()->id(),
+                'reference' => $reference,
+                'type' => 'outgoing',
+                'customer_id' => $validated['customer_id'],
+                'deposit_type_id' => $validated['deposit_type_id'],
+                'quantity' => $validated['quantity'],
+                'quantity_pending' => $validated['quantity'],
+                'quantity_returned' => 0,
+                'unit_deposit_amount' => $validated['unit_deposit_amount'],
+                'total_deposit_amount' => $validated['total_deposit_amount'],
+                'status' => 'active',
+                'issued_at' => now(),  // ✅ AJOUTÉ
+                'notes' => $validated['notes'] ?? null,
+            ]);
+
+            // Mettre à jour le stock du type d'emballage
+            $depositType = DepositType::find($validated['deposit_type_id']);
+            if ($depositType) {
+                $depositType->decrement('current_stock', $validated['quantity']);
+            }
+
+            DB::commit();
+
+            $deposit->refresh();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Consigne sortante créée avec succès',
+                'data' => $deposit
+            ], 201);
+            
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $e->errors()
+            ], 422);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Erreur création consigne sortante: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la création: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Créer une consigne entrante (du fournisseur)
+     * POST /api/v1/deposits/incoming
+     */
+    public function storeIncoming(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'supplier_id' => 'required|exists:suppliers,id',
+                'deposit_type_id' => 'required|exists:deposit_types,id',
+                'quantity' => 'required|integer|min:1',
+                'unit_deposit_amount' => 'required|numeric|min:0',
+                'total_deposit_amount' => 'required|numeric|min:0',
+                'notes' => 'nullable|string|max:500',
+            ]);
+
+            DB::beginTransaction();
+
+            // Générer une référence unique
+            $reference = 'DEP-IN-' . date('Ymd') . '-' . strtoupper(Str::random(6));
+
+            // Créer la consigne
+            $deposit = Deposit::create([
+                'user_id' => auth()->id(),
+                'reference' => $reference,
+                'type' => 'incoming',
+                'supplier_id' => $validated['supplier_id'],
+                'deposit_type_id' => $validated['deposit_type_id'],
+                'quantity' => $validated['quantity'],
+                'quantity_pending' => $validated['quantity'],
+                'quantity_returned' => 0,
+                'unit_deposit_amount' => $validated['unit_deposit_amount'],
+                'total_deposit_amount' => $validated['total_deposit_amount'],
+                'status' => 'active',
+                'issued_at' => now(),  // ✅ AJOUTÉ
+                'notes' => $validated['notes'] ?? null,
+            ]);
+
+            // Mettre à jour le stock du type d'emballage
+            $depositType = DepositType::find($validated['deposit_type_id']);
+            if ($depositType) {
+                $depositType->increment('current_stock', $validated['quantity']);
+            }
+
+            DB::commit();
+
+            $deposit->refresh();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Consigne entrante créée avec succès',
+                'data' => $deposit
+            ], 201);
+            
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $e->errors()
+            ], 422);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Erreur création consigne entrante: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la création: ' . $e->getMessage()
             ], 500);
         }
     }

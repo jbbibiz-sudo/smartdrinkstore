@@ -503,6 +503,7 @@ export function initPurchaseManagement(state, loaders) {
           product_id: '',
           quantity: 1,
           unit_cost: 0,
+          status: 'draft',
           is_consigned: false,
           deposit_type_id: null,
           deposit_quantity: 0,
@@ -572,6 +573,7 @@ export function initPurchaseManagement(state, loaders) {
     purchaseFormTotal,
     purchaseFormDepositTotal,
     purchaseStats,
+    purchases: state.purchases,
 
     // Fonctions
     loadPurchases,

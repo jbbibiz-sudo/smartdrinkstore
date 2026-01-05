@@ -1,4 +1,5 @@
 <?php
+// Chemin: app/Http/Controllers/Api/UserController.php
 
 namespace App\Http\Controllers\Api;
 
@@ -15,8 +16,8 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        // Vérifier les permissions
-        if (!$request->user()->hasPermission('manage_users')) {
+        // ✅ CORRECTION: Vérifier avec hasRole au lieu de isAdmin
+        if (!$request->user()->hasRole('admin') && !$request->user()->hasPermission('manage_users')) {
             return response()->json([
                 'success' => false,
                 'message' => 'Accès refusé',
@@ -27,7 +28,9 @@ class UserController extends Controller
 
         // Filtrer par rôle si demandé
         if ($request->has('role')) {
-            $query->where('role', $request->role);
+            $query->whereHas('roles', function($q) use ($request) {
+                $q->where('name', $request->role);
+            });
         }
 
         // Filtrer par statut si demandé
@@ -44,13 +47,14 @@ class UserController extends Controller
             });
         }
 
-        $users = $query->orderBy('name')->get()->map(function ($user) {
+        // Charger la relation roles
+        $users = $query->with('roles')->orderBy('name')->get()->map(function ($user) {
             return [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'role' => $user->role,
-                'role_label' => $user->role_label,
+                'role' => $user->roles->first()?->name,
+                'role_label' => $user->roles->first()?->display_name ?? 'Aucun',
                 'is_active' => $user->is_active,
                 'phone' => $user->phone,
                 'address' => $user->address,
@@ -67,8 +71,8 @@ class UserController extends Controller
      */
     public function store(Request $request)
     {
-        // Vérifier les permissions
-        if (!$request->user()->hasPermission('manage_users')) {
+        // ✅ CORRECTION: hasRole au lieu de isAdmin
+        if (!$request->user()->hasRole('admin') && !$request->user()->hasPermission('manage_users')) {
             return response()->json([
                 'success' => false,
                 'message' => 'Accès refusé',
@@ -85,15 +89,21 @@ class UserController extends Controller
             'is_active' => 'boolean',
         ]);
 
+        // ✅ GÉNÉRATION AUTOMATIQUE DU USERNAME
+        $username = $this->generateUsername($validated['email'], $validated['name']);
+
         $user = User::create([
             'name' => $validated['name'],
+            'username' => $username,
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
-            'role' => $validated['role'],
             'phone' => $validated['phone'] ?? null,
             'address' => $validated['address'] ?? null,
             'is_active' => $validated['is_active'] ?? true,
         ]);
+
+        // Assigner le rôle via la relation
+        $user->assignRole($validated['role']);
 
         return response()->json([
             'success' => true,
@@ -101,12 +111,36 @@ class UserController extends Controller
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
+                'username' => $user->username,
                 'email' => $user->email,
-                'role' => $user->role,
-                'role_label' => $user->role_label,
+                'role' => $user->roles->first()?->name,
+                'role_label' => $user->roles->first()?->display_name,
                 'is_active' => $user->is_active,
             ],
         ], 201);
+    }
+
+/**
+     * ✅ NOUVELLE MÉTHODE : Générer un username unique
+     */
+    private function generateUsername($email, $name)
+    {
+        // Extraire la partie avant @ de l'email
+        $baseUsername = strtolower(explode('@', $email)[0]);
+        
+        // Nettoyer (enlever caractères spéciaux)
+        $baseUsername = preg_replace('/[^a-z0-9_]/', '', $baseUsername);
+        
+        // Vérifier si le username existe déjà 
+        $username = $baseUsername;
+        $counter = 1;
+        
+        while (User::where('username', $username)->exists()) {
+            $username = $baseUsername . $counter;
+            $counter++;
+        }
+        
+        return $username;
     }
 
     /**
@@ -114,22 +148,22 @@ class UserController extends Controller
      */
     public function show(Request $request, $id)
     {
-        // Vérifier les permissions
-        if (!$request->user()->hasPermission('manage_users')) {
+        // ✅ CORRECTION: hasRole au lieu de isAdmin
+        if (!$request->user()->hasRole('admin') && !$request->user()->hasPermission('manage_users')) {
             return response()->json([
                 'success' => false,
                 'message' => 'Accès refusé',
             ], 403);
         }
 
-        $user = User::findOrFail($id);
+        $user = User::with('roles')->findOrFail($id);
 
         return response()->json([
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
-            'role' => $user->role,
-            'role_label' => $user->role_label,
+            'role' => $user->roles->first()?->name,
+            'role_label' => $user->roles->first()?->display_name,
             'is_active' => $user->is_active,
             'phone' => $user->phone,
             'address' => $user->address,
@@ -143,8 +177,8 @@ class UserController extends Controller
      */
     public function update(Request $request, $id)
     {
-        // Vérifier les permissions
-        if (!$request->user()->hasPermission('manage_users')) {
+        // ✅ CORRECTION: hasRole au lieu de isAdmin
+        if (!$request->user()->hasRole('admin') && !$request->user()->hasPermission('manage_users')) {
             return response()->json([
                 'success' => false,
                 'message' => 'Accès refusé',
@@ -176,6 +210,11 @@ class UserController extends Controller
             ], 400);
         }
 
+        // ✅ Si l'email change, régénérer le username
+        if (isset($validated['email']) && $validated['email'] !== $user->email) {
+            $validated['username'] = $this->generateUsername($validated['email'], $validated['name'] ?? $user->name);
+        }
+
         // Mise à jour du mot de passe si fourni
         if (!empty($validated['password'])) {
             $validated['password'] = Hash::make($validated['password']);
@@ -185,15 +224,28 @@ class UserController extends Controller
 
         $user->update($validated);
 
+        // Mettre à jour le rôle si fourni
+        if (isset($validated['role'])) {
+            // Empêcher un utilisateur de changer son propre rôle.
+            if ($user->id === $request->user()->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas modifier votre propre rôle.',
+                ], 403);
+            }
+            $user->syncRoles([$validated['role']]);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Utilisateur mis à jour avec succès',
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
+                'username' => $user->username,
                 'email' => $user->email,
-                'role' => $user->role,
-                'role_label' => $user->role_label,
+                'role' => $user->roles->first()?->name,
+                'role_label' => $user->roles->first()?->display_name,
                 'is_active' => $user->is_active,
             ],
         ]);
@@ -204,8 +256,8 @@ class UserController extends Controller
      */
     public function destroy(Request $request, $id)
     {
-        // Vérifier les permissions
-        if (!$request->user()->hasPermission('manage_users')) {
+        // ✅ CORRECTION: hasRole au lieu de isAdmin
+        if (!$request->user()->hasRole('admin') && !$request->user()->hasPermission('manage_users')) {
             return response()->json([
                 'success' => false,
                 'message' => 'Accès refusé',
@@ -222,6 +274,14 @@ class UserController extends Controller
             ], 400);
         }
 
+        // Empêcher la suppression d'un administrateur
+        if ($user->hasRole('admin')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La suppression d\'un compte administrateur n\'est pas autorisée pour des raisons de sécurité.',
+            ], 403);
+        }
+
         $user->delete();
 
         return response()->json([
@@ -235,8 +295,8 @@ class UserController extends Controller
      */
     public function toggleActive(Request $request, $id)
     {
-        // Vérifier les permissions
-        if (!$request->user()->hasPermission('manage_users')) {
+        // ✅ CORRECTION: hasRole au lieu de isAdmin
+        if (!$request->user()->hasRole('admin') && !$request->user()->hasPermission('manage_users')) {
             return response()->json([
                 'success' => false,
                 'message' => 'Accès refusé',
@@ -251,6 +311,20 @@ class UserController extends Controller
                 'success' => false,
                 'message' => 'Vous ne pouvez pas modifier votre propre statut',
             ], 400);
+        }
+
+        // Empêcher la désactivation du dernier administrateur actif
+        if ($user->hasRole('admin') && $user->is_active) {
+            $activeAdminCount = User::where('is_active', true)->whereHas('roles', function ($query) {
+                $query->where('name', 'admin');
+            })->count();
+
+            if ($activeAdminCount <= 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de désactiver le dernier administrateur actif du système.',
+                ], 403);
+            }
         }
 
         $user->update(['is_active' => !$user->is_active]);
@@ -270,21 +344,28 @@ class UserController extends Controller
      */
     public function stats(Request $request)
     {
-        // Vérifier les permissions
-        if (!$request->user()->hasPermission('manage_users')) {
+        // ✅ CORRECTION: hasRole au lieu de isAdmin
+        if (!$request->user()->hasRole('admin') && !$request->user()->hasPermission('manage_users')) {
             return response()->json([
                 'success' => false,
                 'message' => 'Accès refusé',
             ], 403);
         }
 
+        // ✅ CORRECTION: Utiliser whereHas pour compter par rôle
         $stats = [
             'total' => User::count(),
             'active' => User::where('is_active', true)->count(),
             'inactive' => User::where('is_active', false)->count(),
-            'admins' => User::where('role', 'admin')->count(),
-            'managers' => User::where('role', 'manager')->count(),
-            'cashiers' => User::where('role', 'cashier')->count(),
+            'admins' => User::whereHas('roles', function($q) {
+                $q->where('name', 'admin');
+            })->count(),
+            'managers' => User::whereHas('roles', function($q) {
+                $q->where('name', 'manager');
+            })->count(),
+            'cashiers' => User::whereHas('roles', function($q) {
+                $q->where('name', 'cashier');
+            })->count(),
         ];
 
         return response()->json($stats);

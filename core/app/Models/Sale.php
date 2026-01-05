@@ -18,6 +18,7 @@ class Sale extends Model
         'total_amount',
         'discount',
         'paid_amount',
+        'deposit_amount',
         'due_date',
         'credit_days',
     ];
@@ -52,6 +53,15 @@ class Sale extends Model
     public function saleItems()
     {
         return $this->hasMany(SaleItem::class);
+    }
+
+
+    /*  
+    * Deposits
+    */
+    public function deposits()
+    {
+        return $this->hasMany(Deposit::class);
     }
 
     /**

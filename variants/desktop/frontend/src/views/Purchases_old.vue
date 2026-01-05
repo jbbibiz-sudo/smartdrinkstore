@@ -1,12 +1,6 @@
 <!-- 
-  PARTIE 1/4
+  Page: Purchases.vue (Gestion des Achats)
   Chemin: C:\smartdrinkstore\desktop-app\src\views\Purchases.vue
-  
-  CORRECTIONS APPORTÉES:
-  ✅ Ajout de la prop 'purchases' dans defineProps
-  ✅ Suppression du ref([]) local qui écrasait les données
-  ✅ Utilisation de props.purchases dans tous les computed
-  ✅ Conservation de loadPurchases vide (chargement dans App.vue)
 -->
 
 <template>
@@ -174,8 +168,8 @@
               <th>Fournisseur</th>
               <th>Date</th>
               <th>Montant</th>
-              <th>Statut Commande</th>
-              <th>Statut Paiement</th>
+              <th>Paiement</th>
+              <th>Statut</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -208,25 +202,18 @@
                   </small>
                 </div>
               </td>
-              <!-- ✅ NOUVELLE COLONNE : Statut Commande avec badges colorés -->
               <td>
-                <span class="status-badge" :class="getStatusBadgeClass(purchase.status)">
-                  <span class="badge-icon">{{ getStatusIcon(purchase.status) }}</span>
-                  <span class="badge-text">{{ getStatusLabel(purchase.status) }}</span>
-                </span>
-              </td>
-              <!-- ✅ NOUVELLE COLONNE : Statut Paiement avec badges colorés -->
-              <td>
-                <span class="payment-status-badge" :class="getPaymentStatusClass(purchase)">
-                  <span class="badge-icon">{{ getPaymentStatusIcon(purchase) }}</span>
-                  <span class="badge-text">{{ getPaymentStatusLabel(purchase) }}</span>
-                </span>
-                <div v-if="purchase.payment_method" class="payment-method-info">
-                  <small>{{ getPaymentLabel(purchase.payment_method) }}</small>
+                <div class="payment-badge" :class="getPaymentClass(purchase.payment_method)">
+                  {{ getPaymentLabel(purchase.payment_method) }}
                   <small v-if="purchase.mobile_operator" class="mobile-operator">
                     {{ purchase.mobile_operator }}
                   </small>
                 </div>
+              </td>
+              <td>
+                <span class="status-badge" :class="'status-' + purchase.status">
+                  {{ getStatusLabel(purchase.status) }}
+                </span>
               </td>
               <td>
                 <div class="action-buttons">
@@ -235,10 +222,10 @@
                     class="btn-icon"
                     title="Voir détails"
                   >
-                    ℹ️
+                    👁️
                   </button>
                   <button
-                    v-if="purchase.status === 'draft' && canApprove"
+                    v-if="purchase.status === 'awaiting_approval' && canApprove"
                     @click="approvePurchase(purchase)"
                     class="btn-icon btn-approve"
                     title="Approuver"
@@ -308,214 +295,97 @@
     />
   </div>
 </template>
+
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import PurchaseFormModal from '@/components/purchases/PurchaseFormModal.vue';
 import ReceivePurchaseModal from '@/components/purchases/ReceivePurchaseModal.vue';
 import PurchaseDetailModal from '@/components/purchases/PurchaseDetailModal.vue';
 
-// ✅ CORRECTION 1: Ajout de la prop 'purchases'
+// Définition des props reçues de App.vue
 const props = defineProps({
   products: { type: Array, default: () => [] },
   suppliers: { type: Array, default: () => [] },
-  purchases: { type: Array, default: () => [] },  // ✅ AJOUTÉ
-  user: { type: Object, default: () => ({}) },
+  purchases: { type: Array, default: () => [] },
+  formatCurrency: { type: Function, default: null },
+  currentUser: { type: Object, default: null }
 });
 
-// ✅ CORRECTION 2: Suppression du ref([]) local pour purchases
-// États (SANS const purchases = ref([]))
+// Importer le module purchases
+import { initPurchaseManagement } from '@/modules/module-14-purchases.js';
+
+// État global (à adapter selon votre structure)
+const state = ref({});
+const loaders = {
+  loadProducts: () => {}, // À connecter avec votre module produits
+  loadDeposits: () => {}, // À connecter avec votre module consignes
+};
+
+// Initialiser le module
+const purchaseModule = initPurchaseManagement(state, loaders);
+
+const {
+  purchases,
+  filteredPurchases,
+  purchaseStats,
+  purchaseFilters,
+  loadPurchases,
+  confirmPurchase: confirmPurchaseAction,
+  cancelPurchase: cancelPurchaseAction,
+  deletePurchase: deletePurchaseAction,
+} = purchaseModule;
+
+// État local
 const loading = ref(false);
 const showPurchaseModal = ref(false);
 const showReceiveModal = ref(false);
 const showDetailModal = ref(false);
 const selectedPurchase = ref(null);
 
-// Filtres
-const purchaseFilters = ref({
-  status: 'all',
-  payment_status: 'all',
-  supplier_id: '',
-  date_from: '',
-  date_to: '',
-  search: '',
-});
-
-// ============================================
-// ✅ NOUVELLES FONCTIONS POUR BADGES DE STATUT
-// ============================================
-
-/**
- * Retourne la classe CSS pour le badge de statut de commande
- */
-const getStatusBadgeClass = (status) => {
-  const classes = {
-    draft: 'status-draft',
-    confirmed: 'status-confirmed',
-    received: 'status-received',
-    cancelled: 'status-cancelled',
-  };
-  return classes[status] || 'status-default';
+// Méthodes
+const formatAmount = (amount) => {
+  if (props.formatCurrency) {
+    return props.formatCurrency(amount);
+  }
+  return new Intl.NumberFormat('fr-FR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount || 0) + ' FCFA';
 };
 
-/**
- * Retourne l'icône pour le statut de commande
- */
-const getStatusIcon = (status) => {
-  const icons = {
-    draft: '📝',
-    confirmed: '⏳',
-    received: '✅',
-    cancelled: '❌',
-    awaiting_approval: '🕐',
-  };
-  return icons[status] || '📋';
+const formatDate = (date) => {
+  if (!date) return 'N/A';
+  return new Date(date).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 };
 
-/**
- * Retourne le label du statut de commande
- */
 const getStatusLabel = (status) => {
   const labels = {
-    draft: 'Brouillon',
-    confirmed: 'Confirmé',
-    received: 'Reçu',
-    cancelled: 'Annulé',
-    awaiting_approval: 'En attente',
+    draft: '📝 Brouillon',
+    confirmed: '⏳ Confirmé',
+    received: '✅ Reçu',
+    cancelled: '❌ Annulé',
   };
   return labels[status] || status;
 };
 
-/**
- * Retourne la classe CSS pour le badge de statut de paiement
- */
-const getPaymentStatusClass = (purchase) => {
-  if (purchase.paid_amount === 0) return 'payment-unpaid';
-  if (purchase.paid_amount >= purchase.total_amount) return 'payment-paid';
-  return 'payment-partial';
-};
-
-/**
- * Retourne l'icône pour le statut de paiement
- */
-const getPaymentStatusIcon = (purchase) => {
-  if (purchase.paid_amount === 0) return '❌';
-  if (purchase.paid_amount >= purchase.total_amount) return '✅';
-  return '⚠️';
-};
-
-/**
- * Retourne le label du statut de paiement
- */
-const getPaymentStatusLabel = (purchase) => {
-  if (purchase.paid_amount === 0) return 'Non payé';
-  if (purchase.paid_amount >= purchase.total_amount) return 'Payé';
-  return 'Partiel';
-};
-
-/**
- * Retourne le label de la méthode de paiement
- */
 const getPaymentLabel = (method) => {
   const labels = {
     cash: '💵 Espèces',
-    mobile_money: '📱 Mobile Money',
+    mobile: '📱 Mobile Money',
+    credit: '🕐 Crédit',
     bank_transfer: '🏦 Virement',
-    check: '📝 Chèque',
-    credit: '💳 Crédit',
   };
   return labels[method] || method;
 };
 
-// ============================================
-// ✅ CORRECTION 3: Utilisation de props.purchases
-// ============================================
-
-// Statistiques calculées
-const purchaseStats = computed(() => {
-  return {
-    total: props.purchases.length,  // ✅ props.purchases au lieu de purchases.value
-    draft: props.purchases.filter(p => p.status === 'draft').length,
-    confirmed: props.purchases.filter(p => p.status === 'confirmed').length,
-    received: props.purchases.filter(p => p.status === 'received').length,
-    totalAmount: props.purchases.reduce((sum, p) => sum + parseFloat(p.total_amount || 0), 0),
-    debtAmount: props.purchases.reduce((sum, p) => {
-      const remaining = parseFloat(p.total_amount || 0) - parseFloat(p.paid_amount || 0);
-      return sum + (remaining > 0 ? remaining : 0);
-    }, 0),
-  };
-});
-
-// Achats filtrés
-const filteredPurchases = computed(() => {
-  let filtered = [...props.purchases];  // ✅ props.purchases au lieu de purchases.value
-
-  // Filtre par statut
-  if (purchaseFilters.value.status !== 'all') {
-    filtered = filtered.filter(p => p.status === purchaseFilters.value.status);
-  }
-
-  // Filtre par statut paiement
-  if (purchaseFilters.value.payment_status !== 'all') {
-    filtered = filtered.filter(p => {
-      const status = purchaseFilters.value.payment_status;
-      if (status === 'paid') return p.paid_amount >= p.total_amount;
-      if (status === 'unpaid') return p.paid_amount === 0;
-      if (status === 'partial') return p.paid_amount > 0 && p.paid_amount < p.total_amount;
-      return true;
-    });
-  }
-
-  // Filtre par fournisseur
-  if (purchaseFilters.value.supplier_id) {
-    filtered = filtered.filter(p => p.supplier_id === parseInt(purchaseFilters.value.supplier_id));
-  }
-
-  // Filtre par dates
-  if (purchaseFilters.value.date_from) {
-    filtered = filtered.filter(p => new Date(p.order_date) >= new Date(purchaseFilters.value.date_from));
-  }
-  if (purchaseFilters.value.date_to) {
-    filtered = filtered.filter(p => new Date(p.order_date) <= new Date(purchaseFilters.value.date_to));
-  }
-
-  // Recherche
-  if (purchaseFilters.value.search) {
-    const search = purchaseFilters.value.search.toLowerCase();
-    filtered = filtered.filter(p => 
-      p.reference?.toLowerCase().includes(search) ||
-      p.supplier?.name?.toLowerCase().includes(search)
-    );
-  }
-
-  return filtered;
-});
-
-// Permission d'approbation
-const canApprove = computed(() => {
-  return props.user?.role === 'admin' || props.user?.role === 'manager';
-});
-
-// ✅ CORRECTION 4: loadPurchases reste vide (chargement dans App.vue)
-const loadPurchases = async () => {
-  // Le chargement est géré dans App.vue via module-14-purchases.js
-  console.log('📦 Purchases chargés depuis App.vue:', props.purchases.length);
+const getPaymentClass = (method) => {
+  return `payment-${method}`;
 };
 
-// Formatage
-const formatDate = (date) => {
-  if (!date) return 'N/A';
-  return new Date(date).toLocaleDateString('fr-FR');
-};
-
-const formatAmount = (amount) => {
-  return new Intl.NumberFormat('fr-FR', { 
-    style: 'currency', 
-    currency: 'XAF',
-    minimumFractionDigits: 0,
-  }).format(amount || 0);
-};
-
-// Actions
 const openNewPurchaseModal = () => {
   showPurchaseModal.value = true;
 };
@@ -530,32 +400,76 @@ const openReceiveModal = (purchase) => {
   showReceiveModal.value = true;
 };
 
+const canApprove = computed(() => {
+  if (!props.currentUser || !props.currentUser.roles) return false;
+  return props.currentUser.roles.some(role => ['admin', 'manager'].includes(role.name));
+});
+
+const approvePurchase = async (purchase) => {
+  if (!confirm(`Confirmer l'approbation de l'achat ${purchase.reference} ?\nCette action validera la commande pour envoi au fournisseur.`)) {
+    return;
+  }
+
+  loading.value = true;
+  try {
+    const apiBase = window.electron 
+      ? await window.electron.getApiBase() 
+      : 'http://localhost:8000';
+
+    const response = await fetch(`${apiBase}/api/v1/purchases/${purchase.id}/approve`, {
+      method: 'POST',
+      headers: window.authHeaders || {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+      }
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      alert('✅ Achat approuvé avec succès !');
+      await loadPurchases();
+    } else {
+      alert('❌ Erreur : ' + (result.message || 'Impossible d\'approuver cet achat.'));
+    }
+  } catch (error) {
+    console.error('Erreur lors de l\'approbation:', error);
+    alert('❌ Erreur technique lors de la communication avec le serveur.');
+  } finally {
+    loading.value = false;
+  }
+};
+
 const confirmPurchase = async (id) => {
-  if (confirm('Confirmer cet achat ?')) {
-    // Logique de confirmation
-    await loadPurchases();
+  if (!confirm('Confirmer cet achat ?')) return;
+  
+  loading.value = true;
+  const result = await confirmPurchaseAction(id);
+  loading.value = false;
+  
+  if (result.success) {
+    alert('✅ Achat confirmé avec succès !');
+  } else {
+    alert('❌ Erreur : ' + result.error);
   }
 };
 
 const cancelPurchase = async (id) => {
-  if (confirm('Annuler cet achat ?')) {
-    // Logique d'annulation
-    await loadPurchases();
+  if (!confirm('Annuler cet achat ?')) return;
+  
+  loading.value = true;
+  const result = await cancelPurchaseAction(id);
+  loading.value = false;
+  
+  if (result.success) {
+    alert('✅ Achat annulé');
   }
 };
 
 const deletePurchase = async (id) => {
-  if (confirm('Supprimer définitivement cet achat ?')) {
-    // Logique de suppression
-    await loadPurchases();
-  }
-};
-
-const approvePurchase = async (purchase) => {
-  if (confirm('Approuver cet achat ?')) {
-    // Logique d'approbation
-    await loadPurchases();
-  }
+  loading.value = true;
+  await deletePurchaseAction(id);
+  loading.value = false;
 };
 
 const resetFilters = () => {
@@ -588,12 +502,6 @@ onMounted(async () => {
   loading.value = false;
 });
 </script>
-
-<!-- 
-  PARTIE 3/4
-  Chemin: C:\smartdrinkstore\desktop-app\src\views\Purchases.vue
-  Section: Styles (première moitié)
--->
 
 <style scoped>
 .purchases-page {
@@ -754,125 +662,47 @@ td {
   background: #f8fafc;
 }
 
-/* ============================================
-   ✅ NOUVEAUX STYLES POUR BADGES DE STATUT
-   ============================================ */
-
-/* Badge de statut de commande */
+/* Badges */
 .status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
+  display: inline-block;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
   font-size: 0.875rem;
   font-weight: 600;
-  transition: all 0.2s;
-  border: 2px solid transparent;
 }
 
-.status-badge:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.badge-icon {
-  font-size: 1.1rem;
-  line-height: 1;
-}
-
-.badge-text {
-  line-height: 1;
-}
-
-/* Statut : Brouillon */
 .status-draft {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  background: #fef3c7;
   color: #92400e;
-  border-color: #fbbf24;
 }
 
-/* Statut : Confirmé */
 .status-confirmed {
-  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  background: #dbeafe;
   color: #1e40af;
-  border-color: #60a5fa;
 }
 
-/* Statut : Reçu */
 .status-received {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  background: #d1fae5;
   color: #065f46;
-  border-color: #34d399;
 }
 
-/* Statut : Annulé */
 .status-cancelled {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  background: #fee2e2;
   color: #991b1b;
-  border-color: #f87171;
 }
 
-/* Statut : En attente */
-.status-pending {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  color: #92400e;
-  border-color: #fbbf24;
-}
-
-/* Badge de statut de paiement */
-.payment-status-badge {
+.payment-badge {
   display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  transition: all 0.2s;
-  border: 2px solid transparent;
-  margin-bottom: 0.25rem;
-}
-
-.payment-status-badge:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-/* Paiement : Payé */
-.payment-paid {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-  color: #065f46;
-  border-color: #34d399;
-}
-
-/* Paiement : Non payé */
-.payment-unpaid {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-  color: #991b1b;
-  border-color: #f87171;
-}
-
-/* Paiement : Partiel */
-.payment-partial {
-  background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
-  color: #92400e;
-  border-color: #fb923c;
-}
-
-/* Info méthode de paiement */
-.payment-method-info {
-  display: flex;
   flex-direction: column;
-  gap: 0.125rem;
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  color: #64748b;
+  gap: 0.25rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
 }
 
 .mobile-operator {
-  font-weight: 600;
-  color: #3b82f6;
+  font-size: 0.75rem;
+  opacity: 0.8;
 }
 
 /* Boutons */
@@ -951,34 +781,5 @@ td {
 .empty-icon {
   font-size: 4rem;
   margin-bottom: 1rem;
-}
-
-/* Informations supplémentaires */
-.purchase-reference {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.purchase-notes {
-  color: #64748b;
-  font-size: 0.75rem;
-}
-
-.delivery-date {
-  color: #64748b;
-  font-size: 0.75rem;
-}
-
-.amount-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.amount-remaining {
-  color: #dc2626;
-  font-size: 0.75rem;
-  font-weight: 600;
 }
 </style>

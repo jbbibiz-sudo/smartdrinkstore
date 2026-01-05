@@ -137,79 +137,52 @@ async function createWindow() {
       nodeIntegration: false,
       enableRemoteModule: false,
       sandbox: false,
-      // ✅ AJOUT: Désactiver webSecurity en dev pour CORS
-      webSecurity: !CONFIG.isDev,
+      webSecurity: !CONFIG.isDev,  // false en dev, true en prod
     },
     show: true,
   });
 
   // ============================================
-  // ✅ CONFIGURATION SESSION & CORS
+  // CONFIGURATION SESSION & COOKIES
   // ============================================
 
   const session = mainWindow.webContents.session;
-
-  console.log('🔧 Configuration des intercepteurs CORS...');
 
   // ✅ Activer la persistance des cookies
   session.cookies.on('changed', (event, cookie, cause, removed) => {
     console.log('🍪 Cookie modifié:', cookie.name, 'removed:', removed);
   });
 
-  // ✅ INTERCEPTEUR 1: Modifier les headers de REQUÊTE
-  mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
-    { urls: ['http://localhost:8000/*', 'http://127.0.0.1:8000/*'] },
-    (details, callback) => {
-      // Forcer l'Origin
-      details.requestHeaders['Origin'] = CONFIG.isDev ? CONFIG.viteUrl : 'electron://app';
-      details.requestHeaders['Referer'] = CONFIG.laravelUrl;
-      
-      console.log('📤 [CORS] Request Headers:', {
-        url: details.url,
-        method: details.method,
-        origin: details.requestHeaders['Origin']
-      });
-      
-      callback({ requestHeaders: details.requestHeaders });
-    }
-  );
+  // ✅ Configuration des headers pour accepter les cookies
+  mainWindow.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
+    details.requestHeaders['Origin'] = CONFIG.isDev ? CONFIG.viteUrl : 'electron://app';
+    details.requestHeaders['Referer'] = CONFIG.laravelUrl;
+    { urls: ['http://localhost:8000/*', 'http://127.0.0.1:8000/*'] };  // ← Filtre
+    callback({ requestHeaders: details.requestHeaders });
+  });
 
-  // ✅ INTERCEPTEUR 2: Modifier les headers de RÉPONSE
-  mainWindow.webContents.session.webRequest.onHeadersReceived(
-    { urls: ['http://localhost:8000/*', 'http://127.0.0.1:8000/*'] },
-    (details, callback) => {
-      const responseHeaders = { ...details.responseHeaders };
-      
-      // Supprimer les headers qui bloquent
-      delete responseHeaders['x-frame-options'];
-      delete responseHeaders['X-Frame-Options'];
-      
-      // ✅ CORRECTION: Ajouter TOUS les headers CORS nécessaires
-      responseHeaders['Access-Control-Allow-Origin'] = [CONFIG.viteUrl];
-      responseHeaders['Access-Control-Allow-Methods'] = ['GET, POST, PUT, DELETE, OPTIONS, PATCH'];
-      responseHeaders['Access-Control-Allow-Headers'] = ['Content-Type, Accept, Authorization, X-Requested-With, X-CSRF-TOKEN, Origin'];
-      responseHeaders['Access-Control-Allow-Credentials'] = ['true'];
-      responseHeaders['Access-Control-Max-Age'] = ['86400'];
-      
-      // CSP
-      responseHeaders['Content-Security-Policy'] = [
-        CONFIG.isDev 
-          ? "default-src 'self' http://localhost:5173 ws://localhost:5173; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5173; style-src 'self' 'unsafe-inline' http://localhost:5173; connect-src 'self' http://localhost:8000 http://localhost:5173 ws://localhost:5173; img-src 'self' data: http://localhost:5173;"
-          : "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:8000;"
-      ];
-      
-      console.log('📥 [CORS] Response Headers:', {
-        url: details.url,
-        status: details.statusCode,
-        corsOrigin: responseHeaders['Access-Control-Allow-Origin'],
-        corsCredentials: responseHeaders['Access-Control-Allow-Credentials']
-      });
-      
-      callback({ responseHeaders });
-    }
-  );
-
-  console.log('✅ Intercepteurs CORS configurés');
+  // ✅ Content Security Policy + CORS pour cookies
+  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    const responseHeaders = { ...details.responseHeaders };
+    
+    // Supprimer les headers qui bloquent les cookies
+    delete responseHeaders['x-frame-options'];
+    delete responseHeaders['X-Frame-Options'];
+    
+    callback({
+      responseHeaders: {
+        ...responseHeaders,
+        'Content-Security-Policy': [
+          CONFIG.isDev 
+            ? "default-src 'self' http://localhost:5173 ws://localhost:5173; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5173; style-src 'self' 'unsafe-inline' http://localhost:5173; connect-src 'self' http://localhost:8000 http://localhost:5173 ws://localhost:5173; img-src 'self' data: http://localhost:5173;"
+            : "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:8000;"
+        ],
+        // ✅ Permettre les credentials (cookies)
+        'Access-Control-Allow-Credentials': ['true'],
+        
+      }
+    });
+  });
 
   // ✅ Configurer les permissions pour les cookies
   session.setPermissionRequestHandler((webContents, permission, callback) => {
@@ -276,14 +249,6 @@ async function createWindow() {
       console.error(`[Renderer Error] ${message} (${sourceId}:${line})`);
     }
   });
-  
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('🎯 Configuration CORS complète :');
-  console.log('   • Laravel API:', CONFIG.laravelUrl);
-  console.log('   • Vite Frontend:', CONFIG.viteUrl);
-  console.log('   • Intercepteurs: ACTIFS');
-  console.log('   • Headers CORS: CONFIGURÉS');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 }
 
 // ============================================
@@ -442,8 +407,8 @@ ipcMain.handle('auth-check-session', () => {
 
 app.whenReady().then(() => {
   console.log('🚀 Application Electron démarrée');
-  console.log(`🔍 Mode: ${CONFIG.isDev ? 'Développement' : 'Production'}`);
-  console.log(`🔍 Platform: ${process.platform}`);
+  console.log(`📍 Mode: ${CONFIG.isDev ? 'Développement' : 'Production'}`);
+  console.log(`📍 Platform: ${process.platform}`);
   createWindow();
 
   app.on('activate', () => {

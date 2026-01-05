@@ -1,5 +1,5 @@
 // ============================================
-// MODULE 1 : CONFIGURATION ET API (VERSION AMÉLIORÉE)
+// MODULE 1 : CONFIGURATION ET API (VERSION CORRIGÉE)
 // ============================================
 
 // Configuration API
@@ -44,6 +44,14 @@ const initAuthHeaders = async () => {
 
 // ⭐ Fonction pour définir le token (à utiliser lors du Login)
 const setAuthToken = async (token, remember = false) => {
+  // ✅ 1. Définir immédiatement window.authHeaders (PRIORITAIRE)
+  window.authHeaders = {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  };
+  console.log('✅ window.authHeaders défini immédiatement');
+
+  // ✅ 2. Sauvegarder dans le storage approprié
   if (remember) {
     // Mode Persistant : Sauvegarde sur disque via Electron Store
     if (window.electron) {
@@ -104,15 +112,17 @@ const getHeaders = async () => {
     'Accept': 'application/json'
   };
 
-  // ✅ Priorité à window.authHeaders si disponible (défini après login)
-  if (window.authHeaders) {
+  // ✅ PRIORITÉ 1 : window.authHeaders (défini immédiatement après login)
+  if (window.authHeaders && window.authHeaders.Authorization) {
+    console.log('✅ Utilisation de window.authHeaders');
     return { ...headers, ...window.authHeaders };
   }
   
-  // Sinon, récupérer depuis le storage
+  // ✅ PRIORITÉ 2 : Récupérer depuis le storage (sessions persistantes)
   const token = await getAuthToken();
   
   if (token) {
+    console.log('✅ Token récupéré depuis le storage');
     headers['Authorization'] = `Bearer ${token}`;
   } else {
     console.warn('⚠️ Aucun token d\'authentification trouvé');
@@ -258,42 +268,7 @@ export {
   api, 
   setAuthToken, 
   getAuthToken, 
-  initAuthHeaders, // Export ajouté pour debug
-  getHeaders, // Export ajouté pour debug
+  initAuthHeaders,
+  getHeaders,
   logout 
 };
-
-
-// ============================================
-// NOTES SUR LES ERREURS HTTP
-// ============================================
-
-/*
-Codes d'erreur courants et leur signification :
-
-✅ 200 - OK : Requête réussie
-✅ 201 - Created : Ressource créée
-✅ 204 - No Content : Succès sans contenu (souvent pour DELETE)
-
-❌ 400 - Bad Request : Données invalides
-❌ 401 - Unauthorized : Non authentifié (token manquant/invalide)
-❌ 403 - Forbidden : Pas de permissions
-❌ 404 - Not Found : Ressource introuvable
-❌ 405 - Method Not Allowed : Méthode HTTP non supportée par l'endpoint
-❌ 422 - Unprocessable Entity : Erreur de validation
-❌ 500 - Internal Server Error : Erreur serveur
-❌ 502 - Bad Gateway : Serveur intermédiaire en erreur
-❌ 503 - Service Unavailable : Service temporairement indisponible
-
-PROBLÈME ACTUEL (401):
-Si vous obtenez une erreur 401, cela signifie que :
-1. Le token n'est PAS présent dans les headers
-2. OU le token est expiré
-3. OU le token est invalide
-
-SOLUTION :
-1. Vérifiez que vous êtes bien connecté
-2. Vérifiez que le token est stocké (sessionStorage ou localStorage)
-3. Vérifiez que le token est ajouté aux headers
-4. Testez avec Postman/Insomnia pour vérifier que l'API fonctionne
-*/

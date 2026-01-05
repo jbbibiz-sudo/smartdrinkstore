@@ -15,7 +15,7 @@ export function initDepositManagement(state, loaders) {
   const showDepositTypeModal = ref(false);
   const showDepositModal = ref(false);
   const showDepositReturnModal = ref(false);
-  const depositType= ref('outgoing'); // 'outgoing' | 'incoming'
+  const depositDirection = ref('outgoing'); // 'outgoing' | 'incoming'
 
   // ========================================
   // 2. FORMULAIRES
@@ -467,7 +467,7 @@ export function initDepositManagement(state, loaders) {
     showDepositTypeModal,
     showDepositModal,
     showDepositReturnModal,
-    depositType,
+    depositDirection,
 
     // Formulaires
     depositTypeForm,

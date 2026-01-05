@@ -142,7 +142,7 @@ class PurchaseController extends Controller
 
             // ✅ LOGIQUE DE VALIDATION : Si pas admin ou manager, statut = awaiting_approval
             $initialStatus = 'draft';
-            if (!auth()->user()->hasRole('admin') && !auth()->user()->hasRole('manager')) {
+            if (auth()->check() && auth()->user()->roles->pluck('name')->doesntContain(['admin', 'manager'])) {
                 $initialStatus = 'awaiting_approval';
             }
 
@@ -217,7 +217,7 @@ class PurchaseController extends Controller
     public function approve($id)
     {
         try {
-            // ✅ Vérification des droits (Admin ou Manager)
+            // Vérification des droits (Admin ou Manager)
             if (!auth()->user()->hasRole('admin') && !auth()->user()->hasRole('manager')) {
                 return response()->json([
                     'success' => false,

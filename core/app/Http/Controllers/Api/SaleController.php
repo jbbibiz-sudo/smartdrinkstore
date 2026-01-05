@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\StockMovement;
 use App\Models\Product;
+use App\Models\Deposit;
+use App\Models\DepositType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -150,6 +153,10 @@ class SaleController extends Controller
                 'items.*.quantity' => 'required|integer|min:1',
                 'items.*.unit_price' => 'required|numeric|min:0',
                 'credit_days' => 'nullable|integer|min:1',
+                'deposits' => 'nullable|array',
+                'deposits.*.deposit_type_id' => 'required_with:deposits|exists:deposit_types,id',
+                'deposits.*.quantity' => 'required_with:deposits|integer|min:1',
+                'deposit_amount' => 'nullable|numeric|min:0',
             ]);
 
             DB::beginTransaction();
@@ -175,7 +182,7 @@ class SaleController extends Controller
 
             // Calculer la date d'échéance pour les crédits
             $dueDate = null;
-            $creditDays = null;
+            $creditDays = 0; // ✅ Par défaut 0 au lieu de null
             if ($validated['payment_method'] === 'credit') {
                 $creditDays = $validated['credit_days'] ?? 30;
                 $dueDate = Carbon::now()->addDays($creditDays);
@@ -190,9 +197,10 @@ class SaleController extends Controller
                 'payment_method' => $validated['payment_method'],
                 'total_amount' => $finalAmount,
                 'discount' => $discount,
+                'deposit_amount' => $validated['deposit_amount'] ?? 0,
                 'paid_amount' => $validated['payment_method'] === 'credit' ? 0 : $finalAmount,
                 'due_date' => $dueDate,
-                'credit_days' => $creditDays,
+                'credit_days' => $creditDays, // ✅ Maintenant toujours un entier
             ]);
 
             // Créer les lignes de vente et mettre à jour le stock
@@ -215,6 +223,45 @@ class SaleController extends Controller
 
                 // Décrémenter le stock
                 $product->decrement('stock', $item['quantity']);
+
+                // Créer le mouvement de stock
+                StockMovement::create([
+                    'product_id' => $item['product_id'],
+                    'type' => 'out',
+                    'quantity' => $item['quantity'],
+                    'reason' => 'Vente #' . $sale->invoice_number,
+                    'reference' => $sale->invoice_number,
+                    'user_id' => auth()->id(),
+                    'previous_stock' => $product->stock + $item['quantity'],
+                    'new_stock' => $product->stock,
+                ]);
+            }
+
+            // ✅ TRAITER LES CONSIGNES
+            if (!empty($validated['deposits'])) {
+                foreach ($validated['deposits'] as $depositData) {
+                    $depositType = DepositType::findOrFail($depositData['deposit_type_id']);
+                    
+                    // Vérifier le stock d'emballages
+                    if ($depositType->quantity_in_stock < $depositData['quantity']) {
+                        throw new \Exception("Stock d'emballages insuffisant pour {$depositType->name}");
+                    }
+
+                    // Créer la consigne
+                    Deposit::create([
+                        'sale_id' => $sale->id,
+                        'customer_id' => $sale->customer_id,
+                        'deposit_type_id' => $depositData['deposit_type_id'],
+                        'quantity' => $depositData['quantity'],
+                        'unit_amount' => $depositType->deposit_amount,
+                        'total_amount' => $depositData['quantity'] * $depositType->deposit_amount,
+                        'status' => 'active',
+                        'collected_by' => auth()->id(),
+                    ]);
+
+                    // Déduire du stock d'emballages
+                    $depositType->decrement('quantity_in_stock', $depositData['quantity']);
+                }
             }
 
             DB::commit();

@@ -1,57 +1,37 @@
 <?php
 // Chemin: C:\smartdrinkstore\core\app\Models\User.php
-// Modèle: Utilisateur avec support des rôles et permissions
+// Modèle: Utilisateur avec rôles et permissions
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use App\Models\Purchase;
-use App\Models\Role;
-use App\Models\Permission;
-
-
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
+    use HasApiTokens, Notifiable, SoftDeletes;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'name',
         'email',
         'username',
         'password',
         'phone',
+        'address',
         'is_active',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * The attributes that should be cast.
-     *
-     * @var array<string, string>
-     */
     protected $casts = [
         'email_verified_at' => 'datetime',
-        'password' => 'hashed',
         'is_active' => 'boolean',
+        'last_login_at' => 'datetime',
     ];
 
     /**
@@ -64,6 +44,27 @@ class User extends Authenticatable
     }
 
     /**
+     * Obtenir toutes les permissions de l'utilisateur via ses rôles
+     */
+    public function getAllPermissions()
+    {
+        return $this->roles()
+                    ->with('permissions')
+                    ->get()
+                    ->pluck('permissions')
+                    ->flatten()
+                    ->unique('id');
+    }
+
+    /**
+     * ✅ Vérifie si l'utilisateur est administrateur
+     */
+    public function isAdmin(): bool
+    {
+        return $this->hasRole('admin');
+    }
+
+    /**
      * Vérifie si l'utilisateur a un rôle spécifique
      */
     public function hasRole(string $roleName): bool
@@ -72,19 +73,36 @@ class User extends Authenticatable
     }
 
     /**
-     * Vérifie si l'utilisateur a au moins un des rôles
+     * Vérifie si l'utilisateur a l'une des rôles
      */
-    public function hasAnyRole(array $roles): bool
+    public function hasAnyRole(array $roleNames): bool
     {
-        return $this->roles()->whereIn('name', $roles)->exists();
+        return $this->roles()->whereIn('name', $roleNames)->exists();
     }
 
     /**
      * Vérifie si l'utilisateur a tous les rôles
      */
-    public function hasAllRoles(array $roles): bool
+    public function hasAllRoles(array $roleNames): bool
     {
-        return $this->roles()->whereIn('name', $roles)->count() === count($roles);
+        return $this->roles()->whereIn('name', $roleNames)->count() === count($roleNames);
+    }
+
+    /**
+     * Vérifie si l'utilisateur a une permission spécifique
+     */
+    public function hasPermission(string $permissionName): bool
+    {
+        return $this->getAllPermissions()->contains('name', $permissionName);
+    }
+
+    /**
+     * Vérifie si l'utilisateur a l'une des permissions
+     */
+    public function hasAnyPermission(array $permissionNames): bool
+    {
+        $userPermissions = $this->getAllPermissions()->pluck('name')->toArray();
+        return !empty(array_intersect($permissionNames, $userPermissions));
     }
 
     /**
@@ -114,43 +132,28 @@ class User extends Authenticatable
     }
 
     /**
-     * Récupère toutes les permissions de l'utilisateur via ses rôles
+     * ✅ Synchronise les rôles (remplace tous les rôles existants)
      */
-    public function getAllPermissions()
+    public function syncRoles(array $roles): void
     {
-        return Permission::whereHas('roles', function ($query) {
-            $query->whereIn('roles.id', $this->roles->pluck('id'));
-        })->get();
+        $roleIds = [];
+        
+        foreach ($roles as $role) {
+            if (is_string($role)) {
+                $roleModel = Role::where('name', $role)->first();
+                if ($roleModel) {
+                    $roleIds[] = $roleModel->id;
+                }
+            } elseif ($role instanceof Role) {
+                $roleIds[] = $role->id;
+            }
+        }
+
+        $this->roles()->sync($roleIds);
     }
 
     /**
-     * Vérifie si l'utilisateur a une permission spécifique
-     */
-    public function hasPermission(string $permissionName): bool
-    {
-        return $this->getAllPermissions()->contains('name', $permissionName);
-    }
-
-    /**
-     * Vérifie si l'utilisateur a au moins une des permissions
-     */
-    public function hasAnyPermission(array $permissions): bool
-    {
-        $userPermissions = $this->getAllPermissions()->pluck('name')->toArray();
-        return !empty(array_intersect($permissions, $userPermissions));
-    }
-
-    /**
-     * Vérifie si l'utilisateur a toutes les permissions
-     */
-    public function hasAllPermissions(array $permissions): bool
-    {
-        $userPermissions = $this->getAllPermissions()->pluck('name')->toArray();
-        return count(array_intersect($permissions, $userPermissions)) === count($permissions);
-    }
-
-    /**
-     * Scope: Seulement les utilisateurs actifs
+     * Scope: Utilisateurs actifs uniquement
      */
     public function scopeActive($query)
     {
@@ -158,20 +161,12 @@ class User extends Authenticatable
     }
 
     /**
-     * Scope: Utilisateurs avec un rôle spécifique
+     * Scope: Utilisateurs par rôle
      */
     public function scopeWithRole($query, string $roleName)
     {
         return $query->whereHas('roles', function ($q) use ($roleName) {
             $q->where('name', $roleName);
         });
-    }
-
-    /**
-     * Achats créés par cet utilisateur
-     */
-    public function purchases()
-    {
-        return $this->hasMany(Purchase::class);
     }
 }

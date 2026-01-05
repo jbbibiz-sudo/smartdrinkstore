@@ -110,6 +110,7 @@ return new class extends Migration
             // Pénalités éventuelles
             $table->decimal('damage_penalty', 10, 2)->default(0);  // Pénalité casse
             $table->decimal('delay_penalty', 10, 2)->default(0);   // Pénalité retard
+            $table->decimal('total_penalty', 10, 2)->default(0);   // Total des pénalités
             $table->decimal('net_refund', 10, 2);                  // Remboursement net
             
             // Détails
@@ -128,23 +129,40 @@ return new class extends Migration
         // 4. AJOUT COLONNES AUX TABLES EXISTANTES
         // ========================================
         
-        // Ajouter colonne "has_deposit" à la table products
+        // ✅ CORRECTION: Vérifier si les colonnes existent avant de les ajouter
+        
+        // Ajouter colonnes à la table products
         Schema::table('products', function (Blueprint $table) {
-            $table->boolean('has_deposit')->default(false)->after('unit_price')
-                  ->comment('Produit nécessite une consigne');
-            $table->foreignId('deposit_type_id')->nullable()->after('has_deposit')
-                  ->constrained()->onDelete('set null')
-                  ->comment('Type d\'emballage consigné');
-            $table->integer('units_per_deposit')->default(1)->after('deposit_type_id')
-                  ->comment('Nombre d\'unités par emballage (ex: 24 bouteilles/casier)');
+            // Vérifier si la colonne n'existe pas déjà
+            if (!Schema::hasColumn('products', 'has_deposit')) {
+                $table->boolean('has_deposit')->default(false)->after('unit_price')
+                      ->comment('Produit nécessite une consigne');
+            }
+            
+            if (!Schema::hasColumn('products', 'deposit_type_id')) {
+                $table->foreignId('deposit_type_id')->nullable()->after('has_deposit')
+                      ->constrained()->onDelete('set null')
+                      ->comment('Type d\'emballage consigné');
+            }
+            
+            if (!Schema::hasColumn('products', 'units_per_deposit')) {
+                $table->integer('units_per_deposit')->default(1)->after('deposit_type_id')
+                      ->comment('Nombre d\'unités par emballage (ex: 24 bouteilles/casier)');
+            }
         });
 
-        // Ajouter colonnes deposit aux ventes
+        // Ajouter colonnes à la table sales
         Schema::table('sales', function (Blueprint $table) {
-            $table->decimal('deposit_amount', 10, 2)->default(0)->after('total_amount')
-                  ->comment('Montant total des consignes');
-            $table->decimal('grand_total', 10, 2)->default(0)->after('deposit_amount')
-                  ->comment('Total = total_amount + deposit_amount');
+            // ✅ Vérifier si les colonnes n'existent pas déjà
+            if (!Schema::hasColumn('sales', 'deposit_amount')) {
+                $table->decimal('deposit_amount', 10, 2)->default(0)->after('total_amount')
+                      ->comment('Montant total des consignes');
+            }
+            
+            if (!Schema::hasColumn('sales', 'grand_total')) {
+                $table->decimal('grand_total', 10, 2)->default(0)->after('deposit_amount')
+                      ->comment('Total = total_amount + deposit_amount');
+            }
         });
     }
 
@@ -153,14 +171,28 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Supprimer colonnes ajoutées
+        // Supprimer colonnes ajoutées aux ventes
         Schema::table('sales', function (Blueprint $table) {
-            $table->dropColumn(['deposit_amount', 'grand_total']);
+            if (Schema::hasColumn('sales', 'deposit_amount')) {
+                $table->dropColumn('deposit_amount');
+            }
+            if (Schema::hasColumn('sales', 'grand_total')) {
+                $table->dropColumn('grand_total');
+            }
         });
 
+        // Supprimer colonnes ajoutées aux produits
         Schema::table('products', function (Blueprint $table) {
-            $table->dropForeign(['deposit_type_id']);
-            $table->dropColumn(['has_deposit', 'deposit_type_id', 'units_per_deposit']);
+            if (Schema::hasColumn('products', 'deposit_type_id')) {
+                $table->dropForeign(['deposit_type_id']);
+                $table->dropColumn('deposit_type_id');
+            }
+            if (Schema::hasColumn('products', 'has_deposit')) {
+                $table->dropColumn('has_deposit');
+            }
+            if (Schema::hasColumn('products', 'units_per_deposit')) {
+                $table->dropColumn('units_per_deposit');
+            }
         });
 
         // Supprimer tables

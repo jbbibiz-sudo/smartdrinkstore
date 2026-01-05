@@ -129,12 +129,13 @@
   </div>
 </template>
 
+<!-- Chemin: C:\smartdrinkstore\desktop-app\src\views\Login.vue -->
+
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import { setAuthToken } from '../modules/module-1-config.js';
 
-// ✅ DÉFINIR L'ÉMETTEUR D'ÉVÉNEMENTS
 const emit = defineEmits(['login-success']);
 
 // État du composant
@@ -150,148 +151,197 @@ const errorMessage = ref('');
 const appMode = ref('Desktop');
 const isDev = ref(false);
 
-// Récupérer les informations de l'application au montage
+// ✅ CONFIGURATION AXIOS GLOBALE AU MONTAGE
 onMounted(async () => {
   try {
     if (window.electron) {
       const appInfo = await window.electron.getAppInfo();
       isDev.value = appInfo.isDev;
       
-      // Charger les identifiants sauvegardés si "Se souvenir"
       const savedUsername = await window.electron.store.get('saved_username');
       if (savedUsername) {
         credentials.value.username = savedUsername;
         rememberMe.value = true;
       }
     }
+    
+    // ✅ CONFIGURATION AXIOS POUR CORS
+    axios.defaults.withCredentials = true; // ⭐ CRUCIAL pour CORS
+    axios.defaults.headers.common['Accept'] = 'application/json';
+    axios.defaults.headers.common['Content-Type'] = 'application/json';
+    
+    console.log('✅ Axios configuré pour CORS');
+    
   } catch (error) {
     console.error('❌ Erreur lors de l\'initialisation:', error);
   }
 });
 
-// Gestion de la connexion
-// Chemin: C:\smartdrinkstore\desktop-app\src\views\Login.vue
-// SECTION À REMPLACER dans le <script setup> : La fonction handleLogin (lignes 172-266)
-
-// ✅ VERSION AVEC DEBUG DÉTAILLÉ
-// Chemin: C:\smartdrinkstore\desktop-app\src\views\Login.vue
-// SECTION À REMPLACER : La fonction handleLogin
-
-// ✅ VERSION FINALE - FIX POUR LE BOM
+// ✅ VERSION CORRIGÉE DE handleLogin
 const handleLogin = async () => {
-  console.log('🔐 Tentative de connexion...', credentials.value.username);
+  if (isLoading.value) return;
+  
+  console.group('🔐 TENTATIVE DE CONNEXION');
+  console.log('👤 Username:', credentials.value.username);
+  console.log('🕐 Timestamp:', new Date().toISOString());
+  
   errorMessage.value = '';
   isLoading.value = true;
+  let timeoutId = null;
 
   try {
+    // ✅ RÉCUPÉRER L'API BASE
     const apiBase = window.electron 
-      ? await window.electron.getApiBase() 
+      ? await window.electron.getApiBase().catch(() => 'http://localhost:8000')
       : 'http://localhost:8000';
 
-    console.log('📡 API Base:', apiBase);
+    const loginUrl = `${apiBase}/api/auth/login`;
+    
+    console.log('🌐 API Base:', apiBase);
+    console.log('📍 URL complète:', loginUrl);
 
-    // Appel à l'API de connexion
-    const response = await axios.post(`${apiBase}/api/auth/login`, {
+    // ✅ CONFIGURATION DE LA REQUÊTE AVEC CORS
+    const controller = new AbortController();
+    timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    const requestData = {
       username: credentials.value.username,
       password: credentials.value.password
-    });
+    };
 
-    console.log('📥 Réponse brute reçue:', response.data);
+    // ✅ CORRECTION : Configuration complète pour CORS
+    const requestConfig = {
+      signal: controller.signal,
+      withCredentials: true, // ⭐ CRUCIAL pour CORS avec credentials
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        // ✅ Supprimer X-Requested-With si présent (peut causer des problèmes CORS)
+      }
+    };
 
-    // ✅ FIX POUR LE BOM : Si response.data est une STRING, la parser
-    let data;
-    if (typeof response.data === 'string') {
-      console.log('⚠️ response.data est une STRING, parsing JSON...');
-      const cleanedData = response.data.replace(/^\uFEFF/, '');
+    console.group('📤 REQUÊTE');
+    console.log('Headers:', requestConfig.headers);
+    console.log('With Credentials:', requestConfig.withCredentials);
+    console.log('Body:', { ...requestData, password: '***' });
+    console.log('Timeout:', '15000ms');
+    console.groupEnd();
+
+    // ✅ APPEL API
+    console.log('🚀 Envoi de la requête...');
+    const response = await axios.post(loginUrl, requestData, requestConfig);
+
+    console.group('📥 RÉPONSE');
+    console.log('Status:', response.status);
+    console.log('Status Text:', response.statusText);
+    console.log('Headers:', response.headers);
+    console.log('Data type:', typeof response.data);
+    console.log('Data:', response.data);
+    console.groupEnd();
+
+    // ✅ TRAITEMENT DE LA RÉPONSE
+    let data = response.data;
+    
+    // Fix pour le BOM
+    if (typeof data === 'string') {
+      console.warn('⚠️ Réponse en string, parsing JSON...');
+      const cleanedData = data.replace(/^\uFEFF/, '');
       data = JSON.parse(cleanedData);
       console.log('✅ JSON parsé:', data);
-    } else {
-      data = response.data;
     }
 
-    // ✅ VÉRIFIER LA RÉPONSE
+    // ✅ VÉRIFIER LA STRUCTURE
+    console.group('🔍 VALIDATION');
+    console.log('success:', data?.success);
+    console.log('has data:', !!data?.data);
+    console.log('has user:', !!data?.data?.user);
+    console.log('has token:', !!data?.data?.token);
+    console.groupEnd();
+
     if (data && data.success === true) {
-      console.log('✅ Condition success === true validée !');
-      
       if (!data.data || !data.data.user || !data.data.token) {
         console.error('❌ Structure de données invalide');
+        console.log('Data reçue:', data);
         errorMessage.value = 'Erreur de structure de réponse';
+        console.groupEnd();
         return;
       }
       
       const { user, token } = data.data;
-      
       console.log('✅ Connexion réussie pour:', user.name);
+      console.log('🎫 Token reçu:', token.substring(0, 20) + '...');
 
-      // ✅ UTILISER setAuthToken du module-1-config.js
-      // Cela garantit la cohérence avec getAuthToken()
-      await setAuthToken(token, rememberMe.value);
-      
-      // ✅ Sauvegarder aussi l'utilisateur
-      if (window.electron) {
-        await window.electron.store.set('user', JSON.stringify(user));
-        
-        if (rememberMe.value) {
-          await window.electron.store.set('saved_username', credentials.value.username);
-        } else {
-          await window.electron.store.delete('saved_username');
-        }
-        
-        console.log('💾 Données sauvegardées dans Electron Store');
-      } else {
-        // Pour le mode web, sauvegarder selon le choix "Se souvenir"
-        if (rememberMe.value) {
-          localStorage.setItem('user', JSON.stringify(user));
-        } else {
-          sessionStorage.setItem('user', JSON.stringify(user));
-        }
-        console.log('💾 Données sauvegardées dans', rememberMe.value ? 'localStorage' : 'sessionStorage');
-      }
-
-      // ✅ Configurer axios pour les prochaines requêtes
+      // ✅ CONFIGURER AXIOS AVEC LE TOKEN
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      axios.defaults.withCredentials = true; // ⭐ Maintenir pour les requêtes suivantes
       
-      // ✅ Configurer window.authHeaders (prioritaire dans module-1-config.js)
-      window.authHeaders = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
+      console.log('✅ Headers Axios configurés');
 
-      console.log('🎉 Émission de l\'événement login-success vers App.vue');
-      
-      // ✅ ÉMETTRE L'ÉVÉNEMENT VERS App.vue
+      // ✅ ÉMETTRE L'ÉVÉNEMENT
+      console.log('🎉 Émission de login-success');
       emit('login-success', { user, token });
-      
-      console.log('✅ Événement login-success émis avec succès !');
 
-      // Notification
-      if (window.electron?.notification) {
-        window.electron.notification.show(
-          'Connexion réussie',
-          `Bienvenue ${user.name} !`
+      // ✅ SAUVEGARDES (en arrière-plan)
+      const savePromises = [];
+      
+      if (window.electron) {
+        savePromises.push(
+          window.electron.store.set('auth_token', token),
+          window.electron.store.set('user', JSON.stringify(user))
         );
+        
+        if (rememberMe.value) {
+          savePromises.push(
+            window.electron.store.set('remember_me', 'true'),
+            window.electron.store.set('saved_username', credentials.value.username)
+          );
+        }
       }
+
+      Promise.all(savePromises)
+        .then(() => console.log('💾 Données sauvegardées'))
+        .catch(err => console.warn('⚠️ Erreur sauvegarde:', err));
 
     } else {
-      console.warn('⚠️ Connexion échouée:', data?.message);
+      console.warn('⚠️ Connexion échouée');
+      console.log('Message:', data?.message);
       errorMessage.value = data?.message || 'Erreur de connexion';
     }
+
   } catch (error) {
-    console.error('❌ Erreur de connexion:', error);
+    console.group('❌ ERREUR');
+    console.error('Type:', error.name);
+    console.error('Message:', error.message);
+    console.error('Code:', error.code);
     
     if (error.response) {
-      console.error('❌ Réponse serveur:', error.response.status, error.response.data);
-      const message = error.response.data?.message || 'Identifiants incorrects';
-      errorMessage.value = message;
+      console.group('📥 Réponse d\'erreur');
+      console.log('Status:', error.response.status);
+      console.log('Headers:', error.response.headers);
+      console.log('Data:', error.response.data);
+      console.groupEnd();
     } else if (error.request) {
-      console.error('❌ Pas de réponse du serveur');
+      console.log('❌ Pas de réponse du serveur');
+      console.log('Request:', error.request);
+    }
+    console.groupEnd();
+    
+    // Messages d'erreur utilisateur
+    if (error.name === 'AbortError' || error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+      errorMessage.value = 'Délai d\'attente dépassé. Vérifiez que le serveur est démarré.';
+    } else if (error.response?.status === 419) {
+      errorMessage.value = 'Erreur CSRF. Configuration serveur incorrecte.';
+    } else if (error.response) {
+      errorMessage.value = error.response.data?.message || 'Identifiants incorrects';
+    } else if (error.request) {
       errorMessage.value = 'Impossible de contacter le serveur. Vérifiez que Laravel est démarré.';
     } else {
-      console.error('❌ Erreur:', error.message);
       errorMessage.value = 'Une erreur est survenue. Veuillez réessayer.';
     }
   } finally {
+    if (timeoutId) clearTimeout(timeoutId);
     isLoading.value = false;
+    console.groupEnd(); // Ferme le groupe "TENTATIVE DE CONNEXION"
   }
 };
 </script>

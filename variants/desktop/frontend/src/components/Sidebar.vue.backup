@@ -123,10 +123,10 @@
         :title="isCollapsed ? 'Consignes' : ''"
       >
         <span class="text-xl">🍾</span>
-        <span class="flex-1 ml-2">Consignes</span>
+        <span v-if="!isCollapsed" class="flex-1 ml-2">Consignes</span>
         <!-- Badge conditionnel si vous avez des conteneurs vides -->
-        <span v-if="!isCollapsed && depositsCount > 0" class="badge">
-          {{ depositsCount }}
+        <span v-if="!isCollapsed && totalEmptyContainers > 0" class="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs font-bold rounded-full">
+          {{ totalEmptyContainers }}
         </span>
       </a>
 
@@ -157,15 +157,15 @@
         </span>
       </a>
 
+      <!-- À ajouter dans Sidebar.vue -->
       <a 
         v-if="currentUser?.roles?.some(r => r.name === 'admin')"
+        href="#" 
         @click.prevent="$emit('navigate', 'users')"
-        :class="['nav-item', {'nav-item-active': currentView === 'users'}]"
-        href="#"
-        :title="isCollapsed ? 'Utilisateurs' : ''"
+        :class="['nav-item', currentView === 'users' ? 'active' : '']"
       >
-        <span class="text-xl">👥</span>
-        <span v-if="!isCollapsed" class="flex-1 ml-2">Utilisateurs</span>
+        <span class="icon">👥</span>
+        <span class="label">Utilisateurs</span>
       </a>
     </nav>
 
@@ -228,7 +228,6 @@ export default {
     productsCount: { type: Number, default: 0 },
     customersCount: { type: Number, default: 0 },
     suppliersCount: { type: Number, default: 0 },
-    depositsCount: { type: Number, default: 0 },
     purchasesCount: { type: Number, default: 0 },
     salesCount: { type: Number, default: 0 },
     movementsCount: { type: Number, default: 0 }

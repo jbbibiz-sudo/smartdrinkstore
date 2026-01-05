@@ -1,5 +1,15 @@
 <template>
   <div class="stock-movements-view">
+    <!-- ✅ NOUVEAU : En-tête avec titre -->
+    <div class="page-header">
+      <div class="header-left">
+        <h1 class="page-title">
+          <span class="icon">📊</span>
+          Mouvements de Stock
+        </h1>
+        <p class="page-subtitle">Historique complet des entrées, sorties et ajustements de stock</p>
+      </div>
+    </div>
     <!-- En-tête avec statistiques -->
     <div class="stats-cards">
       <div class="stat-card green">
@@ -1175,9 +1185,72 @@ onMounted(() => {
 
 <style scoped>
 .stock-movements-view {
-  padding: 20px;
+  padding: 2rem; /* ✅ Changé de 20px à 2rem pour cohérence */
   background: #f5f5f5;
   min-height: 100vh;
+  max-width: 1400px; /* ✅ Ajouté pour limiter la largeur */
+  margin: 0 auto; /* ✅ Centrer le contenu */
+}
+
+/* ✅ NOUVEAUX STYLES POUR L'EN-TÊTE */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+}
+
+.header-left {
+  flex: 1;
+}
+
+.header-right {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.page-title .icon {
+  font-size: 2rem;
+}
+
+.page-subtitle {
+  color: #64748b;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.btn-secondary {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.btn-secondary:hover {
+  background: #cbd5e1;
+  transform: translateY(-1px);
 }
 
 .stats-cards {

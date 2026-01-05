@@ -20,8 +20,10 @@ return new class extends Migration
             $table->string('username')->unique();
             $table->string('password');
             $table->string('phone')->nullable();
+            $table->string('address')->nullable(); // ✅ AJOUT DE LA COLONNE ADDRESS
             $table->boolean('is_active')->default(true);
             $table->timestamp('email_verified_at')->nullable();
+            $table->timestamp('last_login_at')->nullable(); // ✅ AJOUT AUSSI (utilisé dans le controller)
             $table->rememberToken();
             $table->timestamps();
             $table->softDeletes();
