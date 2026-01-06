@@ -1,95 +1,49 @@
-CONTRAT DE LICENCE LOGICIEL - PROPRIÉTAIRE
-SmartDrinkStore Desktop Application
+LICENCE D'UTILISATION - SmartDrinkStore
 
-Copyright (c) 2025 BANG NTEME Jean-Baptiste Tel: +237699314077. Tous droits réservés.
+Copyright © 2025 BANG NTEME Jean-Baptiste
+Tous droits réservés.
 
-================================================================================
-LICENCE D'UTILISATION
-================================================================================
+Cette application est propriétaire. L'utilisation, la distribution et la modification
+de cette application sont soumises à autorisation préalable de l'auteur.
 
-Ce logiciel est la propriété exclusive de BANG NTEME Jean-Baptiste et est protégé par 
-les lois sur le droit d'auteur et les traités internationaux.
+CONDITIONS D'UTILISATION :
 
-1. OCTROI DE LICENCE
+1. Cette application est fournie "telle quelle", sans garantie d'aucune sorte.
 
-BANG NTEME Jean-Baptiste vous accorde un droit d'utilisation non exclusif, 
-non transférable et révocable de ce logiciel, sous réserve du respect 
-des conditions suivantes.
+2. L'auteur ne pourra être tenu responsable de tout dommage résultant de
+   l'utilisation ou de l'impossibilité d'utiliser cette application.
 
-2. DROITS ACCORDÉS
+3. Toute reproduction, distribution ou modification non autorisée de cette
+   application est strictement interdite.
 
-Vous êtes autorisé à :
-   ✓ Installer et utiliser le logiciel sur vos ordinateurs
-   ✓ Faire des copies de sauvegarde pour usage interne
-   ✓ Utiliser le logiciel dans le cadre de vos activités commerciales
+4. L'utilisateur s'engage à utiliser cette application conformément aux lois
+   et réglementations en vigueur.
 
-3. RESTRICTIONS
+CONTACT :
+Email : jbbibiz@gmail.com
 
-Vous n'êtes PAS autorisé à :
-   ✗ Copier, distribuer ou vendre ce logiciel à des tiers
-   ✗ Modifier, décompiler ou faire de l'ingénierie inverse
-   ✗ Louer, prêter ou céder le logiciel
-   ✗ Retirer les mentions de copyright ou de propriété
-   ✗ Utiliser le logiciel pour créer des produits dérivés
+---
 
-4. PROPRIÉTÉ INTELLECTUELLE
+LICENSE AGREEMENT - SmartDrinkStore
 
-Ce logiciel et tous les droits de propriété intellectuelle associés restent 
-la propriété exclusive de BANG NTEME Jean-Baptiste. Cette licence ne vous transfère 
-aucun droit de propriété sur le logiciel.
+Copyright © 2025 BANG NTEME Jean-Baptiste
+All rights reserved.
 
-5. DURÉE ET RÉSILIATION
+This application is proprietary. Use, distribution and modification of this
+application are subject to prior authorization from the author.
 
-Cette licence est effective jusqu'à sa résiliation. BANG NTEME Jean-Baptiste peut 
-résilier cette licence si vous ne respectez pas ses termes. En cas de 
-résiliation, vous devez détruire toutes les copies du logiciel.
+TERMS OF USE:
 
-6. GARANTIE LIMITÉE
+1. This application is provided "as is" without warranty of any kind.
 
-CE LOGICIEL EST FOURNI "TEL QUEL", SANS GARANTIE D'AUCUNE SORTE, EXPRESSE 
-OU IMPLICITE, Y COMPRIS, MAIS SANS S'Y LIMITER, LES GARANTIES DE 
-QUALITÉ MARCHANDE, D'ADÉQUATION À UN USAGE PARTICULIER ET D'ABSENCE DE 
-CONTREFAÇON.
+2. The author shall not be held liable for any damage resulting from the
+   use or inability to use this application.
 
-7. LIMITATION DE RESPONSABILITÉ
+3. Any unauthorized reproduction, distribution or modification of this
+   application is strictly prohibited.
 
-EN AUCUN CAS BANG NTEME Jean-Baptiste NE SERA RESPONSABLE DE DOMMAGES DIRECTS, 
-INDIRECTS, ACCESSOIRES, SPÉCIAUX, EXEMPLAIRES OU CONSÉCUTIFS (Y COMPRIS, 
-MAIS SANS S'Y LIMITER, LA PERTE DE PROFITS, L'INTERRUPTION D'ACTIVITÉ, 
-LA PERTE D'INFORMATIONS) DÉCOULANT DE L'UTILISATION OU DE L'IMPOSSIBILITÉ 
-D'UTILISER CE LOGICIEL.
+4. The user agrees to use this application in accordance with applicable
+   laws and regulations.
 
-8. SUPPORT TECHNIQUE
-
-Le support technique est disponible pendant la période de garantie.
-Pour toute assistance :
-   Email : jbang.nteme@gmail.com
-   Tél : +237 699 314 077
-
-9. MISES À JOUR
-
-Les mises à jour et améliorations du logiciel peuvent être fournies à la 
-discrétion de BANG NTEME Jean-Baptiste et peuvent être soumises à des frais 
-supplémentaires.
-
-10. LOI APPLICABLE
-
-Cette licence est régie par les lois du Cameroun. Tout litige relatif à 
-cette licence sera soumis à la juridiction exclusive des tribunaux de Yaoundé.
-
-================================================================================
-
-EN INSTALLANT OU EN UTILISANT CE LOGICIEL, VOUS RECONNAISSEZ AVOIR LU, 
-COMPRIS ET ACCEPTÉ LES TERMES DE CETTE LICENCE.
-
-SI VOUS N'ACCEPTEZ PAS CES TERMES, N'INSTALLEZ PAS ET N'UTILISEZ PAS 
-CE LOGICIEL.
-
-================================================================================
-
-BANG NTEME Jean-Baptiste
-Yaoundé, Cameroun
-Email : jbang.nteme@gmail.com
-   Tél : +237 699 314 077
-
-Version 1.0 - Décembre 2025
+CONTACT:
+Email: jbbibiz@gmail.com

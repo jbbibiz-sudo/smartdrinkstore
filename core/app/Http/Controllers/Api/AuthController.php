@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Http\JsonResponse;
 
 class AuthController extends Controller
 {
@@ -90,15 +91,27 @@ class AuthController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function logout(Request $request)
+    /**
+     * ✅ Déconnexion - Invalide le token actuel
+     */
+    public function logout(Request $request): JsonResponse
     {
-        // Révoquer le token actuel
-        $request->user()->currentAccessToken()->delete();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Déconnexion réussie',
-        ], 200);
+        try {
+            // Supprimer le token actuel de l'utilisateur
+            $request->user()->currentAccessToken()->delete();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Déconnexion réussie'
+            ], 200);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la déconnexion',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

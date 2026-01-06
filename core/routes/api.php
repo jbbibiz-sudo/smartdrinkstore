@@ -333,6 +333,11 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
      */
 });
 
+// ✅ AJOUTER CETTE ROUTE
+    Route::post('/auth/logout', [AuthController::class, 'logout'])
+        ->middleware('auth:sanctum')
+        ->name('auth.logout');
+
 // ========================================
 // ROUTE DE FALLBACK (404)
 // ========================================

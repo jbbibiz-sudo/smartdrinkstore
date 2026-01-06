@@ -1278,6 +1278,11 @@
       </div>
     </div>
   </div>
+  <div id="app">
+    <!-- ⚡ Affichage déterministe selon l'état d'authentification -->
+    <Login v-if="!isAuthenticated" @login-success="onLoginSuccess" />
+    <MainApp v-else :user="currentUser" @logout="onLogout" />
+  </div>
 </template>
 
 <script>
@@ -1314,6 +1319,7 @@ import { initPurchaseManagement } from './modules/module-14-purchases.js';
 import Purchases from './views/Purchases.vue';
 import PurchaseFormModal from './components/purchases/PurchaseFormModal.vue';
 import Users from './views/Users.vue';
+import { useRouter } from 'vue-router'
 
 export default {
   name: 'App',
@@ -1348,6 +1354,11 @@ export default {
         return 'Utilisateur';
       }
       return currentUser.value.roles.map(r => r.display_name).join(', ');
+    });
+
+    // 🔹 Watch pour vérifier la réactivité
+    watch(isAuthenticated, (v) => {
+      console.log('👁️ App.vue isAuthenticated =', v)
     });
 
     const hasPermission = (permissionName) => {
@@ -1498,6 +1509,8 @@ export default {
         creditsCount.value = 0;
       }
     };
+
+    const router = useRouter();
 
     /**
      * ✅ NOUVELLE FONCTION : Charger les consignes depuis l'API
@@ -1928,15 +1941,20 @@ export default {
       } catch (error) {
         console.error('Erreur déconnexion:', error);
       } finally {
-        currentUser.value = null;
-        authToken.value = null;
-        isAuthenticated.value = false;
+          currentUser.value = null;
+          authToken.value = null;
+          isAuthenticated.value = false;
 
-        if (window.electron) {
-          await window.electron.store.delete('auth_token');
-          await window.electron.store.delete('user');
+          watch(isAuthenticated, (v) => {
+            console.log('👁️ App.vue isAuthenticated =', v)
+          });
+
+          if (window.electron) {
+            await window.electron.store.delete('auth_token');
+            await window.electron.store.delete('user');
+          }
+          console.log('✅ Déconnexion terminée');
         }
-      }
     };
 
     // Gestion de la navigation depuis la Sidebar

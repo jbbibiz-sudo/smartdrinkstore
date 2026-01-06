@@ -133,8 +133,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import axios from 'axios';
-import { setAuthToken } from '../modules/module-1-config.js';
+import { setAuthToken, login } from '../modules/module-1-config.js';
 
 const emit = defineEmits(['login-success']);
 
@@ -165,13 +164,6 @@ onMounted(async () => {
       }
     }
     
-    // ✅ CONFIGURATION AXIOS POUR CORS
-    axios.defaults.withCredentials = true; // ⭐ CRUCIAL pour CORS
-    axios.defaults.headers.common['Accept'] = 'application/json';
-    axios.defaults.headers.common['Content-Type'] = 'application/json';
-    
-    console.log('✅ Axios configuré pour CORS');
-    
   } catch (error) {
     console.error('❌ Erreur lors de l\'initialisation:', error);
   }
@@ -190,65 +182,9 @@ const handleLogin = async () => {
   let timeoutId = null;
 
   try {
-    // ✅ RÉCUPÉRER L'API BASE
-    const apiBase = window.electron 
-      ? await window.electron.getApiBase().catch(() => 'http://localhost:8000')
-      : 'http://localhost:8000';
-
-    const loginUrl = `${apiBase}/api/auth/login`;
-    
-    console.log('🌐 API Base:', apiBase);
-    console.log('📍 URL complète:', loginUrl);
-
-    // ✅ CONFIGURATION DE LA REQUÊTE AVEC CORS
-    const controller = new AbortController();
-    timeoutId = setTimeout(() => controller.abort(), 15000);
-
-    const requestData = {
-      username: credentials.value.username,
-      password: credentials.value.password
-    };
-
-    // ✅ CORRECTION : Configuration complète pour CORS
-    const requestConfig = {
-      signal: controller.signal,
-      withCredentials: true, // ⭐ CRUCIAL pour CORS avec credentials
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        // ✅ Supprimer X-Requested-With si présent (peut causer des problèmes CORS)
-      }
-    };
-
-    console.group('📤 REQUÊTE');
-    console.log('Headers:', requestConfig.headers);
-    console.log('With Credentials:', requestConfig.withCredentials);
-    console.log('Body:', { ...requestData, password: '***' });
-    console.log('Timeout:', '15000ms');
-    console.groupEnd();
-
     // ✅ APPEL API
     console.log('🚀 Envoi de la requête...');
-    const response = await axios.post(loginUrl, requestData, requestConfig);
-
-    console.group('📥 RÉPONSE');
-    console.log('Status:', response.status);
-    console.log('Status Text:', response.statusText);
-    console.log('Headers:', response.headers);
-    console.log('Data type:', typeof response.data);
-    console.log('Data:', response.data);
-    console.groupEnd();
-
-    // ✅ TRAITEMENT DE LA RÉPONSE
-    let data = response.data;
-    
-    // Fix pour le BOM
-    if (typeof data === 'string') {
-      console.warn('⚠️ Réponse en string, parsing JSON...');
-      const cleanedData = data.replace(/^\uFEFF/, '');
-      data = JSON.parse(cleanedData);
-      console.log('✅ JSON parsé:', data);
-    }
+    const data = await login(credentials.value.username, credentials.value.password);
 
     // ✅ VÉRIFIER LA STRUCTURE
     console.group('🔍 VALIDATION');
@@ -270,12 +206,6 @@ const handleLogin = async () => {
       const { user, token } = data.data;
       console.log('✅ Connexion réussie pour:', user.name);
       console.log('🎫 Token reçu:', token.substring(0, 20) + '...');
-
-      // ✅ CONFIGURER AXIOS AVEC LE TOKEN
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      axios.defaults.withCredentials = true; // ⭐ Maintenir pour les requêtes suivantes
-      
-      console.log('✅ Headers Axios configurés');
 
       // ✅ ÉMETTRE L'ÉVÉNEMENT
       console.log('🎉 Émission de login-success');
@@ -310,34 +240,11 @@ const handleLogin = async () => {
 
   } catch (error) {
     console.group('❌ ERREUR');
-    console.error('Type:', error.name);
     console.error('Message:', error.message);
-    console.error('Code:', error.code);
-    
-    if (error.response) {
-      console.group('📥 Réponse d\'erreur');
-      console.log('Status:', error.response.status);
-      console.log('Headers:', error.response.headers);
-      console.log('Data:', error.response.data);
-      console.groupEnd();
-    } else if (error.request) {
-      console.log('❌ Pas de réponse du serveur');
-      console.log('Request:', error.request);
-    }
     console.groupEnd();
     
     // Messages d'erreur utilisateur
-    if (error.name === 'AbortError' || error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
-      errorMessage.value = 'Délai d\'attente dépassé. Vérifiez que le serveur est démarré.';
-    } else if (error.response?.status === 419) {
-      errorMessage.value = 'Erreur CSRF. Configuration serveur incorrecte.';
-    } else if (error.response) {
-      errorMessage.value = error.response.data?.message || 'Identifiants incorrects';
-    } else if (error.request) {
-      errorMessage.value = 'Impossible de contacter le serveur. Vérifiez que Laravel est démarré.';
-    } else {
-      errorMessage.value = 'Une erreur est survenue. Veuillez réessayer.';
-    }
+    errorMessage.value = error.message || 'Une erreur est survenue. Veuillez réessayer.';
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
     isLoading.value = false;

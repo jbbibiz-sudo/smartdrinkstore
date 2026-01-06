@@ -1,54 +1,115 @@
+# Chemin: Smartdrinkstore/variants/desktop/electron/electron-builder.yml
 appId: com.kamdem.smartdrinkstore
 productName: SmartDrinkStore
-copyright: Copyright © 2024 BANG NEME Jean-Baptiste
+copyright: Copyright © 2025 BANG NTEME Jean-Baptiste
 
 directories:
-  output: dist
+  output: ../../../release
   buildResources: build
 
+# Fichiers à inclure dans l'application
 files:
-  - src/**/*
-  - public/**/*
+  # Frontend Vue buildé
+  - from: ../frontend/dist
+    to: frontend/dist
+    filter:
+      - "**/*"
+  
+  # Scripts Electron
+  - src/main.js
+  - src/preload.js
+  - src/start-php-server.js
   - package.json
+  
+  # Exclusions
   - "!**/*.map"
   - "!**/node_modules/**/{CHANGELOG.md,README.md,README,readme.md,readme}"
+  - "!**/node_modules/.bin"
+  - "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}"
 
+# Ressources additionnelles à copier dans resources/
+extraResources:
+  # PHP 32 bits portable (x86)
+  - from: resources/php32
+    to: php32
+    filter:
+      - "**/*"
+  
+  # PHP 64 bits portable (x64)
+  - from: resources/php64
+    to: php64
+    filter:
+      - "**/*"
+  
+  # Laravel backend
+  - from: ../../../core
+    to: laravel
+    filter:
+      # Inclure
+      - "**/*"
+      # Exclure
+      - "!node_modules/**/*"
+      - "!vendor/**/*"
+      - "!storage/logs/**/*"
+      - "!storage/framework/cache/**/*"
+      - "!storage/framework/sessions/**/*"
+      - "!storage/framework/views/**/*"
+      - "!tests/**/*"
+      - "!.env"
+      - "!.env.example"
+      - "!.git/**/*"
+      - "!.gitignore"
+      - "!.phpunit.result.cache"
+      - "!composer.lock"
+      - "!package-lock.json"
+      - "!*.log"
+  
+  # .env de production
+  - from: resources/.env.production
+    to: laravel/.env
+
+# Configuration Windows
 win:
   target:
     - target: nsis
       arch:
         - x64
+        - ia32
     - target: portable
       arch:
         - x64
+        - ia32
   icon: build/icon.ico
-  publisherName: BANG NTEME Jean-Baptiste
   verifyUpdateCodeSignature: false
+  requestedExecutionLevel: asInvoker
+  legalTrademarks: "Copyright © 2025 BANG NTEME Jean-Baptiste"
 
+# Configuration NSIS (installeur)
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   allowElevation: true
   createDesktopShortcut: always
   createStartMenuShortcut: true
-  shortcutName: SmartDrinkStore
+  shortcutName: SDS
   perMachine: false
   runAfterFinish: true
   deleteAppDataOnUninstall: false
-  
-  # Textes en français
-  installerHeader: Installation de SmartDrinkStore
-  installerSidebar: build/installer-sidebar.bmp
-  uninstallerSidebar: build/uninstaller-sidebar.bmp
-  
   license: LICENSE.txt
-  language: 1036
-  
-  # Installation directory
+  language: "1036"
   artifactName: ${productName}-Setup-${version}.${ext}
 
+# Configuration Portable
 portable:
   artifactName: ${productName}-Portable-${version}.${ext}
 
+# Compression maximale
 compression: maximum
+
+# Désactiver la publication automatique
 publish: null
+
+# Configuration de build
+asar: true
+asarUnpack:
+  - "**/node_modules/better-sqlite3/**/*"

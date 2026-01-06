@@ -1,8 +1,9 @@
-// Chemin: C:\smartdrinkstore\variants\desktop\electron\src\main.js
+// Chemin: Smartdrinkstore/variants/desktop/electron/src/main.js (NOUVEAU - avec PHP embarqué)
 const { app, BrowserWindow, ipcMain, Notification } = require('electron');
 const path = require('path');
 const Store = require('electron-store');
 const axios = require('axios');
+const PHPServer = require('./start-php-server');
 
 // Initialisation du store pour la persistance des données
 const store = new Store({
@@ -10,17 +11,18 @@ const store = new Store({
   encryptionKey: 'smartdrinkstore-secret-key-2024',
 });
 
+// Instance du serveur PHP
+const phpServer = new PHPServer();
+
 // Configuration
 const CONFIG = {
   isDev: process.argv.includes('--dev') || process.env.NODE_ENV === 'development',
   viteUrl: 'http://localhost:5173',
-  laravelUrl: 'http://localhost:8000',
   viteTimeout: 30000,
   viteCheckInterval: 500,
 };
 
 let mainWindow = null;
-let laravelProcess = null;
 
 // ============================================
 // FONCTIONS UTILITAIRES
@@ -137,7 +139,6 @@ async function createWindow() {
       nodeIntegration: false,
       enableRemoteModule: false,
       sandbox: false,
-      // ✅ AJOUT: Désactiver webSecurity en dev pour CORS
       webSecurity: !CONFIG.isDev,
     },
     show: true,
@@ -148,6 +149,7 @@ async function createWindow() {
   // ============================================
 
   const session = mainWindow.webContents.session;
+  const laravelUrl = phpServer.getUrl();
 
   console.log('🔧 Configuration des intercepteurs CORS...');
 
@@ -160,9 +162,8 @@ async function createWindow() {
   mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
     { urls: ['http://localhost:8000/*', 'http://127.0.0.1:8000/*'] },
     (details, callback) => {
-      // Forcer l'Origin
       details.requestHeaders['Origin'] = CONFIG.isDev ? CONFIG.viteUrl : 'electron://app';
-      details.requestHeaders['Referer'] = CONFIG.laravelUrl;
+      details.requestHeaders['Referer'] = laravelUrl;
       
       console.log('📤 [CORS] Request Headers:', {
         url: details.url,
@@ -180,18 +181,15 @@ async function createWindow() {
     (details, callback) => {
       const responseHeaders = { ...details.responseHeaders };
       
-      // Supprimer les headers qui bloquent
       delete responseHeaders['x-frame-options'];
       delete responseHeaders['X-Frame-Options'];
       
-      // ✅ CORRECTION: Ajouter TOUS les headers CORS nécessaires
       responseHeaders['Access-Control-Allow-Origin'] = [CONFIG.viteUrl];
       responseHeaders['Access-Control-Allow-Methods'] = ['GET, POST, PUT, DELETE, OPTIONS, PATCH'];
       responseHeaders['Access-Control-Allow-Headers'] = ['Content-Type, Accept, Authorization, X-Requested-With, X-CSRF-TOKEN, Origin'];
       responseHeaders['Access-Control-Allow-Credentials'] = ['true'];
       responseHeaders['Access-Control-Max-Age'] = ['86400'];
       
-      // CSP
       responseHeaders['Content-Security-Policy'] = [
         CONFIG.isDev 
           ? "default-src 'self' http://localhost:5173 ws://localhost:5173; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5173; style-src 'self' 'unsafe-inline' http://localhost:5173; connect-src 'self' http://localhost:8000 http://localhost:5173 ws://localhost:5173; img-src 'self' data: http://localhost:5173;"
@@ -211,7 +209,6 @@ async function createWindow() {
 
   console.log('✅ Intercepteurs CORS configurés');
 
-  // ✅ Configurer les permissions pour les cookies
   session.setPermissionRequestHandler((webContents, permission, callback) => {
     const allowedPermissions = ['media', 'notifications'];
     if (allowedPermissions.includes(permission)) {
@@ -226,9 +223,35 @@ async function createWindow() {
   }
 
   // Chemins selon l'environnement
-  const loadUrl = CONFIG.isDev 
-    ? CONFIG.viteUrl 
-    : `file://${path.join(__dirname, '../../frontend/dist/index.html')}`;
+  let loadUrl;
+  
+  if (CONFIG.isDev) {
+    loadUrl = CONFIG.viteUrl;
+  } else {
+    // En production, le frontend est dans app.asar/frontend/dist/
+    // __dirname pointe vers app.asar/electron/src/ ou resources/app.asar/electron/src/
+    const frontendPath = path.join(__dirname, '../../frontend/dist/index.html');
+    loadUrl = `file://${frontendPath}`;
+    
+    // Vérifier que le fichier existe
+    const fs = require('fs');
+    if (!fs.existsSync(frontendPath)) {
+      console.error('❌ Frontend introuvable:', frontendPath);
+      console.error('📂 __dirname:', __dirname);
+      console.error('📂 app.getAppPath():', app.getAppPath());
+      
+      // Essayer un chemin alternatif
+      const altPath = path.join(app.getAppPath(), 'frontend/dist/index.html');
+      console.log('🔄 Essai du chemin alternatif:', altPath);
+      
+      if (fs.existsSync(altPath)) {
+        loadUrl = `file://${altPath}`;
+        console.log('✅ Frontend trouvé au chemin alternatif');
+      } else {
+        console.error('❌ Frontend introuvable même au chemin alternatif');
+      }
+    }
+  }
   
   console.log(`📂 Chargement de: ${loadUrl}`);
   console.log(`📂 Mode: ${CONFIG.isDev ? 'Développement' : 'Production'}`);
@@ -244,16 +267,14 @@ async function createWindow() {
     mainWindow = null;
   });
 
-  // Bloquer la navigation externe (sauf en dev)
+  // Bloquer la navigation externe
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (CONFIG.isDev) {
-      // En dev, autoriser localhost uniquement
       if (!url.startsWith('http://localhost')) {
         event.preventDefault();
         console.warn('🚫 Navigation bloquée vers:', url);
       }
     } else {
-      // En prod, autoriser file:// seulement
       if (!url.startsWith('file://')) {
         event.preventDefault();
         console.warn('🚫 Navigation bloquée vers:', url);
@@ -261,7 +282,6 @@ async function createWindow() {
     }
   });
 
-  // Logs supplémentaires pour le debugging
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
     console.error('❌ Échec de chargement:', errorCode, errorDescription);
   });
@@ -270,20 +290,19 @@ async function createWindow() {
     console.log('✅ Page chargée avec succès');
   });
 
-  // Log des erreurs console du renderer
   mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-    if (level === 2) { // Erreur
+    if (level === 2) {
       console.error(`[Renderer Error] ${message} (${sourceId}:${line})`);
     }
   });
   
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('┌────────────────────────────────────┐');
   console.log('🎯 Configuration CORS complète :');
-  console.log('   • Laravel API:', CONFIG.laravelUrl);
+  console.log('   • Laravel API:', laravelUrl);
   console.log('   • Vite Frontend:', CONFIG.viteUrl);
   console.log('   • Intercepteurs: ACTIFS');
   console.log('   • Headers CORS: CONFIGURÉS');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('└────────────────────────────────────┘');
 }
 
 // ============================================
@@ -301,7 +320,7 @@ ipcMain.handle('get-app-info', () => {
 });
 
 ipcMain.handle('get-api-base', () => {
-  return CONFIG.laravelUrl;
+  return phpServer.getUrl();
 });
 
 // ✅ STORE - Handlers corrigés
@@ -374,8 +393,8 @@ ipcMain.on('show-notification', (event, { title, body }) => {
 ipcMain.handle('auth-login', async (event, credentials) => {
   try {
     console.log('🔐 Tentative de connexion...');
-    const response = await axios.post(`${CONFIG.laravelUrl}/api/login`, credentials, {
-      withCredentials: true, // ✅ Important pour les cookies
+    const response = await axios.post(`${phpServer.getUrl()}/api/login`, credentials, {
+      withCredentials: true,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -383,12 +402,8 @@ ipcMain.handle('auth-login', async (event, credentials) => {
     });
     
     if (response.data.token) {
-      // ✅ Stocker le token
       store.set('auth_token', response.data.token);
-      
-      // ✅ Stocker l'utilisateur (stringifié pour éviter les problèmes)
       store.set('user', JSON.stringify(response.data.user));
-      
       console.log('✅ Connexion réussie:', response.data.user.name);
     }
     
@@ -417,7 +432,6 @@ ipcMain.handle('auth-logout', () => {
 ipcMain.handle('auth-get-user', () => {
   try {
     const user = store.get('user');
-    // ✅ Parser si c'est une string, sinon retourner tel quel
     if (!user) return null;
     return typeof user === 'string' ? JSON.parse(user) : user;
   } catch (error) {
@@ -440,11 +454,75 @@ ipcMain.handle('auth-check-session', () => {
 // CYCLE DE VIE
 // ============================================
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   console.log('🚀 Application Electron démarrée');
-  console.log(`🔍 Mode: ${CONFIG.isDev ? 'Développement' : 'Production'}`);
-  console.log(`🔍 Platform: ${process.platform}`);
-  createWindow();
+  console.log(`📝 Mode: ${CONFIG.isDev ? 'Développement' : 'Production'}`);
+  console.log(`📝 Platform: ${process.platform}`);
+  
+  try {
+    // ✅ Démarrer le serveur PHP embarqué
+    await phpServer.start();
+    console.log('✅ Serveur PHP démarré avec succès');
+    
+    // Créer la fenêtre
+    await createWindow();
+  } catch (error) {
+    console.error('❌ Erreur au démarrage:', error);
+    
+    // Afficher une fenêtre d'erreur
+    const errorWindow = new BrowserWindow({
+      width: 600,
+      height: 400,
+      webPreferences: {
+        nodeIntegration: false,
+      },
+    });
+    
+    errorWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Erreur de démarrage</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+          }
+          .error-box {
+            background: rgba(255,255,255,0.1);
+            padding: 40px;
+            border-radius: 10px;
+            text-align: center;
+            max-width: 500px;
+          }
+          h1 { margin-top: 0; }
+          pre {
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 5px;
+            text-align: left;
+            overflow: auto;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="error-box">
+          <h1>❌ Erreur de démarrage</h1>
+          <p>Le serveur backend n'a pas pu démarrer.</p>
+          <pre>${error.message}</pre>
+          <p>Veuillez contacter le support technique.</p>
+        </div>
+      </body>
+      </html>
+    `)}`);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -455,6 +533,10 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   console.log('🚪 Toutes les fenêtres fermées');
+  
+  // Arrêter le serveur PHP
+  phpServer.stop();
+  
   if (process.platform !== 'darwin') {
     app.quit();
   }
@@ -462,9 +544,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   console.log('👋 Application en cours de fermeture...');
-  if (laravelProcess) {
-    laravelProcess.kill();
-  }
+  phpServer.stop();
 });
 
 // Gestion des erreurs non capturées

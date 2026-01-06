@@ -5,7 +5,8 @@
 /public/storage
 /storage/*.key
 /vendor
-/php/*
+/resources/php32/*
+/resources/php64/*
 .env
 .env.backup
 .env.production

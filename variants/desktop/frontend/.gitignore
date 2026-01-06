@@ -5,6 +5,9 @@
 /public/storage
 /storage/*.key
 /vendor
+/src_backup_20251231_194912
+/resources/php32/*
+/resources/php64/*
 .env
 .env.backup
 .env.production

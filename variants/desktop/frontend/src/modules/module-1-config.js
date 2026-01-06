@@ -1,5 +1,5 @@
 // ============================================
-// MODULE 1 : CONFIGURATION ET API (VERSION CORRIGÉE)
+// MODULE 1 : CONFIGURATION ET API (VERSION COMPLÈTE)
 // ============================================
 
 // Configuration API
@@ -72,30 +72,6 @@ const setAuthToken = async (token, remember = false) => {
   }
 };
 
-// ⭐ Fonction de déconnexion globale
-const logout = async () => {
-  console.log('🚪 Déconnexion en cours...');
-  
-  // 1. Nettoyage stockage web
-  localStorage.removeItem('auth_token');
-  localStorage.removeItem('user');
-  sessionStorage.removeItem('auth_token');
-  
-  // 2. Nettoyage mémoire
-  if (window.authHeaders) delete window.authHeaders;
-  
-  // 3. Nettoyage Electron Store
-  if (window.electron && window.electron.store) {
-    try {
-      await window.electron.store.delete('auth_token');
-      await window.electron.store.delete('user');
-    } catch (e) { console.error('Erreur nettoyage store:', e); }
-  }
-
-  // 4. Redirection
-  window.location.hash = '/login';
-};
-
 // ⭐ Fonction pour obtenir l'URL de base (dynamique pour Electron)
 const getApiBaseUrl = async () => {
   if (window.electron && window.electron.getApiBase) {
@@ -160,7 +136,7 @@ const handleApiError = async (response, endpoint, method) => {
       throw new Error(`Ressource non trouvée: ${endpoint}`);
       
     case 422:
-      console.error('📝 Erreur de validation:', errorDetails);
+      console.error('📋 Erreur de validation:', errorDetails);
       throw new Error(`Erreur de validation: ${errorMessage}`);
       
     case 500:
@@ -186,6 +162,7 @@ const logRequest = (method, endpoint, data = null) => {
   }
 };
 
+// ⭐ OBJET API AVEC TOUTES LES MÉTHODES HTTP
 const api = {
   get: async (endpoint) => {
     logRequest('GET', endpoint);
@@ -262,13 +239,118 @@ const api = {
   }
 };
 
-// Export pour utilisation dans l'application
+// ⭐ FONCTION DE DÉCONNEXION GLOBALE AMÉLIORÉE
+const logout = async () => {
+  console.log('🚪 Déconnexion en cours...');
+  
+  try {
+    // 1. ✅ Appeler l'API Laravel pour invalider le token côté serveur
+    const token = await getAuthToken();
+    
+    if (token) {
+      try {
+        const apiBase = window.electron 
+          ? await window.electron.getApiBase() 
+          : 'http://localhost:8000';
+        
+        console.log('📡 Appel API /api/auth/logout...');
+        
+        const response = await fetch(`${apiBase}/api/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        if (response.ok) {
+          console.log('✅ Déconnexion API réussie');
+        } else {
+          console.warn('⚠️ API logout a échoué (code:', response.status, ')');
+          // On continue quand même le nettoyage local
+        }
+        
+      } catch (apiError) {
+        console.warn('⚠️ Erreur API logout (réseau?):', apiError.message);
+        // On continue quand même le nettoyage local
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Erreur lors de la déconnexion:', error);
+  } finally {
+    // 2. ✅ Nettoyage COMPLET des stockages (même si l'API a échoué)
+    console.log('🧹 Nettoyage des données locales...');
+    
+    // Session Storage
+    sessionStorage.removeItem('auth_token');
+    sessionStorage.removeItem('user');
+    
+    // Local Storage
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('user');
+    
+    // Mémoire
+    if (window.authHeaders) {
+      delete window.authHeaders;
+      console.log('🗑️ window.authHeaders supprimé');
+    }
+    
+    // Electron Store
+    if (window.electron && window.electron.store) {
+      try {
+        await window.electron.store.delete('auth_token');
+        await window.electron.store.delete('user');
+        console.log('🗑️ Electron store nettoyé');
+      } catch (e) {
+        console.error('Erreur nettoyage Electron store:', e);
+      }
+    }
+    
+    console.log('✅ Déconnexion terminée');
+    
+    // 3. ✅ Redirection vers le login classique
+    // Note: Pas besoin de window.location.hash car App.vue gère isAuthenticated
+  }
+};
+
+// ⭐ FONCTION DE CONNEXION
+const login = async (username, password) => {
+  const apiBase = window.electron 
+    ? await window.electron.getApiBase() 
+    : 'http://localhost:8000';
+
+  const response = await fetch(`${apiBase}/api/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify({ username, password })
+  });
+
+  let data = await response.json();
+  
+  // Fix pour le BOM
+  if (typeof data === 'string') {
+    data = JSON.parse(data.replace(/^\uFEFF/, ''));
+  }
+
+  if (!response.ok || (data && data.success === false)) {
+    throw new Error(data.message || 'Erreur de connexion');
+  }
+
+  return data;
+};
+
+// ⭐ EXPORTS COMPLETS
 export { 
   DEFAULT_API_BASE_URL as API_BASE_URL, 
-  api, 
-  setAuthToken, 
-  getAuthToken, 
-  initAuthHeaders,
-  getHeaders,
-  logout 
+  api,                    // ✅ Objet avec toutes les méthodes HTTP
+  setAuthToken,           // ✅ Fonction pour définir le token
+  getAuthToken,           // ✅ Fonction pour récupérer le token
+  initAuthHeaders,        // ✅ Fonction d'initialisation
+  getHeaders,             // ✅ Fonction pour construire les headers
+  logout,                 // ✅ Fonction de déconnexion
+  login                   // ✅ Fonction de connexion
 };

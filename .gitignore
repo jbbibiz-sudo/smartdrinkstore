@@ -7,7 +7,7 @@
 /storage/*.key
 /vendor
 .env
-.env.backup
+.env.backup.txt
 .env.production
 Homestead.json
 Homestead.yaml
@@ -18,3 +18,4 @@ yarn-error.log
 /.idea
 variants/desktop/electron/dist/
 variants/desktop/electron/dist/win-unpacked/chrome_100_percent.pak
+/release/*
