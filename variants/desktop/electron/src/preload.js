@@ -1,57 +1,62 @@
-// Chemin: C:\smartdrinkstore\variants\desktop\electron\src\preload.js
+// Chemin: Smartdrinkstore/variants/desktop/electron/src/preload.js
 const { contextBridge, ipcRenderer } = require('electron');
 
-console.log('✅ Preload script chargé avec succès');
+contextBridge.exposeInMainWorld('electron', {
 
-// Attendre que le DOM soit prêt
-window.addEventListener('DOMContentLoaded', () => {
-  const api = {
-    // ============================================
-    // INFORMATIONS APPLICATION
-    // ============================================
-    getAppInfo: () => ipcRenderer.invoke('get-app-info'),
-    getApiBase: () => ipcRenderer.invoke('get-api-base'),
-    
-    // ============================================
-    // STORE (Persistance locale)
-    // ============================================
-    store: {
-      get: (key) => ipcRenderer.invoke('store-get', key),
-      set: (key, value) => ipcRenderer.invoke('store-set', key, value),
-      delete: (key) => ipcRenderer.invoke('store-delete', key),
-      clear: () => ipcRenderer.invoke('store-clear'),
-    },
-    
-    // ============================================
-    // AUTHENTIFICATION
-    // ============================================
-    auth: {
-      login: (credentials) => ipcRenderer.invoke('auth-login', credentials),
-      logout: () => ipcRenderer.invoke('auth-logout'),
-      getUser: () => ipcRenderer.invoke('auth-get-user'),
-      checkSession: () => ipcRenderer.invoke('auth-check-session'),
-    },
-    
-    // ============================================
-    // FENÊTRE
-    // ============================================
-    window: {
-      minimize: () => ipcRenderer.send('window-minimize'),
-      maximize: () => ipcRenderer.send('window-maximize'),
-      close: () => ipcRenderer.send('window-close'),
-    },
-    
-    // ============================================
-    // NOTIFICATIONS
-    // ============================================
-    notification: {
-      show: (title, body) => ipcRenderer.send('show-notification', { title, body }),
-    },
-  };
+  // ============================
+  // BASE DE DONNÉES / BACKUPS
+  // ============================
+  getDatabaseInfo: () => ipcRenderer.invoke('db:getInfo'),
+  getBackups: () => ipcRenderer.invoke('db:getBackups'),
+  createBackup: () => ipcRenderer.invoke('db:createBackup'),
+  restoreBackup: (name) => ipcRenderer.invoke('db:restoreBackup', name),
+  exportDatabase: () => ipcRenderer.invoke('db:exportDatabase'),
+  importDatabase: (filePath) => ipcRenderer.invoke('db:importDatabase', filePath),
+  deleteDatabase: () => ipcRenderer.invoke('db:deleteDatabase'),
 
-  // Exposer l'API dans le contexte du renderer
-  contextBridge.exposeInMainWorld('electron', api);
-  
-  console.log('✅ window.electron exposé avec succès');
-  console.log('📋 API disponible:', Object.keys(api));
+  // ============================
+  // AUTHENTIFICATION
+  // ============================
+  authGetUser: () => ipcRenderer.invoke('auth-get-user'),
+  authCheckSession: () => ipcRenderer.invoke('auth-check-session'),
+  authLogin: (credentials) => ipcRenderer.invoke('auth-login', credentials),
+  authLogout: () => ipcRenderer.invoke('auth-logout'),
+
+  // ============================
+  // ROLES & PERMISSIONS
+  // ============================
+  getRoles: () => ipcRenderer.invoke('getRoles'),
+  createRole: (role) => ipcRenderer.invoke('createRole', role),
+  updateRole: (id, role) => ipcRenderer.invoke('updateRole', id, role),
+  deleteRole: (id) => ipcRenderer.invoke('deleteRole', id),
+
+  getPermissions: () => ipcRenderer.invoke('getPermissions'),
+  createPermission: (perm) => ipcRenderer.invoke('createPermission', perm),
+  updatePermission: (id, perm) => ipcRenderer.invoke('updatePermission', id, perm),
+  deletePermission: (id) => ipcRenderer.invoke('deletePermission', id),
+
+  // ============================
+  // FENÊTRE (WINDOW CONTROL)
+  // ============================
+  windowMinimize: () => ipcRenderer.send('window-minimize'),
+  windowMaximize: () => ipcRenderer.send('window-maximize'),
+  windowClose: () => ipcRenderer.send('window-close'),
+
+  // ============================
+  // NOTIFICATIONS
+  // ============================
+  showNotification: (options) => ipcRenderer.send('show-notification', options),
+
+  // ============================
+  // STORE (persist local data)
+  // ============================
+  storeGet: (key) => ipcRenderer.invoke('store-get', key),
+  storeSet: (key, value) => ipcRenderer.invoke('store-set', key, value),
+  storeDelete: (key) => ipcRenderer.invoke('store-delete', key),
+  storeClear: () => ipcRenderer.invoke('store-clear'),
+
+  // ============================
+  // ⚡ AJOUT: API BASE URL
+  // ============================
+  getApiBase: () => process.env.API_BASE_URL || 'http://localhost:8000/api/v1',
 });

@@ -6,7 +6,8 @@
   "author": "BANG NTEME Jean-Baptiste",
   "license": "MIT",
   "scripts": {
-    "dev": "electron electron/src/main.js --dev",
+    "rebuild": "npx electron-rebuild -v 28.0.0 -f -w sqlite3",
+     "dev": "npm run rebuild && electron electron/src/main.js --dev",
     "start": "electron electron/src/main.js",
     "build": "electron-builder --config electron/electron-builder.yml --win",
     "build:win": "electron-builder --config electron/electron-builder.yml --win"
@@ -16,6 +17,7 @@
     "electron-builder": "^24.13.0"
   },
   "dependencies": {
+    "unzipper": "^0.10.11",
     "electron-store": "^11.0.2",
     "axios": "^1.6.0"
   }

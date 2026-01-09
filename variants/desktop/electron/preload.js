@@ -1,61 +1,65 @@
-// Chemin: C:\smartdrinkstore\variants\desktop\electron\src\preload.js
+// Chemin : Smartdrinkstore/variants/desktop/electron/src/preload.js
+
 const { contextBridge, ipcRenderer } = require('electron');
 
-console.log('✅ Preload script chargé avec succès');
+contextBridge.exposeInMainWorld('electron', {
+  // ============================
+  // BASE DE DONNÉES
+  // ============================
+  
+  // Informations sur la base
+  getDatabaseInfo: () => ipcRenderer.invoke('db:getInfo'),
+  getBackups: () => ipcRenderer.invoke('db:getBackups'),
 
-// ✅ CORRECTION: Exposer l'API immédiatement, sans attendre DOMContentLoaded
-const api = {
-  // ============================================
-  // INFORMATIONS APPLICATION
-  // ============================================
-  getAppInfo: () => ipcRenderer.invoke('get-app-info'),
-  getApiBase: () => ipcRenderer.invoke('get-api-base'),
-  
-  // ============================================
-  // STORE (Persistance locale)
-  // ============================================
-  store: {
-    get: (key) => ipcRenderer.invoke('store-get', key),
-    set: (key, value) => ipcRenderer.invoke('store-set', key, value),
-    delete: (key) => ipcRenderer.invoke('store-delete', key),
-    clear: () => ipcRenderer.invoke('store-clear'),
-  },
-  
-  // ============================================
+  // Backup / Restore
+  createBackup: () => ipcRenderer.invoke('db:backup'),
+  restoreBackup: (backupName) => ipcRenderer.invoke('db:restore'),
+
+  // Export / Import
+  exportDatabase: () => ipcRenderer.invoke('db:export'),
+  importDatabase: (filePath) => ipcRenderer.invoke('db:import'),
+
+  // Supprimer base (réservé admin)
+  deleteDatabase: () => ipcRenderer.invoke('db:delete'),
+
+  // ============================
   // AUTHENTIFICATION
-  // ============================================
-  auth: {
-    login: (credentials) => ipcRenderer.invoke('auth-login', credentials),
-    logout: () => ipcRenderer.invoke('auth-logout'),
-    getUser: () => ipcRenderer.invoke('auth-get-user'),
-    checkSession: () => ipcRenderer.invoke('auth-check-session'),
-  },
-  
-  // ============================================
+  // ============================
+  authLogin: (credentials) => ipcRenderer.invoke('auth-login', credentials),
+  authLogout: () => ipcRenderer.invoke('auth-logout'),
+  authGetUser: () => ipcRenderer.invoke('auth-get-user'),
+  authCheckSession: () => ipcRenderer.invoke('auth-check-session'),
+
+  // ============================
+  // RÔLES ET PERMISSIONS
+  // ============================
+  getRoles: () => ipcRenderer.invoke('getRoles'),
+  createRole: (role) => ipcRenderer.invoke('createRole', role),
+  updateRole: (id, role) => ipcRenderer.invoke('updateRole', id, role),
+  deleteRole: (id) => ipcRenderer.invoke('deleteRole', id),
+
+  getPermissions: () => ipcRenderer.invoke('getPermissions'),
+  createPermission: (perm) => ipcRenderer.invoke('createPermission', perm),
+  updatePermission: (id, perm) => ipcRenderer.invoke('updatePermission', id, perm),
+  deletePermission: (id) => ipcRenderer.invoke('deletePermission', id),
+
+  // ============================
   // FENÊTRE
-  // ============================================
-  window: {
-    minimize: () => ipcRenderer.send('window-minimize'),
-    maximize: () => ipcRenderer.send('window-maximize'),
-    close: () => ipcRenderer.send('window-close'),
-  },
-  
-  // ============================================
+  // ============================
+  windowMinimize: () => ipcRenderer.send('window-minimize'),
+  windowMaximize: () => ipcRenderer.send('window-maximize'),
+  windowClose: () => ipcRenderer.send('window-close'),
+
+  // ============================
   // NOTIFICATIONS
-  // ============================================
-  notification: {
-    show: (title, body) => ipcRenderer.send('show-notification', { title, body }),
-  },
-};
+  // ============================
+  showNotification: (title, body) => ipcRenderer.send('show-notification', { title, body }),
 
-// Exposer l'API dans le contexte du renderer immédiatement
-contextBridge.exposeInMainWorld('electron', api);
-
-console.log('✅ window.electron exposé avec succès');
-console.log('📋 API disponible:', Object.keys(api));
-
-// ✅ Vérification supplémentaire après le chargement du DOM
-window.addEventListener('DOMContentLoaded', () => {
-  console.log('✅ DOM Content Loaded - API toujours disponible');
-  console.log('✅ window.electron:', window.electron ? 'DISPONIBLE' : 'NON DISPONIBLE');
+  // ============================
+  // STORE LOCAL
+  // ============================
+  storeGet: (key) => ipcRenderer.invoke('store-get', key),
+  storeSet: (key, value) => ipcRenderer.invoke('store-set', key, value),
+  storeDelete: (key) => ipcRenderer.invoke('store-delete', key),
+  storeClear: () => ipcRenderer.invoke('store-clear'),
 });
