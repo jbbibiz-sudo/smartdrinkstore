@@ -1,5 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import Login from '../views/Login.vue'
+import DatabaseManager from '@/components/DatabaseManager.vue'
+
 
 const routes = [
   {
@@ -10,7 +12,13 @@ const routes = [
   {
     path: '/',
     redirect: '/login'
-  }
+  },
+  {
+  path: '/database',
+  name: 'Database',
+  component: () => import('@/components/DatabaseManager.vue')
+},
+  // Autres routes...
 ]
 
 const router = createRouter({

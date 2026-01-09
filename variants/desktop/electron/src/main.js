@@ -1,6 +1,7 @@
 // Chemin: Smartdrinkstore/variants/desktop/electron/src/main.js (NOUVEAU - avec PHP embarqué)
 const { app, BrowserWindow, ipcMain, Notification } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const Store = require('electron-store');
 const axios = require('axios');
 const PHPServer = require('./start-php-server');
@@ -234,7 +235,6 @@ async function createWindow() {
     loadUrl = `file://${frontendPath}`;
     
     // Vérifier que le fichier existe
-    const fs = require('fs');
     if (!fs.existsSync(frontendPath)) {
       console.error('❌ Frontend introuvable:', frontendPath);
       console.error('📂 __dirname:', __dirname);

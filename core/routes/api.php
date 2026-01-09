@@ -1,14 +1,9 @@
 <?php
 /**
  * =============================================================================
- * ROUTES API - VERSION REFACTORISÉE
+ * ROUTES API - VERSION COMPLÈTE
  * =============================================================================
  * Fichier: routes/api.php
- * 
- * ✅ Toutes les closures ont été remplacées par des contrôleurs
- * ✅ Utilise les modèles Eloquent (boot() est appelé)
- * ✅ Code organisé et maintenable
- * ✅ Respect des conventions Laravel
  */
 
 use Illuminate\Support\Facades\Route;
@@ -27,6 +22,7 @@ use App\Http\Controllers\Api\DepositController;
 use App\Http\Controllers\Api\DepositTypeController;
 use App\Http\Controllers\Api\PurchaseController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\StockMovementController;
 
 /*
 |--------------------------------------------------------------------------
@@ -45,7 +41,7 @@ Route::prefix('auth')->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
+Route::middleware('auth:sanctum')->group(function () {
     
     // ========================================
     // AUTHENTIFICATION
@@ -81,87 +77,59 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     // SOUS-CATÉGORIES
     // ========================================
     
-    // Routes spécifiques AVANT les routes resource
     Route::get('/subcategories/{subcategory}/products', [SubcategoryController::class, 'products']);
-    
-    // Routes resource
     Route::apiResource('subcategories', SubcategoryController::class);
 
     // ========================================
     // PRODUITS
     // ========================================
     
-    // Routes spécifiques AVANT les routes resource
-        Route::get('/products/low-stock', [ProductController::class, 'lowStock']);
-        Route::get('/products/out-of-stock', [ProductController::class, 'outOfStock']);
-        Route::get('/products/stats', [ProductController::class, 'stats']);
-    
-    // Routes resource
-        Route::apiResource('products', ProductController::class);
+    Route::get('/products/low-stock', [ProductController::class, 'lowStock']);
+    Route::get('/products/out-of-stock', [ProductController::class, 'outOfStock']);
+    Route::get('/products/expired', [ProductController::class, 'expired']);
+    Route::get('/products/expiring-soon', [ProductController::class, 'expiringSoon']);
+    Route::get('/products/stats', [ProductController::class, 'stats']);
+    Route::apiResource('products', ProductController::class);
 
     // ========================================
     // CLIENTS
     // ========================================
     
-    // Routes spécifiques AVANT les routes resource
-        Route::get('/customers/search', [CustomerController::class, 'search']);
-        Route::get('/customers/stats', [CustomerController::class, 'stats']);
-        Route::post('/customers/{id}/adjust-balance', [CustomerController::class, 'adjustBalance']);
-    
-    // Routes resource
-        Route::apiResource('customers', CustomerController::class);
+    Route::get('/customers/search', [CustomerController::class, 'search']);
+    Route::get('/customers/stats', [CustomerController::class, 'stats']);
+    Route::post('/customers/{id}/adjust-balance', [CustomerController::class, 'adjustBalance']);
+    Route::apiResource('customers', CustomerController::class);
 
     // ========================================
     // FOURNISSEURS
     // ========================================
     
-    // Routes spécifiques AVANT les routes resource
-        Route::get('/suppliers/search', [SupplierController::class, 'search']);
-        Route::get('/suppliers/stats', [SupplierController::class, 'stats']);
-    
-    // Routes resource
-        Route::apiResource('suppliers', SupplierController::class);
+    Route::get('/suppliers/search', [SupplierController::class, 'search']);
+    Route::get('/suppliers/stats', [SupplierController::class, 'stats']);
+    Route::apiResource('suppliers', SupplierController::class);
 
-    // ============================================
-    // GESTION PRODUITS-FOURNISSEURS
-    // ============================================
+    // ========================================
+    // PRODUITS-FOURNISSEURS
+    // ========================================
 
-    // Routes pour gérer les fournisseurs d'un produit
     Route::prefix('products/{product}')->group(function () {
-        // Liste les fournisseurs d'un produit
         Route::get('suppliers', [ProductSupplierController::class, 'index']);
-            
-        // Associe un fournisseur
         Route::post('suppliers', [ProductSupplierController::class, 'attach']);
-            
-        // Synchronise tous les fournisseurs (remplace)
         Route::put('suppliers', [ProductSupplierController::class, 'sync']);
-            
-        // Met à jour les infos d'un fournisseur spécifique
         Route::put('suppliers/{supplier}', [ProductSupplierController::class, 'update']);
-            
-        // Dissocie un fournisseur
         Route::delete('suppliers/{supplier}', [ProductSupplierController::class, 'detach']);
-            
-        // Définit un fournisseur comme préféré
         Route::patch('suppliers/{supplier}/preferred', [ProductSupplierController::class, 'setPreferred']);
     });
 
-    // Routes pour gérer les produits d'un fournisseur
     Route::prefix('suppliers/{supplier}')->group(function () {
-        // Liste les produits d'un fournisseur
         Route::get('products', [ProductSupplierController::class, 'productsBySupplier']);
     });
-
 
     // ========================================
     // VENTES
     // ========================================
     
-    // Routes spécifiques AVANT les routes resource
     Route::get('/sales/stats/summary', [SaleController::class, 'stats']);
-    
-    // Routes resource
     Route::apiResource('sales', SaleController::class);
 
     // ========================================
@@ -169,65 +137,47 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     // ========================================
     
     Route::prefix('stock')->group(function () {
-        // Ajouter du stock
         Route::post('/in', [StockController::class, 'addStock']);
-      
-        // Retirer du stock
         Route::post('/out', [StockController::class, 'removeStock']);
-            
-        // Alertes de stock
         Route::get('/alerts', [StockController::class, 'alerts']);
-            
-        // Valorisation du stock
         Route::get('/valuation', [StockController::class, 'stockValuation']);
-            
-        // Rapport de statut
         Route::get('/status-report', [StockController::class, 'stockStatusReport']);
     });
     
     // ========================================
-    // MOUVEMENTS DE STOCK
+    // MOUVEMENTS DE STOCK (✅ AJOUTÉ)
     // ========================================
     
-    Route::prefix('movements')->group(function () {
-        // Liste des mouvements avec filtres
-        Route::get('/', [StockController::class, 'movements']);
-           
-        // Créer un mouvement
-        Route::post('/', [StockController::class, 'createMovement']);
-         
-        // Réapprovisionnement (alias de stock/in)
-        Route::post('/restock', [StockController::class, 'addStock']);
-            
-        // Sortie de stock (alias de stock/out)
-        Route::post('/stock-out', [StockController::class, 'removeStock']);
-    });
+    Route::get('/movements', [StockController::class, 'movements']);
+    Route::get('/movements/{product}', [StockController::class, 'productMovements']);
+    Route::post('/movements', [StockMovementController::class, 'store']);
 
     // ========================================
-    // STATISTIQUES DASHBOARD
+    // STATISTIQUES DASHBOARD (✅ AJOUTÉ)
     // ========================================
-        
-        Route::get('/stats', [StatsController::class, 'dashboard']);
-        
+    
+    Route::get('/stats', [StatsController::class, 'dashboard']);
+    Route::get('/stats/sales', [StatsController::class, 'sales']);
+    Route::get('/stats/products', [StatsController::class, 'products']);
+    
+    // ========================================
+    // DASHBOARD (✅ AJOUTÉ)
+    // ========================================
+    
+    Route::get('/dashboard', [StatsController::class, 'dashboard']);
+    Route::get('/dashboard/stats', [StatsController::class, 'dashboard']);
+    Route::get('/dashboard/sales', [StatsController::class, 'sales']);
+    Route::get('/dashboard/products', [StatsController::class, 'products']);
+
     // ========================================
     // PAIEMENTS - GESTION CREDITS 
     // ========================================
-        
+    
     Route::prefix('credits')->group(function () {
-
-        // Liste des crédits
         Route::get('/', [CreditPaymentController::class, 'index']);
-                
-        // Enregistrer un paiement
         Route::post('/payments', [CreditPaymentController::class, 'store']);
-            
-        // Historique des paiements d'une vente
         Route::get('/{saleId}/history', [CreditPaymentController::class, 'history']);
-            
-        // Supprimer un paiement
         Route::delete('/payments/{paymentId}', [CreditPaymentController::class, 'destroy']);
-            
-        // Statistiques des paiements
         Route::get('/statistics', [CreditPaymentController::class, 'statistics']);
     });
 
@@ -239,104 +189,47 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     Route::get('/users/stats', [UserController::class, 'stats']);
     Route::apiResource('users', UserController::class);
 
-    /// ========================================
+    // ========================================
     // TYPES D'EMBALLAGES
     // ========================================
+    
     Route::apiResource('deposit-types', DepositTypeController::class);
 
     // ========================================
-    // CONSIGNES (TRANSACTIONS)
+    // CONSIGNES
     // ========================================
     
-    // Liste toutes les consignes
-    Route::get('deposits', [DepositController::class, 'index'])
-        ->name('deposits.index');
-
-    // ========================================
-    // STATISTIQUES
-    // ========================================
+    Route::get('deposits', [DepositController::class, 'index']);
     Route::get('/deposits/stats/summary', [DepositController::class, 'statistics']);
-    
-    // Afficher une consigne
-    Route::get('deposits/{id}', [DepositController::class, 'show'])
-        ->name('deposits.show');
-    
-    // Créer consigne sortante (vers client)
-    Route::post('deposits/outgoing', [DepositController::class, 'storeOutgoing'])
-        ->name('deposits.store-outgoing');
-    
-    // Créer consigne entrante (du fournisseur)
-    Route::post('deposits/incoming', [DepositController::class, 'storeIncoming'])
-        ->name('deposits.store-incoming');
-    
-    // Traiter un retour d'emballages
-    Route::post('deposits/{id}/return', [DepositController::class, 'processReturn'])
-        ->name('deposits.return');
-    
-    // Supprimer une consigne
-    Route::delete('deposits/{id}', [DepositController::class, 'destroy'])
-        ->name('deposits.destroy');
-    
-    // Consignes en attente
-    Route::get('deposits/pending/list', [DepositController::class, 'pending'])
-        ->name('deposits.pending');
+    Route::get('deposits/{id}', [DepositController::class, 'show']);
+    Route::post('deposits/outgoing', [DepositController::class, 'storeOutgoing']);
+    Route::post('deposits/incoming', [DepositController::class, 'storeIncoming']);
+    Route::post('deposits/{id}/return', [DepositController::class, 'processReturn']);
+    Route::delete('deposits/{id}', [DepositController::class, 'destroy']);
+    Route::get('deposits/pending/list', [DepositController::class, 'pending']);
 
     // ========================================
     // RETOURS D'EMBALLAGES
     // ========================================
     
-    // Liste tous les retours
-    Route::get('deposit-returns', [DepositController::class, 'returns'])
-        ->name('deposit-returns.index');
-    
-    // Afficher un retour
-    Route::get('deposit-returns/{id}', [DepositController::class, 'showReturn'])
-        ->name('deposit-returns.show');
-    
-    // Historique des retours d'une consigne
-    Route::get('deposits/{id}/returns', [DepositController::class, 'returnHistory'])
-        ->name('deposits.return-history');    
+    Route::get('deposit-returns', [DepositController::class, 'returns']);
+    Route::get('deposit-returns/{id}', [DepositController::class, 'showReturn']);
+    Route::get('deposits/{id}/returns', [DepositController::class, 'returnHistory']);
 
-    // ======================================
-    // ROUTES ACHATS
-    // ======================================
-    Route::middleware(['auth:sanctum'])->group(function () {
-        
-        // Statistiques
-        Route::get('purchases/stats/summary', [PurchaseController::class, 'statistics']);
-        
-        // Actions sur un achat
-        Route::post('purchases/{id}/confirm', [PurchaseController::class, 'confirm']);
-        Route::post('purchases/{id}/receive', [PurchaseController::class, 'receive']);
-        Route::post('purchases/{id}/cancel', [PurchaseController::class, 'cancel']);
-        
-        // CRUD
-        Route::apiResource('purchases', PurchaseController::class);
-    });
-
-    /**
-     * =================================================================
-     * LISTE DES ENDPOINTS DISPONIBLES
-     * =================================================================
-     * 
-     * GET    /api/v1/purchases                 - Liste tous les achats
-     * POST   /api/v1/purchases                 - Créer un achat
-     * GET    /api/v1/purchases/{id}            - Voir un achat
-     * PUT    /api/v1/purchases/{id}            - Modifier un achat (brouillon uniquement)
-     * DELETE /api/v1/purchases/{id}            - Supprimer un achat (brouillon uniquement)
-     * 
-     * POST   /api/v1/purchases/{id}/confirm    - Confirmer un achat
-     * POST   /api/v1/purchases/{id}/receive    - Réceptionner un achat
-     * POST   /api/v1/purchases/{id}/cancel     - Annuler un achat
-     * 
-     * GET    /api/v1/purchases/stats/summary   - Statistiques des achats
-     */
+    // ========================================
+    // ACHATS
+    // ========================================
+    
+    Route::get('purchases/stats/summary', [PurchaseController::class, 'statistics']);
+    Route::post('purchases/{id}/confirm', [PurchaseController::class, 'confirm']);
+    Route::post('purchases/{id}/receive', [PurchaseController::class, 'receive']);
+    Route::post('purchases/{id}/cancel', [PurchaseController::class, 'cancel']);
+    Route::apiResource('purchases', PurchaseController::class);
 });
 
-// ✅ AJOUTER CETTE ROUTE
-    Route::post('/auth/logout', [AuthController::class, 'logout'])
-        ->middleware('auth:sanctum')
-        ->name('auth.logout');
+// Logout public (avec token)
+Route::post('/auth/logout', [AuthController::class, 'logout'])
+    ->middleware('auth:sanctum');
 
 // ========================================
 // ROUTE DE FALLBACK (404)

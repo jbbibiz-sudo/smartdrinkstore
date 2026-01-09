@@ -1,6 +1,4 @@
 <?php
-// Chemin: C:\smartdrinkstore\core\app\Models\Role.php
-// Modèle: Rôle avec permissions
 
 namespace App\Models;
 
@@ -24,16 +22,19 @@ class Role extends Model
     ];
 
     /**
-     * The attributes that should be cast.
+     * Get the attributes that should be cast.
      *
-     * @var array<string, string>
+     * @return array<string, string>
      */
-    protected $casts = [
-        'is_active' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'is_active' => 'boolean',
+        ];
+    }
 
     /**
-     * Relation: Les utilisateurs ayant ce rôle
+     * Relation: Un rôle peut être assigné à plusieurs utilisateurs
      */
     public function users()
     {
@@ -42,53 +43,11 @@ class Role extends Model
     }
 
     /**
-     * Relation: Les permissions de ce rôle
+     * Relation: Un rôle peut avoir plusieurs permissions
      */
     public function permissions()
     {
         return $this->belongsToMany(Permission::class, 'permission_role')
                     ->withTimestamps();
-    }
-
-    /**
-     * Vérifie si le rôle a une permission spécifique
-     */
-    public function hasPermission(string $permissionName): bool
-    {
-        return $this->permissions()->where('name', $permissionName)->exists();
-    }
-
-    /**
-     * Assigne une permission au rôle
-     */
-    public function givePermission(string|Permission $permission): void
-    {
-        if (is_string($permission)) {
-            $permission = Permission::where('name', $permission)->firstOrFail();
-        }
-
-        if (!$this->permissions->contains($permission->id)) {
-            $this->permissions()->attach($permission->id);
-        }
-    }
-
-    /**
-     * Retire une permission du rôle
-     */
-    public function revokePermission(string|Permission $permission): void
-    {
-        if (is_string($permission)) {
-            $permission = Permission::where('name', $permission)->firstOrFail();
-        }
-
-        $this->permissions()->detach($permission->id);
-    }
-
-    /**
-     * Scope: Seulement les rôles actifs
-     */
-    public function scopeActive($query)
-    {
-        return $query->where('is_active', true);
     }
 }

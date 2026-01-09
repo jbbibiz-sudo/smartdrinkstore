@@ -9,11 +9,8 @@ directories:
 
 # Fichiers à inclure dans l'application
 files:
-  # Frontend Vue buildé
-  - from: ../frontend/dist
-    to: frontend/dist
-    filter:
-      - "**/*"
+  # Frontend Vue buildé (copié dans electron/)
+  - frontend/dist/**/*
   
   # Scripts Electron
   - src/main.js
@@ -49,7 +46,7 @@ extraResources:
       - "**/*"
       # Exclure
       - "!node_modules/**/*"
-      - "!vendor/**/*"
+      #- "!vendor/**/*"
       - "!storage/logs/**/*"
       - "!storage/framework/cache/**/*"
       - "!storage/framework/sessions/**/*"
@@ -75,10 +72,6 @@ win:
       arch:
         - x64
         - ia32
-    - target: portable
-      arch:
-        - x64
-        - ia32
   icon: build/icon.ico
   verifyUpdateCodeSignature: false
   requestedExecutionLevel: asInvoker
@@ -91,7 +84,7 @@ nsis:
   allowElevation: true
   createDesktopShortcut: always
   createStartMenuShortcut: true
-  shortcutName: SDS
+  shortcutName: SmartDrinkStore
   perMachine: false
   runAfterFinish: true
   deleteAppDataOnUninstall: false

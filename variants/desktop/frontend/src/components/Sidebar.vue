@@ -167,6 +167,24 @@
         <span class="text-xl">👥</span>
         <span v-if="!isCollapsed" class="flex-1 ml-2">Utilisateurs</span>
       </a>
+
+      <!-- ✅ NOUVEAU : Section Administration -->
+      <div v-if="currentUser?.roles?.some(r => r.name === 'admin')" class="pt-4 mt-4 border-t border-gray-700">
+        <p v-if="!isCollapsed" class="text-xs text-gray-400 uppercase font-semibold mb-2 px-2">
+          Administration
+        </p>
+        
+        <!-- Lien Base de données -->
+        <a 
+          @click.prevent="$emit('navigate', 'database')"
+          :class="['nav-item', {'nav-item-active': currentView === 'database'}]"
+          href="#"
+          :title="isCollapsed ? 'Base de données' : ''"
+        >
+          <span class="text-xl">🗄️</span>
+          <span v-if="!isCollapsed" class="flex-1 ml-2">Base de données</span>
+        </a>
+      </div>
     </nav>
 
     <div class="p-4 border-t border-gray-700 bg-gray-900 relative">

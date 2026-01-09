@@ -1,0 +1,129 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
+
+class User extends Authenticatable
+{
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
+    protected $fillable = [
+        'name',
+        'email',
+        'username',
+        'password',
+        'phone',
+        'address',
+        'is_active',
+        'email_verified_at',
+        'last_login_at',
+    ];
+
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var array<int, string>
+     */
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'last_login_at' => 'datetime',
+            'password' => 'hashed',
+            'is_active' => 'boolean',
+        ];
+    }
+
+    /**
+     * Relation: Un utilisateur peut avoir plusieurs rôles
+     */
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'role_user')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Vérifie si l'utilisateur a un rôle spécifique
+     */
+    public function hasRole(string $roleName): bool
+    {
+        return $this->roles()->where('name', $roleName)->exists();
+    }
+
+    /**
+     * Vérifie si l'utilisateur a l'un des rôles donnés
+     */
+    public function hasAnyRole(array $roles): bool
+    {
+        return $this->roles()->whereIn('name', $roles)->exists();
+    }
+
+    /**
+     * Vérifie si l'utilisateur a tous les rôles donnés
+     */
+    public function hasAllRoles(array $roles): bool
+    {
+        $userRoles = $this->roles()->pluck('name')->toArray();
+        return count(array_intersect($roles, $userRoles)) === count($roles);
+    }
+
+    /**
+     * Assigne un rôle à l'utilisateur
+     */
+    public function assignRole(string $roleName): void
+    {
+        $role = Role::where('name', $roleName)->firstOrFail();
+        if (!$this->roles()->where('role_id', $role->id)->exists()) {
+            $this->roles()->attach($role->id);
+        }
+    }
+
+    /**
+     * Retire un rôle à l'utilisateur
+     */
+    public function removeRole(string $roleName): void
+    {
+        $role = Role::where('name', $roleName)->first();
+        if ($role) {
+            $this->roles()->detach($role->id);
+        }
+    }
+
+    /**
+     * Synchronise les rôles de l'utilisateur
+     */
+    public function syncRoles(array $roleNames): void
+    {
+        $roleIds = Role::whereIn('name', $roleNames)->pluck('id')->toArray();
+        $this->roles()->sync($roleIds);
+    }
+
+    /**
+     * Vérifie si l'utilisateur est admin
+     */
+    public function isAdmin(): bool
+    {
+        return $this->hasRole('admin');
+    }
+}

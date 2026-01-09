@@ -1,5 +1,22 @@
 {
+  "name": "smartdrinkstore-desktop",
+  "version": "1.0.0",
+  "description": "SmartDrinkStore Manager - Application Desktop",
+  "main": "electron/src/main.js",
+  "author": "BANG NTEME Jean-Baptiste",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron electron/src/main.js --dev",
+    "start": "electron electron/src/main.js",
+    "build": "electron-builder --config electron/electron-builder.yml --win",
+    "build:win": "electron-builder --config electron/electron-builder.yml --win"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.13.0"
+  },
   "dependencies": {
-    "electron-store": "^11.0.2"
+    "electron-store": "^11.0.2",
+    "axios": "^1.6.0"
   }
 }
