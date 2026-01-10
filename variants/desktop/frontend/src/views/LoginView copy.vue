@@ -69,12 +69,6 @@
           <span v-if="!isLoading">Se connecter</span>
           <span v-else>Connexion...</span>
         </button>
-
-        <!-- Exit Button -->
-        <button type="button" @click="handleExit" class="btn-exit" :disabled="isLoading">
-          <span class="icon">🚪</span>
-          <span>Quitter l'application</span>
-        </button>
       </form>
 
       <!-- Footer -->
@@ -192,22 +186,6 @@ const handleLogin = async () => {
     isLoading.value = false
   }
 }
-
-// 🔹 Quitter l'application
-function handleExit() {
-  const confirmed = confirm('Voulez-vous vraiment quitter l\'application ?')
-  if (confirmed) {
-    console.log('👋 Fermeture de l\'application')
-    
-    // Fermer la fenêtre Electron
-    if (window.electron?.windowClose) {
-      window.electron.windowClose()
-    } else {
-      // Fallback si windowClose n'existe pas
-      window.close()
-    }
-  }
-}
 </script>
 
 <style scoped>
@@ -275,7 +253,7 @@ function handleExit() {
 .login-form { 
   display: flex; 
   flex-direction: column; 
-  gap: 16px; 
+  gap: 20px; 
 }
 
 .form-group { 
@@ -371,7 +349,6 @@ function handleExit() {
   font-size: 16px;
   transition: all 0.2s;
   box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
-  margin-top: 8px;
 }
 
 .btn-login:hover:not(:disabled) { 
@@ -387,42 +364,6 @@ function handleExit() {
   opacity: 0.7; 
   cursor: not-allowed;
   transform: none;
-}
-
-.btn-exit {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: transparent;
-  color: #6b7280;
-  padding: 12px;
-  border-radius: 8px;
-  font-weight: 500;
-  cursor: pointer;
-  border: 2px solid #e5e7eb;
-  font-size: 14px;
-  transition: all 0.2s;
-  margin-top: 4px;
-}
-
-.btn-exit:hover:not(:disabled) {
-  background: #f9fafb;
-  border-color: #d1d5db;
-  color: #374151;
-}
-
-.btn-exit:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.btn-exit:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-exit .icon {
-  font-size: 16px;
 }
 
 .error-message { 

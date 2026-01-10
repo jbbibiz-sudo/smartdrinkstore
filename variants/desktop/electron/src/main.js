@@ -1,69 +1,71 @@
-// Chemin: Smartdrinkstore/variants/desktop/electron/src/main.js
+// Chemin: variants/desktop/electron/src/main.js
+// Main process Electron - PRODUCTION avec Laravel API
 
 const { app, BrowserWindow, ipcMain, Notification } = require('electron');
 const path = require('path');
-const fs = require('fs');
-const Store = require('electron-store');
 const axios = require('axios');
-const PHPServer = require('./start-php-server'); // Module pour PHP embarqué
-const db = require('./db'); // Module SQLite CRUD
 
-// ======= STORE PERSISTANCE =======
-const store = new Store({
-  name: 'smartdrinkstore-config',
-  encryptionKey: 'smartdrinkstore-secret-key-2024',
-});
-
-// ======= CONFIGURATION =======
+// ============================================
+// CONFIG
+// ============================================
 const CONFIG = {
   isDev: process.argv.includes('--dev') || process.env.NODE_ENV === 'development',
   viteUrl: 'http://localhost:5173',
-  viteTimeout: 30000,
-  viteCheckInterval: 500,
+  apiBaseUrl: 'http://127.0.0.1:8000/api/v1', // Laravel API
 };
 
-let mainWindow = null;
-const phpServer = new PHPServer();
+// ============================================
+// STORE EN MÉMOIRE (Session)
+// ============================================
+const sessionStore = new Map();
+let currentUser = null;
+let currentToken = null;
 
 // ============================================
-// UTILITAIRES
+// AXIOS INSTANCE POUR LARAVEL
 // ============================================
-async function checkViteServer() {
-  try {
-    const response = await axios.get(CONFIG.viteUrl, { timeout: 2000 });
-    return response.status === 200;
-  } catch (error) {
-    return false;
+const laravelApi = axios.create({
+  baseURL: CONFIG.apiBaseUrl,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+  timeout: 10000,
+});
+
+// Intercepteur pour ajouter le token aux requêtes
+laravelApi.interceptors.request.use(
+  (config) => {
+    if (currentToken) {
+      config.headers['Authorization'] = `Bearer ${currentToken}`;
+    }
+    console.log('📤 API Request:', config.method?.toUpperCase(), config.url);
+    return config;
+  },
+  (error) => {
+    console.error('❌ API Request Error:', error);
+    return Promise.reject(error);
   }
-}
+);
 
-async function waitForVite() {
-  console.log('🔍 Attente du serveur Vite...');
-  const startTime = Date.now();
-
-  while (Date.now() - startTime < CONFIG.viteTimeout) {
-    if (await checkViteServer()) return true;
-    await new Promise(resolve => setTimeout(resolve, CONFIG.viteCheckInterval));
+// Intercepteur pour gérer les réponses
+laravelApi.interceptors.response.use(
+  (response) => {
+    console.log('📥 API Response:', response.status, response.config.url);
+    return response;
+  },
+  (error) => {
+    console.error('❌ API Response Error:', error.response?.status, error.response?.data);
+    return Promise.reject(error);
   }
-
-  console.error('❌ Timeout: Le serveur Vite n\'est pas prêt');
-  return false;
-}
+);
 
 // ============================================
 // FENÊTRE PRINCIPALE
 // ============================================
+let mainWindow = null;
+
 async function createWindow() {
-
-  if (CONFIG.isDev) {
-    const viteReady = await waitForVite();
-    if (!viteReady) {
-      const errorWindow = new BrowserWindow({ width: 600, height: 400, webPreferences: { nodeIntegration: false }});
-      errorWindow.loadURL('data:text/html,<h1>Vite non démarré !</h1>');
-      return;
-    }
-  }
-
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -76,133 +78,262 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-    }
+    },
   });
 
-  let loadUrl;
-  if (CONFIG.isDev) {
-    loadUrl = CONFIG.viteUrl;
-    mainWindow.webContents.openDevTools();
-  } else {
-    const frontendPath = path.join(__dirname, '../../frontend/dist/index.html');
-    if (!fs.existsSync(frontendPath)) console.error('❌ Frontend introuvable:', frontendPath);
-    loadUrl = `file://${frontendPath}`;
-  }
-
+  const loadUrl = CONFIG.isDev 
+    ? CONFIG.viteUrl 
+    : `file://${path.join(__dirname, '../../frontend/dist/index.html')}`;
+  
   await mainWindow.loadURL(loadUrl);
 
-  mainWindow.on('closed', () => mainWindow = null);
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!CONFIG.isDev && !url.startsWith('file://')) event.preventDefault();
+  if (CONFIG.isDev) mainWindow.webContents.openDevTools();
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    // Clear session on window close
+    currentUser = null;
+    currentToken = null;
   });
 }
 
 // ============================================
-// IPC HANDLERS
+// IPC HANDLERS - AUTHENTIFICATION (Laravel API)
 // ============================================
 
-// ----- AUTH -----
+/**
+ * Connexion via Laravel API
+ */
 ipcMain.handle('auth-login', async (event, credentials) => {
+  console.log('🔹 IPC auth-login:', credentials.username);
+
   try {
-    const response = await axios.post(`${phpServer.getUrl()}/api/auth/login`, credentials, { headers: { 'Content-Type':'application/json'} });
+    const response = await laravelApi.post('/auth/login', {
+      username: credentials.username,
+      password: credentials.password,
+    });
 
-    // Cloner le user pour éviter l’erreur "object could not be cloned"
-    const safeUser = JSON.parse(JSON.stringify(response.data.user));
+    if (response.data.success) {
+      // Stocker le token et l'utilisateur en session
+      currentToken = response.data.data.token;
+      currentUser = response.data.data.user;
 
-    if (response.data.token) {
-      store.set('auth_token', response.data.token);
-      store.set('user', JSON.stringify(safeUser));
+      console.log('✅ Login réussi:', currentUser.username);
+
+      return {
+        success: true,
+        message: response.data.message,
+        data: {
+          token: currentToken,
+          user: currentUser,
+        },
+      };
     }
 
-    return { success: true, data: {user: safeUser, token: response.data.token}};
-    
+    return {
+      success: false,
+      message: response.data.message || 'Connexion échouée',
+    };
+
   } catch (error) {
-    return { success: false, error: error.response?.data?.message || error.message };
+    console.error('❌ Login error:', error.response?.data || error.message);
+    
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Erreur de connexion au serveur',
+    };
   }
 });
 
-ipcMain.handle('auth-logout', () => {
-  store.delete('auth_token');
-  store.delete('user');
+/**
+ * Déconnexion
+ */
+ipcMain.handle('auth-logout', async () => {
+  console.log('🔹 IPC auth-logout');
+
+  try {
+    if (currentToken) {
+      // Appeler l'API pour invalider le token
+      await laravelApi.post('/auth/logout');
+    }
+  } catch (error) {
+    console.warn('⚠️ Logout API error (ignoré):', error.message);
+  } finally {
+    // Toujours clear la session locale
+    currentToken = null;
+    currentUser = null;
+    sessionStore.clear();
+    console.log('✅ Session cleared');
+  }
+
+  return { success: true, message: 'Déconnexion réussie' };
+});
+
+/**
+ * Récupérer l'utilisateur connecté
+ */
+ipcMain.handle('auth-get-user', async () => {
+  console.log('🔹 IPC auth-get-user');
+
+  if (!currentUser) {
+    return null;
+  }
+
+  return currentUser;
+});
+
+/**
+ * Vérifier la session
+ */
+ipcMain.handle('auth-check-session', async () => {
+  console.log('🔹 IPC auth-check-session');
+
+  if (!currentToken) {
+    return { isAuthenticated: false };
+  }
+
+  try {
+    // Vérifier auprès du backend si le token est toujours valide
+    const response = await laravelApi.get('/auth/check-session');
+    
+    if (response.data.success) {
+      return { 
+        isAuthenticated: true, 
+        token: currentToken,
+        user: currentUser 
+      };
+    }
+  } catch (error) {
+    console.warn('⚠️ Session invalide:', error.message);
+    // Token invalide, clear la session
+    currentToken = null;
+    currentUser = null;
+  }
+
+  return { isAuthenticated: false };
+});
+
+// ============================================
+// IPC HANDLERS - STORE LOCAL (Remember Me)
+// ============================================
+const persistentStore = new Map();
+
+ipcMain.handle('store-get', async (event, key) => {
+  console.log('🔹 IPC store-get:', key);
+  const value = persistentStore.get(key);
+  return value || null;
+});
+
+ipcMain.handle('store-set', async (event, key, value) => {
+  console.log('🔹 IPC store-set:', key);
+  persistentStore.set(key, value);
   return { success: true };
 });
 
-ipcMain.handle('auth-get-user', () => {
-  const user = store.get('user');
-  return user ? JSON.parse(user) : null;
+ipcMain.handle('store-delete', async (event, key) => {
+  console.log('🔹 IPC store-delete:', key);
+  const existed = persistentStore.has(key);
+  persistentStore.delete(key);
+  return { success: true, existed };
 });
 
-ipcMain.handle('auth-check-session', () => {
-  const token = store.get('auth_token');
-  return { isAuthenticated: !!token, token };
+ipcMain.handle('store-clear', async () => {
+  console.log('🔹 IPC store-clear');
+  persistentStore.clear();
+  return { success: true };
 });
 
-// ----- STORE LOCAL -----
-ipcMain.handle('store-get', (event, key) => store.get(key));
-ipcMain.handle('store-set', (event, key, value) => store.set(key, value));
-ipcMain.handle('store-delete', (event, key) => store.delete(key));
-ipcMain.handle('store-clear', () => store.clear());
+// ============================================
+// IPC HANDLERS - API PROXY (pour autres endpoints)
+// ============================================
 
-// ----- ROLES & PERMISSIONS -----
-ipcMain.handle('getRoles', async () => db.getRoles());
-ipcMain.handle('createRole', async (event, role) => db.createRole(role));
-ipcMain.handle('updateRole', async (id, role) => db.updateRole(id, role));
-ipcMain.handle('deleteRole', async (id) => db.deleteRole(id));
+/**
+ * Proxy générique pour appeler n'importe quel endpoint Laravel
+ * Usage: window.electron.apiCall('GET', '/products')
+ */
+ipcMain.handle('api-call', async (event, { method, endpoint, data = null }) => {
+  console.log(`🔹 IPC api-call: ${method} ${endpoint}`);
 
-ipcMain.handle('getPermissions', async () => db.getPermissions());
-ipcMain.handle('createPermission', async (perm) => db.createPermission(perm));
-ipcMain.handle('updatePermission', async (id, perm) => db.updatePermission(id, perm));
-ipcMain.handle('deletePermission', async (id) => db.deletePermission(id));
+  if (!currentToken) {
+    return { 
+      success: false, 
+      message: 'Non authentifié' 
+    };
+  }
 
-// ----- DATABASE / BACKUPS -----
-ipcMain.handle('db:getInfo', () => db.getDatabaseInfo());
-ipcMain.handle('db:getBackups', () => db.getBackups());
-ipcMain.handle('db:createBackup', () => db.createBackup());
-ipcMain.handle('db:restoreBackup', (event, name) => db.restoreBackup(name));
-ipcMain.handle('db:exportDatabase', () => db.exportDatabase());
-ipcMain.handle('db:importDatabase', (event, filePath) => db.importDatabase(filePath));
-ipcMain.handle('db:deleteDatabase', () => db.deleteDatabase());
+  try {
+    const config = { method, url: endpoint };
+    if (data) config.data = data;
 
-// ----- WINDOW CONTROL -----
+    const response = await laravelApi(config);
+    return response.data;
+
+  } catch (error) {
+    console.error('❌ API call error:', error.response?.data || error.message);
+    return {
+      success: false,
+      message: error.response?.data?.message || error.message,
+      errors: error.response?.data?.errors || null,
+    };
+  }
+});
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+ipcMain.on('show-notification', (event, { title, body }) => {
+  console.log('🔔 Notification:', title);
+  new Notification({ title, body }).show();
+});
+
+// ============================================
+// WINDOW CONTROLS
+// ============================================
 ipcMain.on('window-minimize', () => mainWindow?.minimize());
-ipcMain.on('window-maximize', () => mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize());
+ipcMain.on('window-maximize', () => {
+  if (mainWindow?.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow?.maximize();
+  }
+});
 ipcMain.on('window-close', () => mainWindow?.close());
 
-// ----- NOTIFICATIONS -----
-ipcMain.on('show-notification', (event, { title, body }) => {
-  if (Notification.isSupported()) new Notification({ title, body }).show();
-});
-
-// ----- APP INFO -----
+// ============================================
+// APP INFO
+// ============================================
 ipcMain.handle('get-app-info', () => ({
-  name: app.getName(),
   version: app.getVersion(),
+  name: app.getName(),
   platform: process.platform,
   arch: process.arch,
   isDev: CONFIG.isDev,
 }));
 
-ipcMain.handle('get-api-base', () => phpServer.getUrl());
+ipcMain.handle('get-api-base', () => CONFIG.apiBaseUrl);
 
 // ============================================
-// CYCLE DE VIE
+// APP LIFECYCLE
 // ============================================
 app.whenReady().then(async () => {
-  await phpServer.start();
   await createWindow();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
 });
 
 app.on('window-all-closed', () => {
-  phpServer.stop();
   if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+process.on('uncaughtException', (err) => {
+  console.error('❌ Exception non capturée:', err);
+});
 
-process.on('uncaughtException', (error) => console.error('❌ Exception non capturée:', error));
-process.on('unhandledRejection', (reason) => console.error('❌ Promesse rejetée non gérée:', reason));
+process.on('unhandledRejection', (reason) => {
+  console.error('❌ Promesse rejetée non gérée:', reason);
+});
 
-setInterval(() => {
-  databaseService.createBackup()
-}, 24 * 60 * 60 * 1000)
-
+console.log('🚀 Electron Main Process démarré');
+console.log('📡 API Base URL:', CONFIG.apiBaseUrl);
