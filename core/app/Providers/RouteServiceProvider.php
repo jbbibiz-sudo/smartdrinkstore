@@ -31,11 +31,12 @@ class RouteServiceProvider extends ServiceProvider
             Route::middleware('web')
                 ->group(base_path('routes/web.php'));
 
-            // Routes API avec préfixe v1
-            // ✅ CORRECTION: Changé de 'api' à 'api/v1'
+            // Routes API
+            // ✅ CORRECTION: Enlever le prefix 'api/v1' d'ici
+            // car il est déjà géré dans routes/api.php
             if (file_exists(base_path('routes/api.php'))) {
                 Route::middleware('api')
-                    ->prefix('api/v1')
+                    ->prefix('api')  // ✅ Seulement 'api', pas 'api/v1'
                     ->group(base_path('routes/api.php'));
             }
         });

@@ -126,6 +126,13 @@ const routes = [
     name: 'NotFound', 
     component: NotFoundView 
   },
+
+  {
+    path: '/products-test',
+    name: 'ProductsTest',
+    component: () => import('@/views/ProductsTestPage.vue'),
+    meta: { requiresAuth: true }
+  }
 ]
 
 const router = createRouter({

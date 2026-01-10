@@ -1,23 +1,19 @@
 <?php
+/**
+ * Routes Authentification
+ * Fichier: routes/api/v1/auth.php
+ */
 
 use App\Http\Controllers\Api\AuthController;
 use Illuminate\Support\Facades\Route;
 
-/*
-|--------------------------------------------------------------------------
-| Authentication Routes
-|--------------------------------------------------------------------------
-*/
+// Login (PUBLIC - sans auth)
+Route::post('auth/login', [AuthController::class, 'login']);
 
-// ✅ Routes publiques (SANS middleware auth:sanctum)
-Route::prefix('auth')->group(function () {
-    Route::post('/login', [AuthController::class, 'login'])->name('api.auth.login');
-});
-
-// ✅ Routes protégées (AVEC middleware auth:sanctum)
+// Routes protégées (avec auth:sanctum)
 Route::middleware('auth:sanctum')->prefix('auth')->group(function () {
-    Route::get('/user', [AuthController::class, 'user'])->name('api.auth.user');
-    Route::post('/logout', [AuthController::class, 'logout'])->name('api.auth.logout');
-    Route::get('/check-session', [AuthController::class, 'checkSession'])->name('api.auth.check');
-    Route::post('/change-password', [AuthController::class, 'changePassword'])->name('api.auth.password');
+    Route::get('user', [AuthController::class, 'user']);
+    Route::post('logout', [AuthController::class, 'logout']);
+    Route::get('check-session', [AuthController::class, 'checkSession']);
+    Route::post('change-password', [AuthController::class, 'changePassword']);
 });

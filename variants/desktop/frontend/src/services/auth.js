@@ -1,18 +1,20 @@
+// Chemin: variants/desktop/frontend/src/services/auth.js
 /**
  * Service pour gérer l'authentification côté Electron Desktop
  * Utilise l'API exposée par preload.js
+ * ✅ CORRIGÉ - Utilise les bonnes méthodes du preload
  */
 
 /**
  * Vérifie si l'API Electron est disponible
  * @returns {boolean}
  */
-
 function isElectronAvailable() {
   return (
     typeof window !== 'undefined' &&
     window.electron &&
-    window.electron.store
+    window.electron.storeGet &&
+    window.electron.storeSet
   )
 }
 
@@ -25,7 +27,8 @@ export async function setToken(token) {
     throw new Error('Electron store non disponible')
   }
 
-  await window.electron.store.set('auth_token', token)
+  await window.electron.storeSet('auth_token', token)
+  console.log('✅ Token sauvegardé')
 }
 
 /**
@@ -37,7 +40,8 @@ export async function getToken() {
     throw new Error('Electron store non disponible')
   }
 
-  return (await window.electron.store.get('auth_token')) || null
+  const token = await window.electron.storeGet('auth_token')
+  return token || null
 }
 
 /**
@@ -48,7 +52,8 @@ export async function clearToken() {
     throw new Error('Electron store non disponible')
   }
 
-  await window.electron.store.delete('auth_token')
+  await window.electron.storeDelete('auth_token')
+  console.log('✅ Token supprimé')
 }
 
 /**
@@ -62,8 +67,23 @@ export async function clearAuth() {
  * Logout complet (token + session backend si besoin)
  */
 export async function logout() {
-  if (window.electron?.authLogout) {
-    await window.electron.authLogout()
+  try {
+    if (window.electron?.authLogout) {
+      await window.electron.authLogout()
+    }
+    await clearToken()
+    console.log('✅ Déconnexion complète réussie')
+  } catch (error) {
+    console.error('❌ Erreur lors de la déconnexion:', error)
+    throw error
   }
-  await clearToken()
+}
+
+/**
+ * Vérifier si l'utilisateur est authentifié
+ * @returns {Promise<boolean>}
+ */
+export async function isAuthenticated() {
+  const token = await getToken()
+  return !!token
 }

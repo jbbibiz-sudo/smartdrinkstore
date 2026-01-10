@@ -1,38 +1,25 @@
 <?php
+// app/Models/DepositType.php
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\PurchaseItem;
 
-
-
-/**
- * ============================================================================
- * MODELE: DepositType (Type d'emballage consignable)
- * ============================================================================
- */
 class DepositType extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'name',
-        'code',
-        'category',
-        'amount',
-        'initial_stock',
-        'current_stock',
         'description',
-        'is_active',
+        'deposit_amount',
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
-        'initial_stock' => 'integer',
-        'current_stock' => 'integer',
-        'is_active' => 'boolean',
+        'deposit_amount' => 'decimal:2',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     /**
@@ -48,8 +35,7 @@ class DepositType extends Model
      */
     public function activeDeposits()
     {
-        return $this->hasMany(Deposit::class)
-            ->whereIn('status', ['active', 'partial']);
+        return $this->deposits()->whereIn('status', ['active', 'partial']);
     }
 
     /**
@@ -58,5 +44,40 @@ class DepositType extends Model
     public function purchaseItems()
     {
         return $this->hasMany(PurchaseItem::class);
+    }
+
+    /**
+     * Calculer le stock actuel d'emballages
+     */
+    public function getQuantityInStockAttribute()
+    {
+        // Stock = Consignes entrantes (reçues) - Consignes sortantes (données aux clients)
+        $incoming = $this->deposits()
+            ->where('type', 'incoming')
+            ->where('status', 'active')
+            ->sum('quantity');
+
+        $outgoing = $this->deposits()
+            ->where('type', 'outgoing')
+            ->whereIn('status', ['active', 'partial'])
+            ->sum('quantity_pending');
+
+        return $incoming - $outgoing;
+    }
+
+    /**
+     * Vérifier s'il y a assez d'emballages disponibles
+     */
+    public function hasEnoughStock(int $requiredQuantity): bool
+    {
+        return $this->quantity_in_stock >= $requiredQuantity;
+    }
+
+    /**
+     * Scope pour les types actifs
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
     }
 }

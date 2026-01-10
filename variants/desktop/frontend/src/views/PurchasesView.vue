@@ -5,7 +5,7 @@
     <div class="view-header">
       <div class="header-left">
         <h2>🛒 Gestion des Achats</h2>
-        <p>{{ purchases.length }} achat(s) enregistré(s)</p>
+        <p>{{ purchasesStore.purchasesCount }} achat(s) enregistré(s)</p>
       </div>
       <div class="header-right">
         <button @click="showCreateModal = true" class="btn-primary">
@@ -19,13 +19,13 @@
       <div class="search-box">
         <span class="search-icon">🔍</span>
         <input 
-          v-model="searchQuery" 
+          v-model="purchasesStore.filters.search" 
           type="text" 
-          placeholder="Rechercher par fournisseur, produit..." 
+          placeholder="Rechercher par fournisseur, produit, référence..." 
         />
       </div>
 
-      <select v-model="filterStatus" class="filter-select">
+      <select v-model="purchasesStore.filters.status" class="filter-select">
         <option value="">Tous les statuts</option>
         <option value="pending">En attente</option>
         <option value="confirmed">Confirmé</option>
@@ -33,7 +33,7 @@
         <option value="cancelled">Annulé</option>
       </select>
 
-      <button @click="loadPurchases" class="btn-refresh" :disabled="loading">
+      <button @click="purchasesStore.forceRefresh()" class="btn-refresh" :disabled="purchasesStore.isLoading">
         🔄 Actualiser
       </button>
     </div>
@@ -42,25 +42,25 @@
     <div class="quick-stats">
       <div class="stat-item">
         <span class="stat-label">Total achats (mois)</span>
-        <span class="stat-value">{{ formatCurrency(monthTotal) }}</span>
+        <span class="stat-value">{{ formatCurrency(purchasesStore.monthTotal) }}</span>
       </div>
       <div class="stat-item">
         <span class="stat-label">En attente</span>
-        <span class="stat-value status-pending">{{ pendingCount }}</span>
+        <span class="stat-value status-pending">{{ purchasesStore.pendingPurchases.length }}</span>
       </div>
       <div class="stat-item">
         <span class="stat-label">Réceptionnés</span>
-        <span class="stat-value status-received">{{ receivedCount }}</span>
+        <span class="stat-value status-received">{{ purchasesStore.receivedPurchases.length }}</span>
       </div>
     </div>
 
     <!-- Liste des achats -->
-    <div v-if="loading" class="loading-state">
+    <div v-if="purchasesStore.isLoading" class="loading-state">
       <div class="spinner"></div>
       <p>Chargement des achats...</p>
     </div>
 
-    <div v-else-if="filteredPurchases.length === 0" class="empty-state">
+    <div v-else-if="purchasesStore.filteredPurchases.length === 0" class="empty-state">
       <p>📦 Aucun achat trouvé</p>
     </div>
 
@@ -68,7 +68,7 @@
       <table class="purchases-table">
         <thead>
           <tr>
-            <th>N°</th>
+            <th>Référence</th>
             <th>Date</th>
             <th>Fournisseur</th>
             <th>Produits</th>
@@ -78,9 +78,9 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="purchase in filteredPurchases" :key="purchase.id">
-            <td class="purchase-id">#{{ purchase.id }}</td>
-            <td>{{ formatDate(purchase.date) }}</td>
+          <tr v-for="purchase in purchasesStore.filteredPurchases" :key="purchase.id">
+            <td class="purchase-reference">{{ purchase.reference }}</td>
+            <td>{{ purchasesStore.formatPurchaseDate(purchase) }}</td>
             <td>
               <div class="supplier-info">
                 <strong>{{ purchase.supplier?.name || 'N/A' }}</strong>
@@ -93,8 +93,8 @@
             </td>
             <td class="amount">{{ formatCurrency(purchase.total_amount) }}</td>
             <td>
-              <span :class="['status-badge', `status-${purchase.status}`]">
-                {{ getStatusLabel(purchase.status) }}
+              <span :class="['status-badge', purchasesStore.getStatusClass(purchase.status)]">
+                {{ purchasesStore.getStatusLabel(purchase.status) }}
               </span>
             </td>
             <td class="actions-cell">
@@ -103,29 +103,32 @@
                 class="btn-icon" 
                 title="Voir détails"
               >
-                👁️
+                ℹ️
               </button>
               <button 
                 v-if="purchase.status === 'pending'"
-                @click="confirmPurchase(purchase.id)" 
+                @click="handleConfirm(purchase.id)" 
                 class="btn-icon success" 
                 title="Confirmer"
+                :disabled="purchasesStore.isLoading"
               >
                 ✅
               </button>
               <button 
                 v-if="purchase.status === 'confirmed'"
-                @click="receivePurchase(purchase.id)" 
+                @click="handleReceive(purchase.id)" 
                 class="btn-icon info" 
                 title="Réceptionner"
+                :disabled="purchasesStore.isLoading"
               >
                 📦
               </button>
               <button 
                 v-if="purchase.status === 'pending'"
-                @click="cancelPurchase(purchase.id)" 
+                @click="handleCancel(purchase.id)" 
                 class="btn-icon danger" 
                 title="Annuler"
+                :disabled="purchasesStore.isLoading"
               >
                 ❌
               </button>
@@ -153,112 +156,22 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import CreatePurchaseModal from '../components/CreatePurchaseModal.vue'
-import PurchaseDetailsModal from '../components/PurchaseDetailsModal.vue'
+import { ref, onMounted } from 'vue'
+import { usePurchasesStore } from '@/stores/purchases'
+import CreatePurchaseModal from '../components/purchases/CreatePurchaseModal.vue'
+import PurchaseDetailsModal from '../components/purchases/PurchaseDetailsModal.vue'
 
-// États
-const loading = ref(true)
-const purchases = ref([])
-const searchQuery = ref('')
-const filterStatus = ref('')
+// Store
+const purchasesStore = usePurchasesStore()
+
+// États locaux
 const showCreateModal = ref(false)
 const showDetailsModal = ref(false)
 const selectedPurchase = ref(null)
 
-// 🔹 Charger les achats
+// 🔹 Initialisation
 onMounted(async () => {
-  await loadPurchases()
-})
-
-async function loadPurchases() {
-  loading.value = true
-
-  try {
-    console.log('📊 Chargement des achats...')
-
-    // ✅ TODO: Appel API réel
-    // const response = await window.electron.apiCall('GET', '/purchases')
-    // purchases.value = response.data
-
-    // Données simulées pour DEV
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    purchases.value = [
-      {
-        id: 1,
-        date: '2026-01-10',
-        supplier: { id: 1, name: 'SABC Cameroun' },
-        items: [
-          { product: 'Castel Beer 65cl', quantity: 100, unit_price: 500 },
-          { product: 'Guinness 33cl', quantity: 50, unit_price: 800 }
-        ],
-        total_amount: 90000,
-        status: 'received'
-      },
-      {
-        id: 2,
-        date: '2026-01-09',
-        supplier: { id: 2, name: 'Coca-Cola Cameroun' },
-        items: [
-          { product: 'Coca-Cola 1.5L', quantity: 200, unit_price: 600 }
-        ],
-        total_amount: 120000,
-        status: 'confirmed'
-      },
-      {
-        id: 3,
-        date: '2026-01-08',
-        supplier: { id: 3, name: 'Source du Pays' },
-        items: [
-          { product: 'Eau Minérale 1.5L', quantity: 300, unit_price: 300 }
-        ],
-        total_amount: 90000,
-        status: 'pending'
-      }
-    ]
-
-    console.log('✅ Achats chargés:', purchases.value.length)
-  } catch (error) {
-    console.error('❌ Erreur chargement achats:', error)
-    alert('Erreur lors du chargement des achats')
-  } finally {
-    loading.value = false
-  }
-}
-
-// 🔹 Achats filtrés
-const filteredPurchases = computed(() => {
-  let result = purchases.value
-
-  // Filtre par recherche
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(p => 
-      p.supplier?.name.toLowerCase().includes(query) ||
-      p.items?.some(item => item.product.toLowerCase().includes(query))
-    )
-  }
-
-  // Filtre par statut
-  if (filterStatus.value) {
-    result = result.filter(p => p.status === filterStatus.value)
-  }
-
-  return result
-})
-
-// 🔹 Statistiques
-const monthTotal = computed(() => {
-  return purchases.value.reduce((sum, p) => sum + (p.total_amount || 0), 0)
-})
-
-const pendingCount = computed(() => {
-  return purchases.value.filter(p => p.status === 'pending').length
-})
-
-const receivedCount = computed(() => {
-  return purchases.value.filter(p => p.status === 'received').length
+  await purchasesStore.fetchPurchases()
 })
 
 // 🔹 Actions
@@ -267,91 +180,55 @@ function viewPurchase(purchase) {
   showDetailsModal.value = true
 }
 
-async function confirmPurchase(id) {
-  if (!confirm('Confirmer cet achat ?')) return
-
-  try {
-    console.log('✅ Confirmation achat:', id)
-    // const response = await window.electron.apiCall('POST', `/purchases/${id}/confirm`)
-    
-    // Simuler
-    const purchase = purchases.value.find(p => p.id === id)
-    if (purchase) purchase.status = 'confirmed'
-    
-    alert('Achat confirmé !')
-  } catch (error) {
-    console.error('❌ Erreur:', error)
-    alert('Erreur lors de la confirmation')
+async function handleConfirm(purchaseId) {
+  const result = await purchasesStore.confirmPurchase(purchaseId)
+  
+  if (result.success) {
+    alert('✅ Achat confirmé avec succès !')
+  } else if (!result.cancelled) {
+    alert(`❌ Erreur: ${result.error}`)
   }
 }
 
-async function receivePurchase(id) {
-  if (!confirm('Marquer cet achat comme réceptionné ?')) return
-
-  try {
-    console.log('📦 Réception achat:', id)
-    // const response = await window.electron.apiCall('POST', `/purchases/${id}/receive`)
-    
-    // Simuler
-    const purchase = purchases.value.find(p => p.id === id)
-    if (purchase) purchase.status = 'received'
-    
-    alert('Achat réceptionné !')
-  } catch (error) {
-    console.error('❌ Erreur:', error)
-    alert('Erreur lors de la réception')
+async function handleReceive(purchaseId) {
+  const result = await purchasesStore.receivePurchase(purchaseId)
+  
+  if (result.success) {
+    alert('✅ Achat réceptionné avec succès !')
+  } else if (!result.cancelled) {
+    alert(`❌ Erreur: ${result.error}`)
   }
 }
 
-async function cancelPurchase(id) {
-  if (!confirm('Annuler cet achat ?')) return
-
-  try {
-    console.log('❌ Annulation achat:', id)
-    // const response = await window.electron.apiCall('POST', `/purchases/${id}/cancel`)
-    
-    // Simuler
-    const purchase = purchases.value.find(p => p.id === id)
-    if (purchase) purchase.status = 'cancelled'
-    
-    alert('Achat annulé')
-  } catch (error) {
-    console.error('❌ Erreur:', error)
-    alert('Erreur lors de l\'annulation')
+async function handleCancel(purchaseId) {
+  const result = await purchasesStore.cancelPurchase(purchaseId)
+  
+  if (result.success) {
+    alert('✅ Achat annulé')
+  } else if (!result.cancelled) {
+    alert(`❌ Erreur: ${result.error}`)
   }
 }
 
 function handlePurchaseCreated() {
   showCreateModal.value = false
-  loadPurchases()
+  // Le store se rafraîchit automatiquement après création
+  purchasesStore.fetchPurchases(true)
 }
 
 function handlePurchaseUpdated() {
   showDetailsModal.value = false
-  loadPurchases()
+  // Le store se rafraîchit automatiquement après mise à jour
+  purchasesStore.fetchPurchases(true)
 }
 
 // 🔹 Helpers
-function formatDate(date) {
-  return new Date(date).toLocaleDateString('fr-FR')
-}
-
 function formatCurrency(amount) {
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
     currency: 'XAF',
     minimumFractionDigits: 0
-  }).format(amount)
-}
-
-function getStatusLabel(status) {
-  const labels = {
-    pending: 'En attente',
-    confirmed: 'Confirmé',
-    received: 'Réceptionné',
-    cancelled: 'Annulé'
-  }
-  return labels[status] || status
+  }).format(amount || 0)
 }
 </script>
 
@@ -532,9 +409,10 @@ function getStatusLabel(status) {
   background: #f9fafb;
 }
 
-.purchase-id {
+.purchase-reference {
   font-weight: 600;
   color: #667eea;
+  font-size: 13px;
 }
 
 .supplier-info strong {
@@ -600,20 +478,25 @@ function getStatusLabel(status) {
   transition: all 0.2s;
 }
 
-.btn-icon:hover {
+.btn-icon:hover:not(:disabled) {
   background: #e5e7eb;
   transform: scale(1.1);
 }
 
-.btn-icon.success:hover {
+.btn-icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-icon.success:hover:not(:disabled) {
   background: #d1fae5;
 }
 
-.btn-icon.info:hover {
+.btn-icon.info:hover:not(:disabled) {
   background: #dbeafe;
 }
 
-.btn-icon.danger:hover {
+.btn-icon.danger:hover:not(:disabled) {
   background: #fee2e2;
 }
 

@@ -1,9 +1,11 @@
 // Chemin: variants/desktop/electron/src/main.js
 // Main process Electron - PRODUCTION avec Laravel API
+// ✅ CORRIGÉ - Sauvegarde le token dans le store
 
 const { app, BrowserWindow, ipcMain, Notification } = require('electron');
 const path = require('path');
 const axios = require('axios');
+const Store = require('electron-store');
 
 // ============================================
 // CONFIG
@@ -15,9 +17,13 @@ const CONFIG = {
 };
 
 // ============================================
-// STORE EN MÉMOIRE (Session)
+// STORE PERSISTENT (avec electron-store)
 // ============================================
-const sessionStore = new Map();
+const persistentStore = new Store();
+
+// ============================================
+// SESSION EN MÉMOIRE
+// ============================================
 let currentUser = null;
 let currentToken = null;
 
@@ -98,6 +104,40 @@ async function createWindow() {
 }
 
 // ============================================
+// HELPER - RESTAURER LA SESSION AU DÉMARRAGE
+// ============================================
+async function restoreSession() {
+  try {
+    const savedToken = persistentStore.get('auth_token');
+    
+    if (savedToken) {
+      console.log('🔄 Restauration de la session...');
+      currentToken = savedToken;
+      
+      // Vérifier si le token est toujours valide
+      try {
+        const response = await laravelApi.get('/auth/user');
+        
+        if (response.data.success && response.data.data) {
+          currentUser = response.data.data;
+          console.log('✅ Session restaurée:', currentUser.username);
+          return true;
+        }
+      } catch (error) {
+        console.warn('⚠️ Token expiré, nettoyage...');
+        currentToken = null;
+        currentUser = null;
+        persistentStore.delete('auth_token');
+      }
+    }
+  } catch (error) {
+    console.error('❌ Erreur restauration session:', error);
+  }
+  
+  return false;
+}
+
+// ============================================
 // IPC HANDLERS - AUTHENTIFICATION (Laravel API)
 // ============================================
 
@@ -114,11 +154,16 @@ ipcMain.handle('auth-login', async (event, credentials) => {
     });
 
     if (response.data.success) {
-      // Stocker le token et l'utilisateur en session
+      // Stocker le token et l'utilisateur en session ET dans le store
       currentToken = response.data.data.token;
       currentUser = response.data.data.user;
+      
+      // ✅ CORRECTION : Sauvegarder dans le store persistent
+      persistentStore.set('auth_token', currentToken);
+      persistentStore.set('user', JSON.stringify(currentUser));
 
       console.log('✅ Login réussi:', currentUser.username);
+      console.log('✅ Token sauvegardé dans le store');
 
       return {
         success: true,
@@ -159,10 +204,11 @@ ipcMain.handle('auth-logout', async () => {
   } catch (error) {
     console.warn('⚠️ Logout API error (ignoré):', error.message);
   } finally {
-    // Toujours clear la session locale
+    // ✅ Toujours clear la session locale ET le store
     currentToken = null;
     currentUser = null;
-    sessionStore.clear();
+    persistentStore.delete('auth_token');
+    persistentStore.delete('user');
     console.log('✅ Session cleared');
   }
 
@@ -176,7 +222,15 @@ ipcMain.handle('auth-get-user', async () => {
   console.log('🔹 IPC auth-get-user');
 
   if (!currentUser) {
-    return null;
+    // Essayer de restaurer depuis le store
+    const savedUser = persistentStore.get('user');
+    if (savedUser) {
+      try {
+        currentUser = JSON.parse(savedUser);
+      } catch (e) {
+        console.error('❌ Erreur parsing user:', e);
+      }
+    }
   }
 
   return currentUser;
@@ -188,6 +242,11 @@ ipcMain.handle('auth-get-user', async () => {
 ipcMain.handle('auth-check-session', async () => {
   console.log('🔹 IPC auth-check-session');
 
+  // Restaurer le token si disponible
+  if (!currentToken) {
+    currentToken = persistentStore.get('auth_token');
+  }
+
   if (!currentToken) {
     return { isAuthenticated: false };
   }
@@ -197,6 +256,14 @@ ipcMain.handle('auth-check-session', async () => {
     const response = await laravelApi.get('/auth/check-session');
     
     if (response.data.success) {
+      // Restaurer l'utilisateur si nécessaire
+      if (!currentUser) {
+        const savedUser = persistentStore.get('user');
+        if (savedUser) {
+          currentUser = JSON.parse(savedUser);
+        }
+      }
+      
       return { 
         isAuthenticated: true, 
         token: currentToken,
@@ -208,15 +275,16 @@ ipcMain.handle('auth-check-session', async () => {
     // Token invalide, clear la session
     currentToken = null;
     currentUser = null;
+    persistentStore.delete('auth_token');
+    persistentStore.delete('user');
   }
 
   return { isAuthenticated: false };
 });
 
 // ============================================
-// IPC HANDLERS - STORE LOCAL (Remember Me)
+// IPC HANDLERS - STORE LOCAL
 // ============================================
-const persistentStore = new Map();
 
 ipcMain.handle('store-get', async (event, key) => {
   console.log('🔹 IPC store-get:', key);
@@ -249,12 +317,17 @@ ipcMain.handle('store-clear', async () => {
 
 /**
  * Proxy générique pour appeler n'importe quel endpoint Laravel
- * Usage: window.electron.apiCall('GET', '/products')
  */
 ipcMain.handle('api-call', async (event, { method, endpoint, data = null }) => {
   console.log(`🔹 IPC api-call: ${method} ${endpoint}`);
 
+  // ✅ Restaurer le token si disponible
   if (!currentToken) {
+    currentToken = persistentStore.get('auth_token');
+  }
+
+  if (!currentToken) {
+    console.error('❌ Aucun token disponible');
     return { 
       success: false, 
       message: 'Non authentifié' 
@@ -316,6 +389,9 @@ ipcMain.handle('get-api-base', () => CONFIG.apiBaseUrl);
 // APP LIFECYCLE
 // ============================================
 app.whenReady().then(async () => {
+  // ✅ Restaurer la session au démarrage
+  await restoreSession();
+  
   await createWindow();
 
   app.on('activate', () => {

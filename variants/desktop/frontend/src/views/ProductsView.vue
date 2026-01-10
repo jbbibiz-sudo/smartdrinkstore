@@ -117,7 +117,7 @@
         <!-- Actions -->
         <div class="product-actions">
           <button @click="viewProduct(product)" class="btn-action" title="Voir détails">
-            👁️ Voir
+            ℹ️ Voir
           </button>
           <button @click="editProduct(product)" class="btn-action" title="Modifier">
             ✏️ Modifier
@@ -160,10 +160,10 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import CreateProductModal from '../components/CreateProductModal.vue'
-import EditProductModal from '../components/EditProductModal.vue'
-import ProductDetailsModal from '../components/ProductDetailsModal.vue'
-import StockAdjustModal from '../components/StockAdjustModal.vue'
+import CreateProductModal from '../components/products/CreateProductModal.vue'
+import EditProductModal from '../components/products/EditProductModal.vue'
+import ProductDetailsModal from '../components/products/ProductDetailsModal.vue'
+import StockAdjustModal from '../components/products/StockAdjustModal.vue'
 
 // États
 const loading = ref(true)

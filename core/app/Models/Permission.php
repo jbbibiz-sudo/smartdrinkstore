@@ -57,4 +57,12 @@ class Permission extends Model
     {
         return $query->where('group', $group);
     }
+
+    /**
+     * ✅ NOUVEAU : Obtenir toutes les permissions groupées
+     */
+    public static function getAllGrouped()
+    {
+        return static::all()->groupBy('group');
+    }
 }

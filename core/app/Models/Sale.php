@@ -27,6 +27,7 @@ class Sale extends Model
         'total_amount' => 'decimal:2',
         'discount' => 'decimal:2',
         'paid_amount' => 'decimal:2',
+        'deposit_amount' => 'decimal:2',
         'due_date' => 'date',
         'credit_days' => 'integer',
     ];

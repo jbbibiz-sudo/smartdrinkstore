@@ -1,4 +1,5 @@
 <?php
+// app/Models/DepositReturn.php
 
 namespace App\Models;
 
@@ -10,44 +11,73 @@ class DepositReturn extends Model
     use HasFactory;
 
     protected $fillable = [
-        'reference',
         'deposit_id',
-        'user_id', 
         'quantity_returned',
-        'quantity_good_condition',
-        'quantity_damaged',
-        'quantity_lost',
         'refund_amount',
-        'damage_penalty',
-        'delay_penalty',
-        'total_penalty',
-        'net_refund',
+        'return_date',
         'notes',
-        'returned_at',
     ];
 
     protected $casts = [
         'quantity_returned' => 'integer',
-        'quantity_good_condition' => 'integer',
-        'quantity_damaged' => 'integer',
-        'quantity_lost' => 'integer',
-        'damage_penalty' => 'decimal:2',
-        'delay_penalty' => 'decimal:2',
-        'total_penalty' => 'decimal:2',
         'refund_amount' => 'decimal:2',
-        'net_refund' => 'decimal:2',
-        'returned_at' => 'datetime',
+        'return_date' => 'date',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
-    // ✅ CORRIGÉ: Boot method retiré car le controller gère déjà
-    // la mise à jour du statut et du stock
-    // Cela évite les problèmes de double mise à jour
-
     /**
-     * Consigne associée
+     * Relation avec la consigne
      */
     public function deposit()
     {
         return $this->belongsTo(Deposit::class);
+    }
+
+    /**
+     * Obtenir le type de consigne via la relation
+     */
+    public function getDepositTypeAttribute()
+    {
+        return $this->deposit?->depositType;
+    }
+
+    /**
+     * Obtenir le client ou fournisseur selon le type
+     */
+    public function getEntityAttribute()
+    {
+        if ($this->deposit->type === Deposit::TYPE_OUTGOING) {
+            return $this->deposit->customer;
+        }
+        return $this->deposit->supplier;
+    }
+
+    /**
+     * Scope pour les retours d'aujourd'hui
+     */
+    public function scopeToday($query)
+    {
+        return $query->whereDate('return_date', today());
+    }
+
+    /**
+     * Scope pour les retours de cette semaine
+     */
+    public function scopeThisWeek($query)
+    {
+        return $query->whereBetween('return_date', [
+            now()->startOfWeek(),
+            now()->endOfWeek()
+        ]);
+    }
+
+    /**
+     * Scope pour les retours de ce mois
+     */
+    public function scopeThisMonth($query)
+    {
+        return $query->whereMonth('return_date', now()->month)
+            ->whereYear('return_date', now()->year);
     }
 }

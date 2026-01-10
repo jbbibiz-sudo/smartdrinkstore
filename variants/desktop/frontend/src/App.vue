@@ -1,4 +1,4 @@
-<!-- Chemin: src/App.vue -->
+<!-- Chemin: variants/desktop/frontend/src/App.vue -->
 <template>
   <div id="app" :key="appKey">
     <!-- Login si pas authentifié -->
@@ -35,14 +35,14 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-
+import { useProductsStore } from '@/stores/products'
 import LoginView from './views/LoginView.vue'
 import HomeView from './views/HomeView.vue'
 import Dashboard from './views/Dashboard.vue'
-import dataLoaders from './modules/module-5-data-loaders'
 
 const router = useRouter()
 const route = useRoute()
+const productsStore = useProductsStore()
 
 // ✅ Key pour forcer le re-render complet si besoin
 const appKey = ref(0)
@@ -52,13 +52,14 @@ const appReady = ref(false)
 const currentUser = ref(null)
 const currentView = ref('home') // 'home' ou 'dashboard'
 
-// 🔹 Vérifie session au lancement
+// 🔹 Vérifier session au lancement - UN SEUL onMounted
 onMounted(async () => {
   console.log('🚀 App.vue monté')
   
   // Déterminer la vue selon la route
   updateCurrentView()
   
+  // Vérifier si une session existe déjà
   await checkSession()
 })
 
@@ -86,13 +87,17 @@ async function checkSession() {
           currentUser.value = user
           isAuthenticated.value = true
           
-          // Charger les données
+          // ✅ Charger les données SEULEMENT si authentifié
           await initializeApp()
+        } else {
+          console.log('⚠️ Session non authentifiée')
         }
+      } else {
+        console.log('ℹ️ Aucune session active')
       }
     }
   } catch (error) {
-    console.warn('⚠️ Pas de session active:', error)
+    console.warn('⚠️ Erreur vérification session:', error.message)
   }
 }
 
@@ -102,11 +107,14 @@ async function initializeApp() {
   
   try {
     console.log('📊 Chargement des données initiales...')
-    await dataLoaders.init()
-    console.log('✅ Données chargées')
+    
+    // ✅ Charger les données du store
+    await productsStore.initialize()
+    
+    console.log('✅ Données chargées avec succès')
   } catch (error) {
-    console.warn('⚠️ Erreur chargement données:', error)
-    // On continue quand même
+    console.error('❌ Erreur chargement données:', error.message)
+    // On continue quand même pour permettre à l'utilisateur d'utiliser l'app
   } finally {
     appReady.value = true
   }
@@ -114,23 +122,13 @@ async function initializeApp() {
 
 // 🔹 Login depuis LoginView
 async function handleLoginSuccess({ user, token }) {
-  console.log('🎉 Login réussi:', user?.name)
+  console.log('🎉 Login réussi:', user?.name || user?.username)
   
   currentUser.value = user
   isAuthenticated.value = true
   currentView.value = 'home' // ✅ Afficher HomeView après login
   
-  // Sauvegarder dans le store local (optionnel)
-  try {
-    if (window.electron?.storeSet) {
-      await window.electron.storeSet('user', JSON.stringify(user))
-      await window.electron.storeSet('auth_token', token)
-    }
-  } catch (error) {
-    console.warn('⚠️ Erreur sauvegarde session:', error)
-  }
-  
-  // Charger les données
+  // ✅ Charger les données APRÈS le login
   await initializeApp()
 }
 
@@ -160,7 +158,7 @@ async function handleLogout() {
       await window.electron.storeClear()
     }
   } catch (error) {
-    console.error('❌ Erreur logout:', error)
+    console.error('❌ Erreur logout:', error.message)
   }
   
   // ✅ Reset PROPRE de l'état (SANS reload)

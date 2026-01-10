@@ -44,4 +44,28 @@ class Customer extends Model
     {
         $this->attributes['balance'] = max(0, $value);
     }
+    
+    /**
+     * Consignes du client (sortantes)
+     */
+    public function deposits()
+    {
+        return $this->hasMany(Deposit::class)->where('type', 'outgoing');
+    }
+
+    /**
+     * Consignes actives du client
+     */
+    public function activeDeposits()
+    {
+        return $this->deposits()->where('status', 'active');
+    }
+
+    /**
+     * Montant total des consignes en cours
+     */
+    public function getTotalActiveDepositsAttribute()
+    {
+        return $this->activeDeposits()->sum('total_deposit_amount');
+    }
 }

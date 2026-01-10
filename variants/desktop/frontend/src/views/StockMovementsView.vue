@@ -709,8 +709,8 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useStockMovements } from './useStockMovements'
-import { formatMovementType, getMovementColor, formatDate } from './useStockMovements'
+import { useStockMovements } from '../composables/useStockMovements'
+import { formatMovementType, getMovementColor, formatDate } from '../composables/useStockMovements'
 
 const {
   movements,
