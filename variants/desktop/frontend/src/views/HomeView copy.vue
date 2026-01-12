@@ -6,7 +6,15 @@
     <p>Bienvenue sur l'application de gestion de stocks. Sélectionnez une action ci-dessous :</p>
 
     <div class="menu-cards">
-      
+      <div class="card" @click="navigateTo('roles-permissions')">
+        <h2>👥 Rôles & Permissions</h2>
+        <p>Créer, modifier et gérer les rôles et permissions des utilisateurs.</p>
+      </div>
+
+      <div class="card" @click="navigateTo('database-manager')">
+        <h2>🗄️ Gestion Base de Données</h2>
+        <p>Exporter, importer, sauvegarder et restaurer la base de données.</p>
+      </div>
 
       <div class="card" @click="navigateTo('products')">
         <h2>📦 Produits</h2>
@@ -27,23 +35,7 @@
         <h2>👥 Clients</h2>
         <p>Gérer la liste des clients.</p>
       </div>
-    
-      <!-- Carte Fournisseurs -->
-      <div class="card" @click="navigateTo('suppliers')">
-        <h2>🏭 Fournisseurs</h2>
-        <p>Gérer la liste des fournisseurs.</p>
-      </div>
-
-      <div class="card" @click="navigateTo('roles-permissions')">
-        <h2>👥 Rôles & Permissions</h2>
-        <p>Créer, modifier et gérer les rôles et permissions des utilisateurs.</p>
-      </div>    
     </div>
-
-    <div class="card" @click="navigateTo('database-manager')">
-        <h2>🗄️ Gestion Base de Données</h2>
-        <p>Exporter, importer, sauvegarder et restaurer la base de données.</p>
-      </div>
 
     <div class="user-info" v-if="displayUser">
       <p>Connecté en tant que : <strong>{{ displayUser.name }}</strong></p>
@@ -57,30 +49,34 @@
 </template>
 
 <script setup>
-// ✅ Récupérer l'utilisateur depuis le store
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { ref } from 'vue'
 
-const router = useRouter()
-const authStore = useAuthStore()
+// ✅ Props
+const props = defineProps({
+  user: {
+    type: Object,
+    required: true
+  }
+})
 
-// ✅ Plus de props requises
-const displayUser = computed(() => authStore.user)
+// ✅ Emits
+const emit = defineEmits(['navigate', 'logout'])
 
-// ✅ Navigation avec router
+// État local
+const displayUser = ref(props.user)
+
+// 🔹 Naviguer vers une section
 function navigateTo(destination) {
   console.log('📍 Navigation vers:', destination)
-  router.push(`/${destination}`)
+  emit('navigate', destination)
 }
 
-// ✅ Déconnexion avec store
-async function handleLogout() {
+// 🔹 Déconnexion
+function handleLogout() {
   const confirmed = confirm('Voulez-vous vraiment vous déconnecter ?')
   if (confirmed) {
     console.log('👋 Déconnexion depuis HomeView')
-    await authStore.logout()
-    router.push('/login')
+    emit('logout')
   }
 }
 </script>

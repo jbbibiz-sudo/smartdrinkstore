@@ -1,6 +1,15 @@
 <!-- Chemin: frontend/src/views/PurchasesView.vue -->
 <template>
   <div class="purchases-view">
+    <!-- ✅ Breadcrumb -->
+    <div class="breadcrumb-nav">
+      <router-link to="/dashboard-home" class="breadcrumb-link">
+        🏠 Accueil
+      </router-link>
+      <span class="breadcrumb-separator">›</span>
+      <span class="breadcrumb-current">Achats</span>
+    </div>
+
     <!-- En-tête -->
     <div class="view-header">
       <div class="header-left">
@@ -27,10 +36,13 @@
 
       <select v-model="purchasesStore.filters.status" class="filter-select">
         <option value="">Tous les statuts</option>
+        <option value="draft">Brouillon</option>
+        <option value="awaiting_approval">En attente d'approbation</option>
         <option value="pending">En attente</option>
         <option value="confirmed">Confirmé</option>
         <option value="received">Réceptionné</option>
         <option value="cancelled">Annulé</option>
+        <option value="rejected">Rejeté</option>
       </select>
 
       <button @click="purchasesStore.forceRefresh()" class="btn-refresh" :disabled="purchasesStore.isLoading">
@@ -237,6 +249,46 @@ function formatCurrency(amount) {
   padding: 0;
 }
 
+/* ✅ NOUVEAU : Breadcrumb Navigation */
+.breadcrumb-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 14px;
+  margin-bottom: 0;
+}
+
+.breadcrumb-link {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.breadcrumb-link:hover {
+  background: #e0e7ff;
+  color: #4c51bf;
+}
+
+.breadcrumb-separator {
+  color: #9ca3af;
+  font-size: 16px;
+  user-select: none;
+}
+
+.breadcrumb-current {
+  color: #6b7280;
+  font-weight: 600;
+}
+
 /* En-tête */
 .view-header {
   display: flex;
@@ -441,6 +493,16 @@ function formatCurrency(amount) {
   display: inline-block;
 }
 
+.status-draft {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.status-awaiting_approval {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .status-pending {
   background: #fef3c7;
   color: #92400e;
@@ -457,6 +519,11 @@ function formatCurrency(amount) {
 }
 
 .status-cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-rejected {
   background: #fee2e2;
   color: #991b1b;
 }

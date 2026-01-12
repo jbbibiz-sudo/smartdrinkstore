@@ -50,7 +50,7 @@
               @click="showPassword = !showPassword"
               :disabled="isLoading"
             >
-              <span v-if="!showPassword">👁️</span>
+              <span v-if="!showPassword">ℹ️</span>
               <span v-else>🙈</span>
             </button>
           </div>

@@ -47,6 +47,14 @@ export const usePurchasesStore = defineStore('purchases', () => {
   
   const purchasesCount = computed(() => purchases.value.length)
   
+  const draftPurchases = computed(() => 
+    purchases.value.filter(p => p.status === 'draft')
+  )
+  
+  const awaitingApprovalPurchases = computed(() => 
+    purchases.value.filter(p => p.status === 'awaiting_approval')
+  )
+  
   const pendingPurchases = computed(() => 
     purchases.value.filter(p => p.status === 'pending')
   )
@@ -61,6 +69,10 @@ export const usePurchasesStore = defineStore('purchases', () => {
   
   const cancelledPurchases = computed(() => 
     purchases.value.filter(p => p.status === 'cancelled')
+  )
+  
+  const rejectedPurchases = computed(() => 
+    purchases.value.filter(p => p.status === 'rejected')
   )
 
   const totalPurchasesAmount = computed(() => 
@@ -226,10 +238,13 @@ export const usePurchasesStore = defineStore('purchases', () => {
    */
   const getStatusLabel = (status) => {
     const labels = {
+      draft: 'Brouillon',
+      awaiting_approval: 'En attente d\'approbation',
       pending: 'En attente',
       confirmed: 'Confirmé',
       received: 'Réceptionné',
-      cancelled: 'Annulé'
+      cancelled: 'Annulé',
+      rejected: 'Rejeté'
     }
     return labels[status] || status
   }
@@ -411,39 +426,24 @@ export const usePurchasesStore = defineStore('purchases', () => {
    * Supprimer un achat
    */
   async function deletePurchase(purchaseId) {
-    if (!confirm('Supprimer cet achat ?')) {
-      return { success: false, cancelled: true }
-    }
-
-    isLoading.value = true
-    
     try {
-      console.log(`🗑️ Suppression achat #${purchaseId}...`)
-      
-      const response = await api.delete(`/purchases/${purchaseId}`)
-      
-      if (response.success) {
-        // Retirer de la liste
-        purchases.value = purchases.value.filter(p => p.id !== purchaseId)
+        // Appel API
+        await api.delete(`/v1/purchases/${purchaseId}`)
         
-        // Nettoyer selectedPurchase si c'est le même
-        if (selectedPurchase.value?.id === purchaseId) {
-          selectedPurchase.value = null
+        // Retirer de la liste locale
+        const index = purchases.value.findIndex(p => p.id === purchaseId)
+        if (index !== -1) {
+          purchases.value.splice(index, 1)
         }
         
-        invalidateCache()
+        // Invalider le cache
+        invalidateCache('purchases')
         
-        console.log('✅ Achat supprimé')
-        return { success: true }
+        return true
+      } catch (error) {
+        console.error('Erreur lors de la suppression:', error)
+        throw error
       }
-      
-      throw new Error(response.message || 'Erreur lors de la suppression de l\'achat')
-    } catch (error) {
-      console.error('❌ Erreur suppression achat:', error)
-      return { success: false, error: error.message }
-    } finally {
-      isLoading.value = false
-    }
   }
 
   // ==========================================
@@ -632,10 +632,13 @@ export const usePurchasesStore = defineStore('purchases', () => {
     
     // Getters - Statistiques
     purchasesCount,
+    draftPurchases,
+    awaitingApprovalPurchases,
     pendingPurchases,
     confirmedPurchases,
     receivedPurchases,
     cancelledPurchases,
+    rejectedPurchases,
     totalPurchasesAmount,
     pendingAmount,
     monthPurchases,

@@ -128,8 +128,10 @@
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- Modales -->
+  <!-- ✅ MODALES - TELEPORT AU BODY -->
+  <Teleport to="body">
     <CreateProductModal 
       v-if="showCreateModal" 
       @close="showCreateModal = false"
@@ -155,15 +157,16 @@
       @close="showStockModal = false"
       @adjusted="handleStockAdjusted"
     />
-  </div>
+  </Teleport>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import CreateProductModal from '../components/products/CreateProductModal.vue'
-import EditProductModal from '../components/products/EditProductModal.vue'
-import ProductDetailsModal from '../components/products/ProductDetailsModal.vue'
-import StockAdjustModal from '../components/products/StockAdjustModal.vue'
+// ✅ CORRECTION : Utiliser "Products" avec majuscule
+import CreateProductModal from '../components/Products/CreateProductModal.vue'
+import EditProductModal from '../components/Products/EditProductModal.vue'
+import ProductDetailsModal from '../components/Products/ProductDetailsModal.vue'
+import StockAdjustModal from '../components/Products/StockAdjustModal.vue'
 
 // États
 const loading = ref(true)
@@ -204,7 +207,12 @@ async function loadProducts() {
         sale_price: 1000,
         stock: 150,
         min_stock: 50,
-        unit: 'bouteilles'
+        unit: 'bouteilles',
+        sku: 'SKU001',
+        cost_price: 600,
+        unit_price: 1000,
+        is_active: true,
+        category_id: 1
       },
       {
         id: 2,
@@ -214,7 +222,12 @@ async function loadProducts() {
         sale_price: 1200,
         stock: 25,
         min_stock: 50,
-        unit: 'bouteilles'
+        unit: 'bouteilles',
+        sku: 'SKU002',
+        cost_price: 800,
+        unit_price: 1200,
+        is_active: true,
+        category_id: 2
       },
       {
         id: 3,
@@ -224,7 +237,12 @@ async function loadProducts() {
         sale_price: 500,
         stock: 200,
         min_stock: 100,
-        unit: 'bouteilles'
+        unit: 'bouteilles',
+        sku: 'SKU003',
+        cost_price: 300,
+        unit_price: 500,
+        is_active: true,
+        category_id: 3
       },
       {
         id: 4,
@@ -234,7 +252,12 @@ async function loadProducts() {
         sale_price: 600,
         stock: 0,
         min_stock: 30,
-        unit: 'bouteilles'
+        unit: 'bouteilles',
+        sku: 'SKU004',
+        cost_price: 400,
+        unit_price: 600,
+        is_active: true,
+        category_id: 1
       },
       {
         id: 5,
@@ -244,7 +267,12 @@ async function loadProducts() {
         sale_price: 800,
         stock: 80,
         min_stock: 40,
-        unit: 'bouteilles'
+        unit: 'bouteilles',
+        sku: 'SKU005',
+        cost_price: 500,
+        unit_price: 800,
+        is_active: true,
+        category_id: 2
       },
       {
         id: 6,
@@ -254,7 +282,12 @@ async function loadProducts() {
         sale_price: 900,
         stock: 120,
         min_stock: 50,
-        unit: 'bouteilles'
+        unit: 'bouteilles',
+        sku: 'SKU006',
+        cost_price: 550,
+        unit_price: 900,
+        is_active: true,
+        category_id: 1
       }
     ]
 

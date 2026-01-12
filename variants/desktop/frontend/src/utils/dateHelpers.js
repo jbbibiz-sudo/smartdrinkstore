@@ -29,6 +29,57 @@ export function normalizeDate(date) {
 }
 
 /**
+ * Formate une date en français
+ * @param {string|Date} date - La date à formater
+ * @param {string} format - Format: 'short', 'medium', 'long'
+ * @returns {string} Date formatée
+ */
+export function formatDateFR(date, format = 'medium') {
+  if (!date) return 'N/A'
+  
+  const dateObj = typeof date === 'string' ? new Date(date) : date
+  
+  if (isNaN(dateObj.getTime())) return 'Date invalide'
+  
+  const options = {
+    short: { day: '2-digit', month: '2-digit', year: 'numeric' },
+    medium: { day: '2-digit', month: 'short', year: 'numeric' },
+    long: { day: '2-digit', month: 'long', year: 'numeric' }
+  }
+  
+  return dateObj.toLocaleDateString('fr-FR', options[format] || options.medium)
+}
+
+/**
+ * Obtient un label de date relative (ex: "Aujourd'hui", "Il y a 3 jours")
+ * @param {string|Date} date - La date
+ * @returns {string} Label de date relative
+ */
+export function getRelativeDateLabel(date) {
+  if (!date) return 'Jamais'
+  
+  const dateObj = typeof date === 'string' ? new Date(date) : date
+  const now = new Date()
+  const diffTime = now - dateObj
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+  
+  if (diffDays === 0) return 'Aujourd\'hui'
+  if (diffDays === 1) return 'Hier'
+  if (diffDays < 7) return `Il y a ${diffDays} jours`
+  if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7)
+    return `Il y a ${weeks} semaine${weeks > 1 ? 's' : ''}`
+  }
+  if (diffDays < 365) {
+    const months = Math.floor(diffDays / 30)
+    return `Il y a ${months} mois`
+  }
+  
+  const years = Math.floor(diffDays / 365)
+  return `Il y a ${years} an${years > 1 ? 's' : ''}`
+}
+
+/**
  * Calculer la différence en jours entre deux dates
  * @param {string|Date} date1 - Première date
  * @param {string|Date} date2 - Deuxième date
@@ -65,6 +116,16 @@ export function isToday(date) {
 }
 
 /**
+ * Obtient le début du mois au format YYYY-MM-DD
+ * @returns {string} Date du début du mois
+ */
+export function getStartOfMonth() {
+  const today = new Date()
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
+  return firstDay.toISOString().split('T')[0]
+}
+
+/**
  * Vérifier si une date est dans le passé
  * @param {string|Date} date - Date à vérifier
  * @returns {boolean}
@@ -98,17 +159,6 @@ export function isBetween(date, startDate, endDate) {
   const start = normalizeDate(startDate)
   const end = normalizeDate(endDate)
   return check >= start && check <= end
-}
-
-/**
- * Obtenir le début du mois en cours
- * @returns {string} Date au format YYYY-MM-DD
- */
-export function getStartOfMonth() {
-  const now = new Date()
-  now.setDate(1)
-  now.setHours(0, 0, 0, 0)
-  return now.toISOString().split('T')[0]
 }
 
 /**
@@ -162,27 +212,6 @@ export function addDays(date, days) {
 }
 
 /**
- * Formater une date en français
- * @param {string|Date} date - Date à formater
- * @param {string} format - 'short', 'medium', 'long', 'full'
- * @returns {string} Date formatée
- */
-export function formatDateFR(date, format = 'medium') {
-  if (!date) return 'N/A'
-  
-  const d = new Date(date)
-  
-  const formats = {
-    short: { day: '2-digit', month: '2-digit', year: 'numeric' }, // 10/01/2025
-    medium: { day: 'numeric', month: 'long', year: 'numeric' }, // 10 janvier 2025
-    long: { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }, // vendredi 10 janvier 2025
-    full: { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' } // vendredi 10 janvier 2025 à 14:30
-  }
-  
-  return d.toLocaleDateString('fr-FR', formats[format] || formats.medium)
-}
-
-/**
  * Formater une date avec heure
  * @param {string|Date} date - Date à formater
  * @returns {string} Date formatée avec heure
@@ -198,23 +227,6 @@ export function formatDateTime(date) {
     hour: '2-digit',
     minute: '2-digit'
   })
-}
-
-/**
- * Obtenir un label relatif pour une date (aujourd'hui, hier, dans X jours, etc.)
- * @param {string|Date} date - Date à analyser
- * @returns {string} Label relatif
- */
-export function getRelativeDateLabel(date) {
-  if (!date) return 'N/A'
-  
-  const days = getDaysUntil(date)
-  
-  if (days === 0) return 'Aujourd\'hui'
-  if (days === -1) return 'Hier'
-  if (days === 1) return 'Demain'
-  if (days < 0) return `Il y a ${Math.abs(days)} jour${Math.abs(days) > 1 ? 's' : ''}`
-  return `Dans ${days} jour${days > 1 ? 's' : ''}`
 }
 
 /**

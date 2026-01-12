@@ -1,4 +1,4 @@
-<!---// Chemin: src/components/products/EditProductModal.vue ---->
+<!-- Chemin: src/components/Products/EditProductModal.vue -->
 <template>
   <div class="modal-overlay" @click.self="close">
     <div class="modal-content">
@@ -8,18 +8,6 @@
       </div>
 
       <form @submit.prevent="handleSubmit" class="modal-body">
-        <!-- Badge du produit -->
-        <div class="product-badge">
-          <div class="badge-icon">{{ getInitials(product.name) }}</div>
-          <div class="badge-info">
-            <h3>{{ product.name }}</h3>
-            <p>SKU: {{ product.sku }}</p>
-          </div>
-          <div class="badge-status" :class="stockStatusClass">
-            {{ stockStatusLabel }}
-          </div>
-        </div>
-
         <!-- Informations de base -->
         <div class="section">
           <h3 class="section-title">📋 Informations de base</h3>
@@ -30,6 +18,7 @@
               <input
                 v-model="form.name"
                 type="text"
+                placeholder="Ex: Coca-Cola 1.5L"
                 required
                 :class="{ error: errors.name }"
               />
@@ -39,20 +28,23 @@
 
           <div class="form-row">
             <div class="form-group">
+              <label class="required">SKU</label>
+              <input
+                v-model="form.sku"
+                type="text"
+                placeholder="Ex: COC-150"
+                required
+                :class="{ error: errors.sku }"
+              />
+              <span v-if="errors.sku" class="error-message">{{ errors.sku }}</span>
+            </div>
+
+            <div class="form-group">
               <label>Code-barres</label>
               <input
                 v-model="form.barcode"
                 type="text"
                 placeholder="Ex: 5449000000996"
-              />
-            </div>
-
-            <div class="form-group">
-              <label>Volume</label>
-              <input
-                v-model="form.volume"
-                type="text"
-                placeholder="Ex: 1.5L, 33cl"
               />
             </div>
           </div>
@@ -68,13 +60,12 @@
             </div>
 
             <div class="form-group">
-              <label class="checkbox-label">
-                <input
-                  v-model="form.is_active"
-                  type="checkbox"
-                />
-                <span>Produit actif</span>
-              </label>
+              <label>Volume</label>
+              <input
+                v-model="form.volume"
+                type="text"
+                placeholder="Ex: 1.5L, 33cl"
+              />
             </div>
           </div>
         </div>
@@ -90,6 +81,7 @@
                 v-model="form.category_id"
                 required
                 @change="onCategoryChange"
+                :class="{ error: errors.category_id }"
               >
                 <option value="">Sélectionner une catégorie</option>
                 <option
@@ -100,6 +92,7 @@
                   {{ cat.name }}
                 </option>
               </select>
+              <span v-if="errors.category_id" class="error-message">{{ errors.category_id }}</span>
             </div>
 
             <div class="form-group">
@@ -133,9 +126,12 @@
                 type="number"
                 step="0.01"
                 min="0"
+                placeholder="0"
                 required
                 @input="calculateMargin"
+                :class="{ error: errors.cost_price }"
               />
+              <span v-if="errors.cost_price" class="error-message">{{ errors.cost_price }}</span>
             </div>
 
             <div class="form-group">
@@ -145,14 +141,17 @@
                 type="number"
                 step="0.01"
                 min="0"
+                placeholder="0"
                 required
                 @input="calculateMargin"
+                :class="{ error: errors.unit_price }"
               />
+              <span v-if="errors.unit_price" class="error-message">{{ errors.unit_price }}</span>
             </div>
           </div>
 
           <!-- Indicateur de marge -->
-          <div v-if="margin.amount !== 0" class="margin-indicator" :class="margin.class">
+          <div v-if="margin.amount > 0" class="margin-indicator" :class="margin.class">
             <div class="margin-info">
               <span class="margin-label">Marge bénéficiaire</span>
               <span class="margin-value">{{ formatCurrency(margin.amount) }}</span>
@@ -167,25 +166,32 @@
         <div class="section">
           <h3 class="section-title">📦 Stock</h3>
           
-          <div class="info-box">
-            <span class="info-label">Stock actuel :</span>
-            <span class="info-value">{{ product.stock }} unités</span>
-          </div>
-
           <div class="form-row">
+            <div class="form-group">
+              <label class="required">Stock initial</label>
+              <input
+                v-model.number="form.stock"
+                type="number"
+                min="0"
+                placeholder="0"
+                required
+                :class="{ error: errors.stock }"
+              />
+              <span v-if="errors.stock" class="error-message">{{ errors.stock }}</span>
+            </div>
+
             <div class="form-group">
               <label class="required">Stock minimum</label>
               <input
                 v-model.number="form.min_stock"
                 type="number"
                 min="0"
+                placeholder="10"
                 required
+                :class="{ error: errors.min_stock }"
               />
+              <span v-if="errors.min_stock" class="error-message">{{ errors.min_stock }}</span>
             </div>
-          </div>
-
-          <div class="alert alert-info">
-            ℹ️ Pour modifier le stock, utilisez la gestion des stocks (entrées/sorties)
           </div>
         </div>
 
@@ -240,7 +246,7 @@
         </button>
         <button @click="handleSubmit" type="button" class="btn-submit" :disabled="isSubmitting">
           <span v-if="isSubmitting">⏳ Enregistrement...</span>
-          <span v-else">✓ Enregistrer</span>
+          <span v-else>✓ Enregistrer</span>
         </button>
       </div>
     </div>
@@ -261,29 +267,30 @@ const props = defineProps({
 const emit = defineEmits(['close', 'updated'])
 const productsStore = useProductsStore()
 
-// État du formulaire (initialiser avec les données du produit)
+// État du formulaire
 const form = ref({
-  name: props.product.name,
-  sku: props.product.sku,
-  barcode: props.product.barcode || '',
-  brand: props.product.brand || '',
-  volume: props.product.volume || '',
-  category_id: props.product.category_id,
-  subcategory_id: props.product.subcategory_id || '',
-  cost_price: props.product.cost_price,
-  unit_price: props.product.unit_price,
-  min_stock: props.product.min_stock,
-  is_consigned: props.product.is_consigned || false,
-  consignment_price: props.product.consignment_price || 0,
-  description: props.product.description || '',
-  is_active: props.product.is_active !== false
+  name: '',
+  sku: '',
+  barcode: '',
+  brand: '',
+  volume: '',
+  category_id: '',
+  subcategory_id: '',
+  cost_price: 0,
+  unit_price: 0,
+  stock: 0,
+  min_stock: 10,
+  is_consigned: false,
+  consignment_price: 0,
+  description: '',
+  is_active: true
 })
 
 const errors = ref({})
 const submitError = ref('')
 const isSubmitting = ref(false)
 
-// Sous-catégories disponibles
+// Sous-catégories disponibles selon la catégorie sélectionnée
 const availableSubcategories = computed(() => {
   if (!form.value.category_id) return []
   return productsStore.getSubcategoriesByCategory(form.value.category_id)
@@ -307,47 +314,34 @@ const margin = computed(() => {
   }
 })
 
-// Statut du stock
-const stockStatusClass = computed(() => {
-  if (props.product.stock === 0) return 'status-out'
-  if (props.product.stock <= props.product.min_stock) return 'status-low'
-  return 'status-ok'
-})
-
-const stockStatusLabel = computed(() => {
-  if (props.product.stock === 0) return 'Rupture'
-  if (props.product.stock <= props.product.min_stock) return 'Stock faible'
-  return 'En stock'
-})
-
 // Charger les données au montage
 onMounted(async () => {
   await productsStore.fetchCategories()
   await productsStore.fetchSubcategories()
+  
+  // Initialiser le formulaire avec les données du produit
+  if (props.product) {
+    form.value = {
+      ...form.value,
+      ...props.product,
+      // Assurez-vous que les types correspondent (ex: nombres)
+      cost_price: Number(props.product.cost_price) || Number(props.product.purchase_price) || 0,
+      unit_price: Number(props.product.unit_price) || Number(props.product.sale_price) || 0,
+      stock: Number(props.product.stock) || 0,
+      min_stock: Number(props.product.min_stock) || 0,
+      is_consigned: Boolean(props.product.is_consigned),
+      consignment_price: Number(props.product.consignment_price) || 0
+    }
+  }
 })
 
+// Réinitialiser la sous-catégorie quand la catégorie change
 function onCategoryChange() {
-  // Réinitialiser la sous-catégorie si elle ne fait pas partie de la nouvelle catégorie
-  const subcatExists = availableSubcategories.value.some(
-    sc => sc.id === form.value.subcategory_id
-  )
-  if (!subcatExists) {
-    form.value.subcategory_id = ''
-  }
+  form.value.subcategory_id = ''
 }
 
 function calculateMargin() {
-  // Déclenche le recalcul
-}
-
-function getInitials(name) {
-  if (!name) return '?'
-  return name
-    .split(' ')
-    .map(word => word[0])
-    .join('')
-    .toUpperCase()
-    .substring(0, 2)
+  // Déclenche le recalcul du computed margin
 }
 
 // Validation
@@ -355,9 +349,15 @@ function validateForm() {
   errors.value = {}
   
   if (!form.value.name) errors.value.name = 'Le nom est requis'
+  if (!form.value.sku) errors.value.sku = 'Le SKU est requis'
+  if (!form.value.category_id) errors.value.category_id = 'La catégorie est requise'
+  if (form.value.cost_price < 0) errors.value.cost_price = 'Le prix doit être positif'
+  if (form.value.unit_price < 0) errors.value.unit_price = 'Le prix doit être positif'
   if (form.value.unit_price < form.value.cost_price) {
     errors.value.unit_price = 'Le prix de vente doit être supérieur au prix d\'achat'
   }
+  if (form.value.stock < 0) errors.value.stock = 'Le stock doit être positif'
+  if (form.value.min_stock < 0) errors.value.min_stock = 'Le stock minimum doit être positif'
   
   return Object.keys(errors.value).length === 0
 }
@@ -367,23 +367,21 @@ async function handleSubmit() {
   submitError.value = ''
   
   if (!validateForm()) {
-    submitError.value = 'Veuillez corriger les erreurs'
+    submitError.value = 'Veuillez corriger les erreurs dans le formulaire'
     return
   }
   
   isSubmitting.value = true
   
   try {
-    // Ne pas envoyer le SKU (non modifiable)
-    const { sku, ...dataToUpdate } = form.value
-    
-    const result = await productsStore.updateProduct(props.product.id, dataToUpdate)
+    // Mise à jour du produit
+    const result = await productsStore.updateProduct(props.product.id, form.value)
     
     if (result.success) {
       emit('updated', result.data)
       close()
     } else {
-      submitError.value = result.error || 'Erreur lors de la modification'
+      submitError.value = result.error || 'Erreur lors de la modification du produit'
     }
   } catch (error) {
     submitError.value = error.message || 'Une erreur est survenue'
@@ -406,7 +404,7 @@ function formatCurrency(amount) {
 </script>
 
 <style scoped>
-/* Réutiliser les styles de CreateProductModal + ajouts spécifiques */
+/* Styles identiques à CreateProductModal */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -469,102 +467,6 @@ function formatCurrency(amount) {
   flex: 1;
 }
 
-/* Badge produit */
-.product-badge {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 12px;
-  margin-bottom: 24px;
-  color: white;
-}
-
-.badge-icon {
-  width: 50px;
-  height: 50px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.badge-info {
-  flex: 1;
-}
-
-.badge-info h3 {
-  margin: 0 0 4px 0;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.badge-info p {
-  margin: 0;
-  opacity: 0.8;
-  font-size: 13px;
-}
-
-.badge-status {
-  padding: 6px 12px;
-  border-radius: 16px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.status-ok {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.status-low {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.status-out {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.info-box {
-  display: flex;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: white;
-  border-radius: 8px;
-  border: 2px solid #e5e7eb;
-  margin-bottom: 16px;
-}
-
-.info-label {
-  font-size: 13px;
-  color: #6b7280;
-  font-weight: 500;
-}
-
-.info-value {
-  font-size: 15px;
-  font-weight: 700;
-  color: #1f2937;
-}
-
-.alert-info {
-  background: #dbeafe;
-  border: 2px solid #3b82f6;
-  color: #1e3a8a;
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-size: 13px;
-  margin-top: 12px;
-}
-
-/* Reste des styles identiques à CreateProductModal */
 .section {
   margin-bottom: 24px;
   padding: 20px;
@@ -627,11 +529,22 @@ function formatCurrency(amount) {
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
+.form-group input.error,
+.form-group select.error {
+  border-color: #ef4444;
+}
+
 .form-group input:disabled,
 .form-group select:disabled {
   background: #f3f4f6;
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.error-message {
+  font-size: 12px;
+  color: #ef4444;
+  margin-top: -4px;
 }
 
 .checkbox-label {

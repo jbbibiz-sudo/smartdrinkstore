@@ -1,4 +1,4 @@
-<!-- Chemin: frontend/src/components/CreatePurchaseModal.vue -->
+<!-- Chemin: frontend/src/components/purchases/CreatePurchaseModal.vue -->
 <template>
   <div class="modal-overlay" @click.self="close">
     <div class="modal-content">
@@ -13,16 +13,22 @@
           <label>Fournisseur *</label>
           <select v-model="form.supplier_id" required>
             <option value="">Sélectionner un fournisseur</option>
-            <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">
+            <option v-for="supplier in productsStore.suppliers" :key="supplier.id" :value="supplier.id">
               {{ supplier.name }}
             </option>
           </select>
         </div>
 
         <!-- Date d'achat -->
-        <div class="form-group">
-          <label>Date d'achat *</label>
-          <input v-model="form.date" type="date" required />
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date de commande *</label>
+            <input v-model="form.order_date" type="date" required />
+          </div>
+          <div class="form-group">
+            <label>Date de livraison prévue</label>
+            <input v-model="form.expected_delivery_date" type="date" />
+          </div>
         </div>
 
         <!-- Produits -->
@@ -35,24 +41,30 @@
           </div>
 
           <div v-for="(item, index) in form.items" :key="index" class="product-item">
-            <select v-model="item.product_id" required class="product-select">
+            <!-- ✅ MODIFIÉ : Affichage avec unité -->
+            <select v-model="item.product_id" required class="product-select" @change="onProductChange(item)">
               <option value="">Sélectionner un produit</option>
-              <option v-for="product in products" :key="product.id" :value="product.id">
-                {{ product.name }}
+              <option v-for="product in productsStore.products" :key="product.id" :value="product.id">
+                {{ formatProductName(product) }}
               </option>
             </select>
 
-            <input 
-              v-model.number="item.quantity" 
-              type="number" 
-              min="1" 
-              placeholder="Quantité"
-              required 
-              class="quantity-input"
-            />
+            <!-- ✅ MODIFIÉ : Quantité avec label d'unité -->
+            <div class="quantity-wrapper">
+              <input 
+                v-model.number="item.quantity" 
+                type="number" 
+                min="1" 
+                placeholder="Quantité"
+                required 
+                class="quantity-input"
+              />
+              <span class="unit-label">{{ getUnitLabel(item) }}</span>
+            </div>
 
+            <!-- Prix unitaire (du casier/pack) -->
             <input 
-              v-model.number="item.unit_price" 
+              v-model.number="item.unit_cost" 
               type="number" 
               min="0" 
               step="0.01"
@@ -61,7 +73,8 @@
               class="price-input"
             />
 
-            <span class="item-total">{{ formatCurrency(item.quantity * item.unit_price) }}</span>
+            <!-- Total -->
+            <span class="item-total">{{ formatCurrency(item.quantity * item.unit_cost) }}</span>
 
             <button 
               type="button" 
@@ -74,21 +87,93 @@
           </div>
         </div>
 
-        <!-- Total -->
-        <div class="total-section">
-          <span class="total-label">Total :</span>
-          <span class="total-value">{{ formatCurrency(totalAmount) }}</span>
+        <!-- ✅ NOUVEAU : Info unités de détail -->
+         <div v-if="hasProductsWithUnits" class="units-info">
+            <div class="info-icon">ℹ️</div>
+            <div class="info-content">
+              <strong>Information :</strong>
+              <ul>
+                <li v-for="item in itemsWithUnits" :key="item.product_id">
+                  {{ getProductName(item.product_id) }} : 
+                  <strong>{{ item.quantity }} {{ getUnitLabel(item) }}</strong> = 
+                  {{ getTotalRetailUnits(item) }} {{ getRetailUnitLabel(item) }}
+                </li>
+              </ul>
+            </div>
+          </div>
+
+        <!-- Totaux et remises -->
+        <div class="pricing-section">
+          <div class="pricing-row">
+            <span>Sous-total :</span>
+            <span class="pricing-value">{{ formatCurrency(subtotal) }}</span>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Remise (FCFA)</label>
+              <input v-model.number="form.discount" type="number" min="0" step="0.01" />
+            </div>
+            <div class="form-group">
+              <label>Taxe (FCFA)</label>
+              <input v-model.number="form.tax" type="number" min="0" step="0.01" />
+            </div>
+          </div>
+
+          <div class="pricing-row total-row">
+            <span class="total-label">Total :</span>
+            <span class="total-value">{{ formatCurrency(totalAmount) }}</span>
+          </div>
+        </div>
+
+        <!-- Méthode de paiement -->
+        <div class="form-group">
+          <label>Méthode de paiement *</label>
+          <select v-model="form.payment_method" required>
+            <option value="cash">💵 Espèces</option>
+            <option value="mobile">📱 Mobile Money</option>
+            <option value="credit">🏦 Crédit</option>
+            <option value="bank_transfer">🏛️ Virement bancaire</option>
+          </select>
+        </div>
+
+        <!-- Champs Mobile Money (conditionnels) -->
+        <div v-if="form.payment_method === 'mobile'" class="form-row">
+          <div class="form-group">
+            <label>Opérateur *</label>
+            <select v-model="form.mobile_operator" required>
+              <option value="">Sélectionner</option>
+              <option value="MTN">MTN Mobile Money</option>
+              <option value="Orange">Orange Money</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Référence transaction *</label>
+            <input v-model="form.mobile_reference" type="text" required placeholder="Ex: MM123456789" />
+          </div>
+        </div>
+
+        <!-- Paiement et crédit -->
+        <div class="form-row">
+          <div class="form-group">
+            <label>Montant payé (FCFA)</label>
+            <input v-model.number="form.paid_amount" type="number" min="0" step="0.01" :placeholder="`Total: ${totalAmount} FCFA`" />
+          </div>
+          <div v-if="form.payment_method === 'credit'" class="form-group">
+            <label>Jours de crédit *</label>
+            <input v-model.number="form.credit_days" type="number" min="1" required placeholder="Ex: 30" />
+          </div>
         </div>
 
         <!-- Notes -->
         <div class="form-group">
           <label>Notes (optionnel)</label>
-          <textarea v-model="form.notes" rows="3" placeholder="Notes additionnelles..."></textarea>
+          <textarea v-model="form.notes" rows="3" placeholder="Notes additionnelles..." maxlength="1000"></textarea>
         </div>
 
         <!-- Actions -->
         <div class="modal-actions">
-          <button type="button" @click="close" class="btn-cancel">
+          <button type="button" @click="close" class="btn-cancel" :disabled="submitting">
             Annuler
           </button>
           <button type="submit" class="btn-submit" :disabled="submitting">
@@ -103,72 +188,176 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { usePurchasesStore } from '@/stores/purchases'
+import { useProductsStore } from '@/stores/products'
+import { getTodayDate } from '@/utils/dateHelpers'
 
 const emit = defineEmits(['close', 'created'])
 
+// Stores
+const purchasesStore = usePurchasesStore()
+const productsStore = useProductsStore()
+
 // États
 const submitting = ref(false)
-const suppliers = ref([])
-const products = ref([])
 
 const form = ref({
   supplier_id: '',
-  date: new Date().toISOString().split('T')[0],
+  order_date: getTodayDate(),
+  expected_delivery_date: '',
   items: [
-    { product_id: '', quantity: 1, unit_price: 0 }
+    { product_id: '', quantity: 1, unit_cost: 0 }
   ],
+  payment_method: 'cash',
+  mobile_operator: '',
+  mobile_reference: '',
+  paid_amount: 0,
+  credit_days: 30,
+  discount: 0,
+  tax: 0,
   notes: ''
 })
 
-// 🔹 Charger les données
+// 🔹 Charger les données au montage
 onMounted(async () => {
-  await loadSuppliers()
-  await loadProducts()
+  if (productsStore.products.length === 0) {
+    await productsStore.fetchProducts()
+  }
+  if (productsStore.suppliers.length === 0) {
+    await productsStore.fetchSuppliers()
+  }
+  // ✅ NOUVEAU : Charger les unités
+  if (productsStore.productUnits.length === 0) {
+    await productsStore.fetchProductUnits()
+  }
 })
 
-async function loadSuppliers() {
-  try {
-    // TODO: Appel API réel
-    // const response = await window.electron.apiCall('GET', '/suppliers')
-    // suppliers.value = response.data
+// ==========================================
+// ✅ NOUVEAUX HELPERS - UNITÉS
+// ==========================================
 
-    // Simulé
-    suppliers.value = [
-      { id: 1, name: 'SABC Cameroun' },
-      { id: 2, name: 'Coca-Cola Cameroun' },
-      { id: 3, name: 'Source du Pays' },
-      { id: 4, name: 'UCB Guinness' }
-    ]
-  } catch (error) {
-    console.error('❌ Erreur chargement fournisseurs:', error)
-  }
+/**
+ * Obtenir un produit par ID
+ */
+function getProduct(productId) {
+  return productsStore.getProductById(productId)
 }
 
-async function loadProducts() {
-  try {
-    // TODO: Appel API réel
-    // const response = await window.electron.apiCall('GET', '/products')
-    // products.value = response.data
-
-    // Simulé
-    products.value = [
-      { id: 1, name: 'Coca-Cola 1.5L', sale_price: 1000 },
-      { id: 2, name: 'Guinness 33cl', sale_price: 1200 },
-      { id: 3, name: 'Eau Minérale 1.5L', sale_price: 500 },
-      { id: 4, name: 'Castel Beer 65cl', sale_price: 800 },
-      { id: 5, name: 'Fanta Orange 50cl', sale_price: 600 }
-    ]
-  } catch (error) {
-    console.error('❌ Erreur chargement produits:', error)
-  }
+/**
+ * Obtenir le nom d'un produit
+ */
+function getProductName(productId) {
+  const product = getProduct(productId)
+  return product?.name || 'Produit inconnu'
 }
+
+/**
+ * Formater le nom du produit avec son unité
+ * Ex: "Castel Beer 65cl (Casier 24 de 24)"
+ */
+function formatProductName(product) {
+  if (!product) return ''
+  
+  // Utiliser la fonction du store
+  return productsStore.formatProductDisplayName(product)
+}
+
+/**
+ * Obtenir le label de l'unité de base (casier/pack)
+ * Ex: "cs24", "pk6"
+ */
+function getUnitLabel(item) {
+  if (!item.product_id) return ''
+  
+  const product = getProduct(item.product_id)
+  if (!product || !product.base_unit_id) return 'unités'
+  
+  return productsStore.getUnitSymbol(product.base_unit_id) || 'unités'
+}
+
+/**
+ * Obtenir le label de l'unité de détail (bouteille/canette)
+ * Ex: "bouteilles", "canettes"
+ */
+function getRetailUnitLabel(item) {
+  if (!item.product_id) return ''
+  
+  const product = getProduct(item.product_id)
+  if (!product || !product.retail_unit_id) return 'unités'
+  
+  const unitName = productsStore.getUnitName(product.retail_unit_id)
+  return unitName ? unitName.toLowerCase() + 's' : 'unités'
+}
+
+/**
+ * Placeholder pour la quantité
+ * Ex: "Quantité (casiers)", "Quantité (packs)"
+ */
+function getQuantityPlaceholder(item) {
+  if (!item.product_id) return 'Quantité'
+  
+  const product = getProduct(item.product_id)
+  if (!product || !product.base_unit_id) return 'Quantité'
+  
+  const unitName = productsStore.getUnitName(product.base_unit_id)
+  return `Quantité (${unitName.toLowerCase()}s)`
+}
+
+/**
+ * Placeholder pour le prix
+ * Ex: "Prix par casier", "Prix par pack"
+ */
+function getPricePlaceholder(item) {
+  if (!item.product_id) return 'Prix unitaire'
+  
+  const product = getProduct(item.product_id)
+  if (!product || !product.base_unit_id) return 'Prix unitaire'
+  
+  const unitName = productsStore.getUnitName(product.base_unit_id)
+  return `Prix par ${unitName.toLowerCase()}`
+}
+
+/**
+ * Calculer le total en unités de détail
+ * Ex: 50 casiers × 24 = 1200 bouteilles
+ */
+function getTotalRetailUnits(item) {
+  if (!item.product_id || !item.quantity) return 0
+  
+  const product = getProduct(item.product_id)
+  if (!product || !product.base_unit_quantity) return 0
+  
+  return item.quantity * product.base_unit_quantity
+}
+
+/**
+ * Vérifier si on a des produits avec unités configurées
+ */
+const hasProductsWithUnits = computed(() => {
+  return form.value.items.some(item => {
+    if (!item.product_id) return false
+    const product = getProduct(item.product_id)
+    return product && product.base_unit_id && product.base_unit_quantity
+  })
+})
+
+/**
+ * Items avec unités configurées
+ */
+const itemsWithUnits = computed(() => {
+  return form.value.items.filter(item => {
+    if (!item.product_id || !item.quantity) return false
+    const product = getProduct(item.product_id)
+    return product && product.base_unit_id && product.base_unit_quantity
+  })
+})
 
 // 🔹 Gestion produits
 function addProduct() {
   form.value.items.push({
     product_id: '',
     quantity: 1,
-    unit_price: 0
+    unit_cost: 0
   })
 }
 
@@ -178,37 +367,104 @@ function removeProduct(index) {
   }
 }
 
-// 🔹 Total
-const totalAmount = computed(() => {
+/**
+ * ✅ MODIFIÉ : Pré-remplir le prix du casier/pack
+ */
+function onProductChange(item) {
+  if (item.product_id) {
+    const product = getProduct(item.product_id)
+    if (product && product.cost_price) {
+      // Le cost_price est déjà le prix du casier/pack
+      item.unit_cost = product.cost_price
+    }
+  }
+}
+
+// 🔹 Calculs
+const subtotal = computed(() => {
   return form.value.items.reduce((sum, item) => {
-    return sum + (item.quantity * item.unit_price)
+    return sum + (item.quantity * item.unit_cost)
   }, 0)
+})
+
+const totalAmount = computed(() => {
+  return subtotal.value + (form.value.tax || 0) - (form.value.discount || 0)
 })
 
 // 🔹 Soumettre
 async function handleSubmit() {
   if (form.value.items.length === 0) {
-    alert('Ajoutez au moins un produit')
+    alert('❌ Ajoutez au moins un produit')
+    return
+  }
+
+  // Valider que tous les items ont un produit et une quantité
+  const hasInvalidItems = form.value.items.some(
+    item => !item.product_id || item.quantity <= 0 || item.unit_cost <= 0
+  )
+  
+  if (hasInvalidItems) {
+    alert('❌ Veuillez remplir tous les champs des produits')
+    return
+  }
+
+  // Validation Mobile Money
+  if (form.value.payment_method === 'mobile') {
+    if (!form.value.mobile_operator || !form.value.mobile_reference) {
+      alert('❌ Veuillez remplir les informations Mobile Money')
+      return
+    }
+  }
+
+  // Validation crédit
+  if (form.value.payment_method === 'credit' && !form.value.credit_days) {
+    alert('❌ Veuillez indiquer le nombre de jours de crédit')
     return
   }
 
   submitting.value = true
 
   try {
-    console.log('📝 Création achat:', form.value)
+    // ✅ Sérialiser les données en objet simple (sans Proxy Vue)
+    const purchaseData = {
+      supplier_id: Number(form.value.supplier_id),
+      order_date: form.value.order_date,
+      expected_delivery_date: form.value.expected_delivery_date || null,
+      items: form.value.items.map(item => ({
+        product_id: Number(item.product_id),
+        quantity: Number(item.quantity),
+        unit_cost: Number(item.unit_cost)
+      })),
+      payment_method: form.value.payment_method,
+      mobile_operator: form.value.payment_method === 'mobile' ? form.value.mobile_operator : null,
+      mobile_reference: form.value.payment_method === 'mobile' ? form.value.mobile_reference : null,
+      paid_amount: Number(form.value.paid_amount) || 0,
+      credit_days: form.value.payment_method === 'credit' ? Number(form.value.credit_days) : null,
+      discount: Number(form.value.discount) || 0,
+      tax: Number(form.value.tax) || 0,
+      notes: form.value.notes || null
+    }
 
-    // TODO: Appel API réel
-    // const response = await window.electron.apiCall('POST', '/purchases', form.value)
+    console.log('📝 Création achat:', purchaseData)
 
-    // Simuler latence
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // ✅ APPEL API RÉEL via le store
+    const result = await purchasesStore.createPurchase(purchaseData)
 
-    alert('Achat créé avec succès !')
-    emit('created')
-    close()
+    if (result.success) {
+      console.log('✅ Achat créé avec succès:', result.data)
+      alert('✅ Achat créé avec succès !')
+      
+      // Émettre l'événement de création
+      emit('created', result.data)
+      
+      // Fermer la modale
+      close()
+    } else {
+      throw new Error(result.error || 'Erreur lors de la création')
+    }
   } catch (error) {
     console.error('❌ Erreur création:', error)
-    alert('Erreur lors de la création de l\'achat')
+    alert(`❌ Erreur: ${error.message || 'Erreur lors de la création de l\'achat'}`)
   } finally {
     submitting.value = false
   }
@@ -256,7 +512,7 @@ function formatCurrency(amount) {
   background: white;
   border-radius: 16px;
   width: 90%;
-  max-width: 700px;
+  max-width: 800px;
   max-height: 90vh;
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
@@ -341,6 +597,13 @@ function formatCurrency(amount) {
   border-color: #667eea;
 }
 
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
 .products-section {
   margin: 24px 0;
   padding: 20px;
@@ -419,14 +682,30 @@ function formatCurrency(amount) {
   cursor: not-allowed;
 }
 
-.total-section {
+.pricing-section {
+  background: #f9fafb;
+  padding: 16px;
+  border-radius: 12px;
+  margin: 24px 0;
+}
+
+.pricing-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
-  background: #f3f4f6;
-  border-radius: 8px;
-  margin: 20px 0;
+  padding: 8px 0;
+  color: #6b7280;
+}
+
+.pricing-value {
+  font-weight: 600;
+  color: #374151;
+}
+
+.total-row {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 2px solid #e5e7eb;
 }
 
 .total-label {
@@ -466,8 +745,13 @@ function formatCurrency(amount) {
   color: #6b7280;
 }
 
-.btn-cancel:hover {
+.btn-cancel:hover:not(:disabled) {
   background: #e5e7eb;
+}
+
+.btn-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-submit {
@@ -484,5 +768,95 @@ function formatCurrency(amount) {
 .btn-submit:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+/* ✅ NOUVEAUX STYLES POUR LES UNITÉS */
+
+.quantity-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.quantity-wrapper .quantity-input {
+  flex: 1;
+}
+
+.unit-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #667eea;
+  background: #eff6ff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  min-width: 50px;
+  text-align: center;
+}
+
+/* Info unités de détail */
+.units-info {
+  background: #eff6ff;
+  border: 2px solid #3b82f6;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.info-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.info-content {
+  flex: 1;
+}
+
+.info-content strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #1e40af;
+  font-size: 14px;
+}
+
+.info-content ul {
+  margin: 0;
+  padding-left: 20px;
+  list-style: disc;
+}
+
+.info-content li {
+  margin-bottom: 4px;
+  color: #1e40af;
+  font-size: 13px;
+}
+
+/* Ajustement de la grille produit pour la nouvelle colonne */
+.product-item {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 1fr 1fr auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .product-item {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .quantity-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .unit-label {
+    width: 100%;
+  }
 }
 </style>

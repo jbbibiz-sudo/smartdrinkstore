@@ -47,6 +47,7 @@ Route::prefix('v1')->group(function () {
         require __DIR__ . '/api/v1/protected.php';
         require __DIR__ . '/api/v1/webhooks.php';
         require __DIR__ . '/api/v1/cron.php';
+        require __DIR__ . '/api/v1/product-units.php';
     });
 });
 

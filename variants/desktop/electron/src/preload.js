@@ -38,6 +38,105 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.invoke('api-call', { method, endpoint, data }),
 
   // =============================
+  // 🔹 SUPPLIERS (via API proxy)
+  // =============================
+  
+  /**
+   * Récupérer tous les fournisseurs
+   * @returns {Promise<{success: boolean, data: Array}>}
+   */
+  suppliersGetAll: () => 
+    ipcRenderer.invoke('api-call', { method: 'GET', endpoint: '/suppliers' }),
+
+  /**
+   * Récupérer un fournisseur par ID
+   * @param {number} id - ID du fournisseur
+   * @returns {Promise<{success: boolean, data: Object}>}
+   */
+  suppliersGetById: (id) => 
+    ipcRenderer.invoke('api-call', { method: 'GET', endpoint: `/suppliers/${id}` }),
+
+  /**
+   * Créer un nouveau fournisseur
+   * @param {Object} supplierData - { name, phone?, email?, address? }
+   * @returns {Promise<{success: boolean, data: Object}>}
+   */
+  suppliersCreate: (supplierData) => 
+    ipcRenderer.invoke('api-call', { 
+      method: 'POST', 
+      endpoint: '/suppliers', 
+      data: supplierData 
+    }),
+
+  /**
+   * Mettre à jour un fournisseur
+   * @param {number} id - ID du fournisseur
+   * @param {Object} supplierData - { name, phone?, email?, address? }
+   * @returns {Promise<{success: boolean, data: Object}>}
+   */
+  suppliersUpdate: (id, supplierData) => 
+    ipcRenderer.invoke('api-call', { 
+      method: 'PUT', 
+      endpoint: `/suppliers/${id}`, 
+      data: supplierData 
+    }),
+
+  /**
+   * Supprimer un fournisseur
+   * @param {number} id - ID du fournisseur
+   * @returns {Promise<{success: boolean, message: string}>}
+   */
+  suppliersDelete: (id) => 
+    ipcRenderer.invoke('api-call', { 
+      method: 'DELETE', 
+      endpoint: `/suppliers/${id}` 
+    }),
+
+  /**
+   * Rechercher des fournisseurs
+   * @param {string} query - Terme de recherche
+   * @returns {Promise<{success: boolean, data: Array}>}
+   */
+  suppliersSearch: (query) => 
+    ipcRenderer.invoke('api-call', { 
+      method: 'GET', 
+      endpoint: `/suppliers/search?query=${encodeURIComponent(query)}` 
+    }),
+
+  /**
+   * Récupérer les statistiques des fournisseurs
+   * @returns {Promise<{success: boolean, data: Object}>}
+   */
+  suppliersGetStats: () => 
+    ipcRenderer.invoke('api-call', { 
+      method: 'GET', 
+      endpoint: '/suppliers/stats' 
+    }),
+
+  /**
+   * Récupérer les produits d'un fournisseur
+   * @param {number} supplierId - ID du fournisseur
+   * @returns {Promise<{success: boolean, data: Array}>}
+   */
+  suppliersGetProducts: (supplierId) => 
+    ipcRenderer.invoke('api-call', { 
+      method: 'GET', 
+      endpoint: `/suppliers/${supplierId}/products` 
+    }),
+
+  /**
+   * Récupérer les achats récents d'un fournisseur
+   * @param {number} supplierId - ID du fournisseur
+   * @param {number} limit - Nombre d'achats à récupérer (défaut: 5)
+   * @returns {Promise<{success: boolean, data: Array}>}
+   */
+  suppliersGetRecentPurchases: (supplierId, limit = 5) => 
+    ipcRenderer.invoke('api-call', { 
+      method: 'GET', 
+      endpoint: `/suppliers/${supplierId}/purchases?limit=${limit}` 
+    }),
+
+  // =============================
   // 🔹 NOTIFICATIONS
   // =============================
   showNotification: ({ title, body }) => 

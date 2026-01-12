@@ -279,6 +279,69 @@ class SupplierController extends Controller
     }
 
     /**
+     * Récupère les produits d'un fournisseur
+     */
+    public function products($id)
+    {
+        try {
+            $supplier = Supplier::findOrFail($id);
+            $products = $supplier->products()->get();
+            
+            return response()->json([
+                'success' => true,
+                'data' => $products,
+                'message' => 'Produits récupérés avec succès'
+            ], 200);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Fournisseur introuvable'
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des produits',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Récupère les achats récents d'un fournisseur
+     */
+    public function purchases($id, Request $request)
+    {
+        try {
+            $supplier = Supplier::findOrFail($id);
+            $limit = $request->input('limit', 5);
+            
+            $purchases = $supplier->purchases()
+                ->orderBy('date', 'desc')
+                ->limit($limit)
+                ->get();
+            
+            return response()->json([
+                'success' => true,
+                'data' => $purchases,
+                'message' => 'Achats récupérés avec succès'
+            ], 200);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Fournisseur introuvable'
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des achats',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Récupère les statistiques des fournisseurs
      * 
      * @return \Illuminate\Http\JsonResponse

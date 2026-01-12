@@ -1,11 +1,5 @@
 <?php
-
-/**
- * =============================================================================
- * ÉTAPE 2 : Créer le modèle StockMovement
- * =============================================================================
- * Fichier : app/Models/StockMovement.php
- */
+// Chemin: app/Models/StockMovement.php
 
 namespace App\Models;
 
@@ -17,8 +11,11 @@ class StockMovement extends Model
         'product_id',
         'type',
         'quantity',
+        'unit_type', // ✅ NOUVEAU : 'base' ou 'retail'
         'previous_stock',
+        'previous_remainder', // ✅ NOUVEAU
         'new_stock',
+        'new_remainder', // ✅ NOUVEAU
         'reason',
         'reference',
         'user_id',
@@ -27,23 +24,16 @@ class StockMovement extends Model
     protected $casts = [
         'quantity' => 'integer',
         'previous_stock' => 'integer',
+        'previous_remainder' => 'integer',
         'new_stock' => 'integer',
+        'new_remainder' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
-    /**
-     * Types de mouvements disponibles
-     */
     const TYPE_IN = 'in';
     const TYPE_OUT = 'out';
-    const TYPE_ADJUSTMENT = 'adjustment';
-    const TYPE_RETURN = 'return';
-    const TYPE_CONSIGNMENT_RETURN = 'consignment_return';
 
-    /**
-     * Relations
-     */
     public function product()
     {
         return $this->belongsTo(Product::class);
@@ -55,22 +45,41 @@ class StockMovement extends Model
     }
 
     /**
-     * Accessors
+     * Label du type de mouvement
      */
     public function getTypeLabelAttribute()
     {
         return match($this->type) {
             self::TYPE_IN => 'Entrée',
             self::TYPE_OUT => 'Sortie',
-            self::TYPE_ADJUSTMENT => 'Ajustement',
-            self::TYPE_RETURN => 'Retour',
             default => 'Inconnu',
         };
     }
 
-    public function getDifferenceAttribute()
+    /**
+     * Label de l'unité utilisée
+     */
+    public function getUnitTypeLabelAttribute()
     {
-        return $this->new_stock - $this->previous_stock;
+        return match($this->unit_type) {
+            'base' => 'Casiers/Packs',
+            'retail' => 'Unités individuelles',
+            default => 'Non spécifié',
+        };
+    }
+
+    /**
+     * Différence totale en unités de détail
+     */
+    public function getTotalDifferenceAttribute()
+    {
+        $product = $this->product;
+        $baseQty = $product->base_unit_quantity ?? 1;
+        
+        $previousTotal = ($this->previous_stock * $baseQty) + $this->previous_remainder;
+        $newTotal = ($this->new_stock * $baseQty) + $this->new_remainder;
+        
+        return $newTotal - $previousTotal;
     }
 
     public function getTypeColorAttribute()
@@ -78,15 +87,11 @@ class StockMovement extends Model
         return match($this->type) {
             self::TYPE_IN => 'green',
             self::TYPE_OUT => 'red',
-            self::TYPE_ADJUSTMENT => 'orange',
-            self::TYPE_RETURN => 'blue',
             default => 'gray',
         };
     }
 
-    /**
-     * Scopes
-     */
+    // Scopes
     public function scopeOfType($query, $type)
     {
         return $query->where('type', $type);

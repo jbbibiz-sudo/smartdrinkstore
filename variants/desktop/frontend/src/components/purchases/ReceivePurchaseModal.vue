@@ -1,8 +1,4 @@
-<!-- 
-  Composant: ReceivePurchaseModal.vue
-  Chemin: C:\smartdrinkstore\desktop-app\src\components\purchases\ReceivePurchaseModal.vue
--->
-
+<!-- Chemin: frontend/src/components/purchases/ReceivePurchaseModal.vue -->
 <template>
   <div class="modal-overlay" @click.self="$emit('close')">
     <div class="modal-container">
@@ -51,14 +47,21 @@
                   <div class="product-info">
                     <h4 class="product-name">{{ item.product_name }}</h4>
                     <div class="product-meta">
-                      Commandé : <strong>{{ item.quantity }}</strong> unités
+                      <!-- ✅ MODIFIÉ : Affichage avec unité -->
+                      Commandé : <strong>{{ item.quantity }} {{ item.unit_label }}</strong>
+                      <span v-if="item.total_retail_units" class="retail-info">
+                        ({{ item.total_retail_units }} {{ item.retail_unit_label }})
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 <div class="product-receive">
                   <div class="form-group">
-                    <label class="form-label">Quantité reçue *</label>
+                    <!-- ✅ MODIFIÉ : Label avec unité -->
+                    <label class="form-label">
+                      Quantité reçue ({{ item.unit_label }}) *
+                    </label>
                     <input
                       v-model.number="item.quantity_received"
                       type="number"
@@ -69,10 +72,14 @@
                       required
                     />
                     <div v-if="item.quantity_received > item.quantity" class="error-message">
-                      La quantité reçue ne peut pas dépasser la quantité commandée ({{ item.quantity }}).
+                      La quantité reçue ne peut pas dépasser la quantité commandée ({{ item.quantity }} {{ item.unit_label }}).
                     </div>
                     <div v-if="item.quantity_received < 0" class="error-message">
                       La quantité ne peut pas être négative.
+                    </div>
+                    <!-- ✅ NOUVEAU : Info unités de détail reçues -->
+                    <div v-if="item.quantity_received > 0 && item.base_unit_quantity" class="retail-received-info">
+                      = {{ item.quantity_received * item.base_unit_quantity }} {{ item.retail_unit_label }} reçu(e)s
                     </div>
                   </div>
 
@@ -81,7 +88,7 @@
                       ❌ Non reçu
                     </div>
                     <div v-else-if="item.quantity_received < item.quantity" class="status partial">
-                      ⚠️ Réception partielle ({{ item.quantity - item.quantity_received }} manquant{{ item.quantity - item.quantity_received > 1 ? 's' : '' }})
+                      ⚠️ Réception partielle ({{ item.quantity - item.quantity_received }} {{ item.unit_label }} manquant{{ item.quantity - item.quantity_received > 1 ? 's' : '' }})
                     </div>
                     <div v-else class="status complete">
                       ✅ Réception complète
@@ -126,19 +133,29 @@
                 </div>
               </div>
 
+              <!-- ✅ MODIFIÉ : Affichage avec unités de base -->
               <div class="summary-card">
                 <div class="summary-icon">✅</div>
                 <div class="summary-content">
-                  <div class="summary-value">{{ totalReceived }}</div>
-                  <div class="summary-label">Unités reçues</div>
+                  <div class="summary-value">{{ totalReceivedBaseUnits }}</div>
+                  <div class="summary-label">Unités de base reçues</div>
                 </div>
               </div>
 
               <div class="summary-card">
                 <div class="summary-icon">📋</div>
                 <div class="summary-content">
-                  <div class="summary-value">{{ totalOrdered }}</div>
+                  <div class="summary-value">{{ totalOrderedBaseUnits }}</div>
                   <div class="summary-label">Unités commandées</div>
+                </div>
+              </div>
+
+              <!-- ✅ NOUVEAU : Total en unités de détail -->
+              <div v-if="totalReceivedRetailUnits > 0" class="summary-card summary-retail">
+                <div class="summary-icon">🍾</div>
+                <div class="summary-content">
+                  <div class="summary-value">{{ totalReceivedRetailUnits }}</div>
+                  <div class="summary-label">Unités de détail reçues</div>
                 </div>
               </div>
 
@@ -152,7 +169,7 @@
             </div>
           </div>
 
-          <!-- Avertissement réception partielle -->
+          <!-- Avertissement réception partielle (inchangé) -->
           <div v-if="hasPartialReception" class="alert alert-warning">
             <div class="alert-icon">⚠️</div>
             <div class="alert-content">
@@ -161,7 +178,7 @@
             </div>
           </div>
 
-          <!-- Info mise à jour -->
+          <!-- Info mise à jour (inchangé) -->
           <div class="info-box">
             <div class="info-icon">ℹ️</div>
             <div class="info-content">
@@ -175,7 +192,6 @@
             </div>
           </div>
         </div>
-
         <!-- ================================== -->
         <!-- VUE POUR L'IMPRESSION -->
         <!-- ================================== -->
@@ -183,8 +199,7 @@
           <div class="receipt-border">
           <div class="print-header">
             <div class="company-branding">
-              <!-- Logo (remplacez /logo.png par le chemin réel si disponible) -->
-            <img :src="companyInfo.logo" alt="Logo" class="print-logo" onerror="this.style.display='none'" />
+              <img :src="companyInfo.logo" alt="Logo" class="print-logo" onerror="this.style.display='none'" />
               <div class="company-text">
                 <h1>{{ companyInfo.name }}</h1>
                 <p>{{ companyInfo.subtitle }}</p>
@@ -212,13 +227,16 @@
             <strong>Notes :</strong> {{ receiveForm.notes }}
           </div>
 
+          <!-- ✅ MODIFIÉ : Table avec colonnes pour les unités -->
           <table class="print-table">
             <thead>
               <tr>
                 <th>Produit</th>
-                <th>Qté Commandée</th>
+                <th>Unité</th>
+                <th>Qté Cmd</th>
                 <th>Qté Reçue</th>
                 <th>Manquant</th>
+                <th>Détail</th>
                 <th>P.U.</th>
                 <th>Total</th>
               </tr>
@@ -226,18 +244,31 @@
             <tbody>
               <tr v-for="item in receiveForm.items" :key="item.id">
                 <td>{{ item.product_name }}</td>
+                <!-- ✅ NOUVEAU : Colonne unité -->
+                <td class="text-center">{{ item.unit_label }}</td>
                 <td class="text-center">{{ item.quantity }}</td>
                 <td class="text-center">{{ item.quantity_received }}</td>
                 <td class="text-center">{{ item.quantity - item.quantity_received }}</td>
+                <!-- ✅ NOUVEAU : Colonne détail (bouteilles/canettes) -->
+                <td class="text-center">
+                  <span v-if="item.base_unit_quantity">
+                    {{ item.quantity_received * item.base_unit_quantity }} {{ item.retail_unit_symbol }}
+                  </span>
+                  <span v-else>-</span>
+                </td>
                 <td class="text-right">{{ formatAmount(item.unit_cost) }}</td>
                 <td class="text-right">{{ formatAmount(item.quantity_received * item.unit_cost) }}</td>
               </tr>
             </tbody>
           </table>
 
+          <!-- ✅ MODIFIÉ : Résumé avec unités -->
           <div class="print-summary">
-            <div><strong>Total commandé:</strong> {{ totalOrdered }} unités</div>
-            <div><strong>Total reçu:</strong> {{ totalReceived }} unités</div>
+            <div><strong>Total commandé:</strong> {{ totalOrderedBaseUnits }} unités de base</div>
+            <div><strong>Total reçu:</strong> {{ totalReceivedBaseUnits }} unités de base</div>
+            <div v-if="totalReceivedRetailUnits > 0">
+              <strong>Total détail:</strong> {{ totalReceivedRetailUnits }} unités de détail
+            </div>
             <div><strong>Montant Total:</strong> {{ formatAmount(totalReceivedAmount) }}</div>
             <div><strong>Taux de réception:</strong> {{ receptionPercentage }}%</div>
           </div>
@@ -254,7 +285,7 @@
         </div>
       </div>
 
-      <!-- Pied -->
+      <!-- Pied (inchangé) -->
       <div class="modal-footer">
         <button
           type="button"
@@ -288,6 +319,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { initPurchaseManagement } from '@/modules/module-14-purchases.js';
+import { useProductsStore } from '@/stores/products';
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
 
@@ -301,6 +333,9 @@ const props = defineProps({
 
 // Émissions
 const emit = defineEmits(['close', 'success']);
+
+// ✅ NOUVEAU : Store products pour accéder aux unités
+const productsStore = useProductsStore();
 
 // État
 const submitting = ref(false);
@@ -324,17 +359,77 @@ const state = ref({});
 const loaders = { loadProducts: () => {}, loadDeposits: () => {} };
 const { receivePurchase, prepareReceiveForm } = initPurchaseManagement(state, loaders);
 
-// Computed
+// ==========================================
+// ✅ NOUVEAUX HELPERS - UNITÉS
+// ==========================================
+
+/**
+ * Obtenir un produit par ID
+ */
+function getProduct(productId) {
+  return productsStore.getProductById(productId);
+}
+
+/**
+ * Obtenir le label de l'unité de base
+ */
+function getUnitLabel(product) {
+  if (!product || !product.base_unit_id) return 'unités';
+  return productsStore.getUnitName(product.base_unit_id) || 'unités';
+}
+
+/**
+ * Obtenir le symbole de l'unité de base
+ */
+function getUnitSymbol(product) {
+  if (!product || !product.base_unit_id) return '';
+  return productsStore.getUnitSymbol(product.base_unit_id) || '';
+}
+
+/**
+ * Obtenir le label de l'unité de détail (pluriel)
+ */
+function getRetailUnitLabel(product) {
+  if (!product || !product.retail_unit_id) return 'unités';
+  const name = productsStore.getUnitName(product.retail_unit_id);
+  return name ? name.toLowerCase() + 's' : 'unités';
+}
+
+/**
+ * Obtenir le symbole de l'unité de détail
+ */
+function getRetailUnitSymbol(product) {
+  if (!product || !product.retail_unit_id) return '';
+  return productsStore.getUnitSymbol(product.retail_unit_id) || '';
+}
+
+// ==========================================
+// 🔹 COMPUTED PROPERTIES
+// ==========================================
+
 const receivedCount = computed(() => {
   return receiveForm.value.items.filter(item => item.quantity_received > 0).length;
 });
 
-const totalReceived = computed(() => {
+/**
+ * ✅ MODIFIÉ : Total en unités de base (casiers/packs)
+ */
+const totalReceivedBaseUnits = computed(() => {
   return receiveForm.value.items.reduce((sum, item) => sum + item.quantity_received, 0);
 });
 
-const totalOrdered = computed(() => {
+const totalOrderedBaseUnits = computed(() => {
   return receiveForm.value.items.reduce((sum, item) => sum + item.quantity, 0);
+});
+
+/**
+ * ✅ NOUVEAU : Total en unités de détail (bouteilles/canettes)
+ */
+const totalReceivedRetailUnits = computed(() => {
+  return receiveForm.value.items.reduce((sum, item) => {
+    if (!item.base_unit_quantity) return sum;
+    return sum + (item.quantity_received * item.base_unit_quantity);
+  }, 0);
 });
 
 const totalReceivedAmount = computed(() => {
@@ -342,8 +437,8 @@ const totalReceivedAmount = computed(() => {
 });
 
 const receptionPercentage = computed(() => {
-  if (totalOrdered.value === 0) return 0;
-  return Math.round((totalReceived.value / totalOrdered.value) * 100);
+  if (totalOrderedBaseUnits.value === 0) return 0;
+  return Math.round((totalReceivedBaseUnits.value / totalOrderedBaseUnits.value) * 100);
 });
 
 const hasPartialReception = computed(() => {
@@ -365,17 +460,18 @@ const receptionStatusClass = computed(() => {
 });
 
 const canSubmit = computed(() => {
-  if (totalReceived.value <= 0) return false;
+  if (totalReceivedBaseUnits.value <= 0) return false;
 
-  // Vérifier qu'aucune quantité reçue ne dépasse la quantité commandée
-  // et qu'aucune n'est négative.
   const isAnyInvalid = receiveForm.value.items.some(
     item => item.quantity_received > item.quantity || item.quantity_received < 0
   );
   return !isAnyInvalid;
 });
 
-// Méthodes
+// ==========================================
+// 🔹 MÉTHODES
+// ==========================================
+
 const formatDate = (date) => {
   if (!date) return 'N/A';
   return new Date(date).toLocaleDateString('fr-FR', {
@@ -405,7 +501,6 @@ const printReceipt = () => {
   iframeDoc.open();
   iframeDoc.write('<!DOCTYPE html><html><head><title>Bon de Réception</title></head><body></body></html>');
 
-  // Cloner tous les styles pour préserver la mise en page
   const styles = document.querySelectorAll('style, link[rel="stylesheet"]');
   styles.forEach(style => {
     iframeDoc.head.appendChild(style.cloneNode(true));
@@ -414,7 +509,6 @@ const printReceipt = () => {
   iframeDoc.body.innerHTML = printContent.innerHTML;
   iframeDoc.close();
 
-  // Attendre que les images soient chargées avant d'imprimer
   const images = Array.from(iframeDoc.querySelectorAll('img'));
   const promises = images.map(img => {
     if (img.complete) return Promise.resolve();
@@ -428,12 +522,11 @@ const printReceipt = () => {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
       document.body.removeChild(iframe);
-    }, 250); // Un court délai pour assurer que tout est bien rendu
+    }, 250);
   });
 };
 
 const handleSubmit = async () => {
-  // Validation plus granulaire
   if (!canSubmit.value) {
     const invalidItem = receiveForm.value.items.find(
       item => item.quantity_received > item.quantity || item.quantity_received < 0
@@ -447,7 +540,7 @@ const handleSubmit = async () => {
   }
 
   const confirmation = confirm(
-    `Confirmer la réception de ${totalReceived.value} unité(s) ?\n\n` +
+    `Confirmer la réception de ${totalReceivedBaseUnits.value} unités de base ?\n\n` +
     `Cela va mettre à jour le stock automatiquement.`
   );
 
@@ -471,41 +564,52 @@ const handleSubmit = async () => {
   }
 };
 
-// Initialisation
+// ==========================================
+// 🔹 INITIALISATION
+// ==========================================
+
 onMounted(() => {
-  // Préparer le formulaire avec les données de l'achat
-  receiveForm.value.items = props.purchase.items.map(item => ({
-    id: item.id,
-    product_id: item.product_id,
-    product_name: item.product?.name || 'Produit inconnu',
-    quantity: item.quantity,
-    unit_cost: item.unit_cost || 0,
-    quantity_received: item.quantity_received ?? item.quantity, // Par défaut, tout est reçu
-  }));
+  // ✅ MODIFIÉ : Enrichir les items avec les infos d'unités
+  receiveForm.value.items = props.purchase.items.map(item => {
+    const product = getProduct(item.product_id);
+    
+    return {
+      id: item.id,
+      product_id: item.product_id,
+      product_name: item.product?.name || 'Produit inconnu',
+      quantity: item.quantity,
+      unit_cost: item.unit_cost || 0,
+      quantity_received: item.quantity_received ?? item.quantity,
+      // ✅ NOUVEAU : Infos d'unités
+      unit_label: getUnitLabel(product),
+      unit_symbol: getUnitSymbol(product),
+      retail_unit_label: getRetailUnitLabel(product),
+      retail_unit_symbol: getRetailUnitSymbol(product),
+      base_unit_quantity: product?.base_unit_quantity || null,
+      total_retail_units: product?.base_unit_quantity 
+        ? item.quantity * product.base_unit_quantity 
+        : null,
+    };
+  });
 
   // Générer le code-barres et le QR Code
   nextTick(() => {
     if (props.purchase?.reference) {
       const reference = props.purchase.reference;
-      
-      // Contenu du QR Code : Par défaut la référence. 
-      // Pour une URL, remplacez par : `https://votre-site.com/suivi/${reference}`
       const qrContent = reference;
 
-      // Générer le code-barres
       try {
         JsBarcode("#purchase-barcode", reference, {
           format: "CODE128",
           width: 1.5,
           height: 40,
-          displayValue: false, // On masque le texte car la référence est déjà affichée au-dessus
+          displayValue: false,
           margin: 0
         });
       } catch (e) {
         console.error("Erreur génération code-barres:", e);
       }
 
-      // Générer le QR Code
       const qrCanvas = document.getElementById('purchase-qrcode');
       if (qrCanvas) {
         QRCode.toCanvas(qrCanvas, qrContent, {
@@ -520,7 +624,6 @@ onMounted(() => {
   });
 });
 </script>
-
 <style scoped>
 .modal-overlay {
   position: fixed;
@@ -1028,6 +1131,76 @@ onMounted(() => {
     padding-top: 3rem;
     border-top: 1px solid black;
     width: 200px;
+  }
+}
+/* ✅ NOUVEAUX STYLES POUR LES UNITÉS */
+
+/* Info unités de détail dans la carte produit */
+.retail-info {
+  color: #667eea;
+  font-size: 0.85em;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+/* Info quantité reçue en unités de détail */
+.retail-received-info {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #eff6ff;
+  border-left: 3px solid #3b82f6;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  color: #1e40af;
+  font-weight: 600;
+}
+
+/* Carte résumé pour unités de détail */
+.summary-card.summary-retail {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #f0f4ff 0%, #e0e7ff 100%);
+}
+
+.summary-card.summary-retail .summary-icon {
+  font-size: 2.5rem;
+}
+
+/* Ajustements pour l'impression */
+@media print {
+  /* ... (garde tous tes styles print existants) ... */
+
+  /* ✅ Ajustements pour la nouvelle colonne */
+  .print-table {
+    font-size: 11px;
+  }
+
+  .print-table th,
+  .print-table td {
+    padding: 6px 4px;
+  }
+
+  .print-table th:nth-child(2),
+  .print-table td:nth-child(2) {
+    width: 60px; /* Colonne Unité */
+  }
+
+  .print-table th:nth-child(6),
+  .print-table td:nth-child(6) {
+    width: 70px; /* Colonne Détail */
+    font-size: 10px;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .retail-info {
+    display: block;
+    margin-left: 0;
+    margin-top: 0.25rem;
+  }
+
+  .retail-received-info {
+    font-size: 0.8rem;
   }
 }
 </style>

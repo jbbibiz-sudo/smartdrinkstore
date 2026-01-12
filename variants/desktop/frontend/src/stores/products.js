@@ -15,7 +15,8 @@ export const useProductsStore = defineStore('products', () => {
     products: 5 * 60 * 1000,      // 5 minutes
     categories: 15 * 60 * 1000,   // 15 minutes
     subcategories: 15 * 60 * 1000, // 15 minutes
-    suppliers: 10 * 60 * 1000     // 10 minutes
+    suppliers: 10 * 60 * 1000,     // 10 minutes
+    productUnits: 30 * 60 * 1000, // 30 minutes
   }
 
   // ==========================================
@@ -26,13 +27,15 @@ export const useProductsStore = defineStore('products', () => {
   const categories = ref([])
   const subcategories = ref([])
   const suppliers = ref([])
+  const productUnits = ref([])
   
   const isLoading = ref(false)
   const errors = ref({
     products: null,
     categories: null,
     subcategories: null,
-    suppliers: null
+    suppliers: null,
+    productUnits: null
   })
   
   // Timestamps du dernier fetch
@@ -40,8 +43,116 @@ export const useProductsStore = defineStore('products', () => {
     products: null,
     categories: null,
     subcategories: null,
-    suppliers: null
+    suppliers: null,
+    productUnits: null
   })
+
+  // ==========================================
+  // ✅ NOUVEAUX GETTERS - UNITÉS
+  // ==========================================
+  
+  /**
+   * Obtenir une unité par ID
+   */
+  const getUnitById = (unitId) => {
+    if (!unitId) return null
+    return productUnits.value.find(u => u.id === unitId) || null
+  }
+
+  /**
+   * Obtenir le nom d'une unité
+   */
+  const getUnitName = (unitId) => {
+    const unit = getUnitById(unitId)
+    return unit?.name || 'N/A'
+  }
+
+  /**
+   * Obtenir le symbole d'une unité
+   */
+  const getUnitSymbol = (unitId) => {
+    const unit = getUnitById(unitId)
+    return unit?.symbol || ''
+  }
+
+  /**
+   * Formater le nom complet d'un produit avec son unité
+   * Ex: "Castel Beer 65cl (Casier 24 de 24)"
+   */
+  const formatProductDisplayName = (product) => {
+    if (!product) return 'N/A'
+    
+    // Si le produit a déjà display_name depuis l'API
+    if (product.display_name) {
+      return product.display_name
+    }
+    
+    // Sinon, on le calcule
+    if (!product.base_unit_id || !product.base_unit_quantity) {
+      return product.name
+    }
+
+    const baseUnit = getUnitById(product.base_unit_id)
+    if (!baseUnit) {
+      return product.name
+    }
+
+    return `${product.name} (${baseUnit.name} de ${product.base_unit_quantity})`
+  }
+
+  /**
+   * Calculer le prix unitaire de détail
+   * Ex: 12,000 FCFA / 24 = 500 FCFA
+   */
+  const calculateRetailPrice = (product) => {
+    if (!product) return 0
+    
+    // Si déjà calculé par l'API
+    if (product.retail_unit_price !== undefined) {
+      return product.retail_unit_price
+    }
+    
+    // Sinon on calcule
+    if (!product.base_unit_quantity || product.base_unit_quantity === 0) {
+      return product.unit_price
+    }
+
+    return product.unit_price / product.base_unit_quantity
+  }
+
+  // ==========================================
+  // ✅ NOUVEAU - FETCH PRODUCT UNITS
+  // ==========================================
+  
+  /**
+   * Charger les unités de produits (avec cache)
+   */
+  async function fetchProductUnits(force = false) {
+    if (!force && !shouldRefresh('productUnits')) {
+      console.log('✅ Unités déjà en cache')
+      return { success: true, cached: true }
+    }
+
+    errors.value.productUnits = null
+    
+    try {
+      const response = await api.get('/product-units')
+      
+      if (response.success && response.data) {
+        productUnits.value = response.data
+        lastFetch.value.productUnits = Date.now()
+        
+        console.log(`✅ ${productUnits.value.length} unités chargées`)
+        return { success: true, cached: false }
+      }
+      
+      throw new Error(response.message || 'Erreur lors du chargement des unités')
+    } catch (error) {
+      console.error('❌ Erreur chargement unités:', error)
+      errors.value.productUnits = error.message || 'Erreur inconnue'
+      return { success: false, error: error.message }
+    }
+  }
 
   // ==========================================
   // 📈 GETTERS - STATISTIQUES
@@ -690,6 +801,7 @@ export const useProductsStore = defineStore('products', () => {
     console.log('🔄 Initialisation du store products...')
     
     const results = await Promise.allSettled([
+      fetchProductUnits(force),    // ✅ NOUVEAU - En premier pour avoir les unités
       fetchCategories(force),
       fetchSubcategories(force),
       fetchSuppliers(force),
@@ -717,9 +829,17 @@ export const useProductsStore = defineStore('products', () => {
     categories,
     subcategories,
     suppliers,
+    productUnits,
     isLoading,
     errors,
     lastFetch,
+
+    // ✅ NOUVEAUX GETTERS
+    getUnitById,
+    getUnitName,
+    getUnitSymbol,
+    formatProductDisplayName,
+    calculateRetailPrice,
     
     // Getters - Statistiques
     productsCount,
@@ -779,8 +899,10 @@ export const useProductsStore = defineStore('products', () => {
     getProductSuppliers,
     attachSupplier,
     detachSupplier,
+    fetchProductUnits,
     
-    // Initialisation
+    // 🚀 INITIALISATION
+    
     initialize
   }
 });

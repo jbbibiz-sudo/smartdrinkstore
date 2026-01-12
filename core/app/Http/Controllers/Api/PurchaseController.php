@@ -217,7 +217,7 @@ class PurchaseController extends Controller
     public function approve($id)
     {
         try {
-            // Vérification des droits (Admin ou Manager)
+            // Vérification des droits (Admin ou Manager) - Assuming User model has a 'hasRole' method
             if (!auth()->user()->hasRole('admin') && !auth()->user()->hasRole('manager')) {
                 return response()->json([
                     'success' => false,

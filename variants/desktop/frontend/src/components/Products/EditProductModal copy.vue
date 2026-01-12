@@ -1,15 +1,25 @@
-<!-- Chemin: src/components/CreateProductModal.vue -->
-<!-- PARTIE 1/2 - Template corrigé -->
-
+<!---// Chemin: src/components/products/EditProductModal.vue ---->
 <template>
   <div class="modal-overlay" @click.self="close">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>➕ Nouveau produit</h2>
+        <h2>✏️ Modifier le produit</h2>
         <button @click="close" class="btn-close">✕</button>
       </div>
 
       <form @submit.prevent="handleSubmit" class="modal-body">
+        <!-- Badge du produit -->
+        <div class="product-badge">
+          <div class="badge-icon">{{ getInitials(product.name) }}</div>
+          <div class="badge-info">
+            <h3>{{ product.name }}</h3>
+            <p>SKU: {{ product.sku }}</p>
+          </div>
+          <div class="badge-status" :class="stockStatusClass">
+            {{ stockStatusLabel }}
+          </div>
+        </div>
+
         <!-- Informations de base -->
         <div class="section">
           <h3 class="section-title">📋 Informations de base</h3>
@@ -20,7 +30,6 @@
               <input
                 v-model="form.name"
                 type="text"
-                placeholder="Ex: Coca-Cola 1.5L"
                 required
                 :class="{ error: errors.name }"
               />
@@ -30,23 +39,20 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label class="required">SKU</label>
-              <input
-                v-model="form.sku"
-                type="text"
-                placeholder="Ex: COC-150"
-                required
-                :class="{ error: errors.sku }"
-              />
-              <span v-if="errors.sku" class="error-message">{{ errors.sku }}</span>
-            </div>
-
-            <div class="form-group">
               <label>Code-barres</label>
               <input
                 v-model="form.barcode"
                 type="text"
                 placeholder="Ex: 5449000000996"
+              />
+            </div>
+
+            <div class="form-group">
+              <label>Volume</label>
+              <input
+                v-model="form.volume"
+                type="text"
+                placeholder="Ex: 1.5L, 33cl"
               />
             </div>
           </div>
@@ -62,12 +68,13 @@
             </div>
 
             <div class="form-group">
-              <label>Volume</label>
-              <input
-                v-model="form.volume"
-                type="text"
-                placeholder="Ex: 1.5L, 33cl"
-              />
+              <label class="checkbox-label">
+                <input
+                  v-model="form.is_active"
+                  type="checkbox"
+                />
+                <span>Produit actif</span>
+              </label>
             </div>
           </div>
         </div>
@@ -83,7 +90,6 @@
                 v-model="form.category_id"
                 required
                 @change="onCategoryChange"
-                :class="{ error: errors.category_id }"
               >
                 <option value="">Sélectionner une catégorie</option>
                 <option
@@ -94,7 +100,6 @@
                   {{ cat.name }}
                 </option>
               </select>
-              <span v-if="errors.category_id" class="error-message">{{ errors.category_id }}</span>
             </div>
 
             <div class="form-group">
@@ -116,22 +121,17 @@
           </div>
         </div>
 
-        <!-- ✅ FOURNISSEURS (VERSION AMÉLIORÉE) -->
+        <!-- 🏭 FOURNISSEURS -->
         <div class="section">
-          <h3 class="section-title">🏭 Fournisseurs</h3>
+          <h3 class="section-title">🏭 Fournisseurs associés</h3>
           
           <div v-if="isLoadingSuppliers" class="loading-suppliers">
             <div class="spinner-small"></div>
             <span>Chargement des fournisseurs...</span>
           </div>
 
-          <div v-else-if="availableSuppliers.length === 0" class="empty-suppliers">
-            <p>📭 Aucun fournisseur disponible</p>
-            <p class="hint">Créez d'abord des fournisseurs dans la section Fournisseurs</p>
-          </div>
-
           <div v-else class="form-group">
-            <label>Sélectionner les fournisseurs (optionnel)</label>
+            <label>Sélectionner les fournisseurs</label>
             <div class="suppliers-list">
               <div 
                 v-for="supplier in availableSuppliers" 
@@ -160,7 +160,7 @@
             </div>
             
             <div v-if="selectedSuppliers.length === 0" class="info-message">
-              ℹ️ Aucun fournisseur sélectionné. Vous pouvez en ajouter plus tard.
+              ℹ️ Aucun fournisseur associé à ce produit
             </div>
           </div>
 
@@ -209,12 +209,9 @@
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder="0"
                 required
                 @input="calculateMargin"
-                :class="{ error: errors.cost_price }"
               />
-              <span v-if="errors.cost_price" class="error-message">{{ errors.cost_price }}</span>
             </div>
 
             <div class="form-group">
@@ -224,17 +221,14 @@
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder="0"
                 required
                 @input="calculateMargin"
-                :class="{ error: errors.unit_price }"
               />
-              <span v-if="errors.unit_price" class="error-message">{{ errors.unit_price }}</span>
             </div>
           </div>
 
           <!-- Indicateur de marge -->
-          <div v-if="margin.amount > 0" class="margin-indicator" :class="margin.class">
+          <div v-if="margin.amount !== 0" class="margin-indicator" :class="margin.class">
             <div class="margin-info">
               <span class="margin-label">Marge bénéficiaire</span>
               <span class="margin-value">{{ formatCurrency(margin.amount) }}</span>
@@ -249,32 +243,25 @@
         <div class="section">
           <h3 class="section-title">📦 Stock</h3>
           
-          <div class="form-row">
-            <div class="form-group">
-              <label class="required">Stock initial</label>
-              <input
-                v-model.number="form.stock"
-                type="number"
-                min="0"
-                placeholder="0"
-                required
-                :class="{ error: errors.stock }"
-              />
-              <span v-if="errors.stock" class="error-message">{{ errors.stock }}</span>
-            </div>
+          <div class="info-box">
+            <span class="info-label">Stock actuel :</span>
+            <span class="info-value">{{ product.stock }} unités</span>
+          </div>
 
+          <div class="form-row">
             <div class="form-group">
               <label class="required">Stock minimum</label>
               <input
                 v-model.number="form.min_stock"
                 type="number"
                 min="0"
-                placeholder="10"
                 required
-                :class="{ error: errors.min_stock }"
               />
-              <span v-if="errors.min_stock" class="error-message">{{ errors.min_stock }}</span>
             </div>
+          </div>
+
+          <div class="alert alert-info">
+            ℹ️ Pour modifier le stock, utilisez la gestion des stocks (entrées/sorties)
           </div>
         </div>
 
@@ -328,43 +315,50 @@
           Annuler
         </button>
         <button @click="handleSubmit" type="button" class="btn-submit" :disabled="isSubmitting">
-          <span v-if="isSubmitting">⏳ Création...</span>
-          <span v-else>✓ Créer le produit</span>
+          <span v-if="isSubmitting">⏳ Enregistrement...</span>
+          <span v-else>✓ Enregistrer</span>
         </button>
       </div>
     </div>
   </div>
 </template>
-<!-- Chemin: src/components/CreateProductModal.vue -->
-<!-- PARTIE 2/2 - Script corrigé -->
+
+<!-- Chemin: src/components/products/EditProductModal.vue -->
+<!-- PARTIE 2/3 - Script complet -->
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useProductsStore } from '@/stores/products'
 
-const emit = defineEmits(['close', 'created'])
-const productsStore = useProductsStore()
-
-// ✅ État du formulaire (SANS supplier_id)
-const form = ref({
-  name: '',
-  sku: '',
-  barcode: '',
-  brand: '',
-  volume: '',
-  category_id: '',
-  subcategory_id: '',
-  cost_price: 0,
-  unit_price: 0,
-  stock: 0,
-  min_stock: 10,
-  is_consigned: false,
-  consignment_price: 0,
-  description: '',
-  is_active: true
+const props = defineProps({
+  product: {
+    type: Object,
+    required: true
+  }
 })
 
-// ✅ Gestion des fournisseurs (multi-sélection)
+const emit = defineEmits(['close', 'updated'])
+const productsStore = useProductsStore()
+
+// État du formulaire (initialiser avec les données du produit)
+const form = ref({
+  name: props.product.name,
+  sku: props.product.sku,
+  barcode: props.product.barcode || '',
+  brand: props.product.brand || '',
+  volume: props.product.volume || '',
+  category_id: props.product.category_id,
+  subcategory_id: props.product.subcategory_id || '',
+  cost_price: props.product.cost_price,
+  unit_price: props.product.unit_price,
+  min_stock: props.product.min_stock,
+  is_consigned: props.product.is_consigned || false,
+  consignment_price: props.product.consignment_price || 0,
+  description: props.product.description || '',
+  is_active: props.product.is_active !== false
+})
+
+// 🏭 NOUVEAU : Gestion des fournisseurs
 const availableSuppliers = ref([])
 const selectedSuppliers = ref([])
 const supplierPrices = ref({})
@@ -399,69 +393,126 @@ const margin = computed(() => {
   }
 })
 
+// Statut du stock
+const stockStatusClass = computed(() => {
+  if (props.product.stock === 0) return 'status-out'
+  if (props.product.stock <= props.product.min_stock) return 'status-low'
+  return 'status-ok'
+})
+
+const stockStatusLabel = computed(() => {
+  if (props.product.stock === 0) return 'Rupture'
+  if (props.product.stock <= props.product.min_stock) return 'Stock faible'
+  return 'En stock'
+})
+
 // Charger les données au montage
 onMounted(async () => {
   await productsStore.fetchCategories()
   await productsStore.fetchSubcategories()
   await fetchSuppliers()
+  await loadProductSuppliers()
 })
 
-// ✅ Charger les fournisseurs
+// 🏭 Charger tous les fournisseurs disponibles
 async function fetchSuppliers() {
   isLoadingSuppliers.value = true
   try {
     const result = await window.electron.apiCall('GET', '/suppliers')
     if (result.success) {
       availableSuppliers.value = result.data || []
-      console.log('✅ Fournisseurs chargés:', availableSuppliers.value.length)
-    } else {
-      console.error('❌ Erreur chargement fournisseurs:', result.message)
     }
   } catch (error) {
-    console.error('❌ Erreur fatale chargement fournisseurs:', error)
+    console.error('Erreur chargement fournisseurs:', error)
   } finally {
     isLoadingSuppliers.value = false
   }
 }
 
-// ✅ Toggle sélection fournisseur
+// 🏭 Charger les fournisseurs déjà associés au produit
+async function loadProductSuppliers() {
+  try {
+    // Vérifier si le produit a déjà des fournisseurs chargés
+    if (props.product.suppliers && Array.isArray(props.product.suppliers)) {
+      // Les fournisseurs sont déjà dans le produit
+      props.product.suppliers.forEach(supplier => {
+        selectedSuppliers.value.push(supplier.id)
+        supplierPrices.value[supplier.id] = supplier.pivot?.cost_price || null
+        
+        if (supplier.pivot?.is_preferred) {
+          preferredSupplierId.value = supplier.id
+        }
+      })
+    } else {
+      // Charger depuis l'API
+      const result = await window.electron.apiCall('GET', `/products/${props.product.id}/suppliers`)
+      if (result.success && result.data) {
+        result.data.forEach(supplier => {
+          selectedSuppliers.value.push(supplier.id)
+          supplierPrices.value[supplier.id] = supplier.cost_price || null
+          
+          if (supplier.is_preferred) {
+            preferredSupplierId.value = supplier.id
+          }
+        })
+      }
+    }
+  } catch (error) {
+    console.error('Erreur chargement fournisseurs du produit:', error)
+  }
+}
+
+// 🏭 Toggle sélection fournisseur
 function toggleSupplier(supplierId) {
   const index = selectedSuppliers.value.indexOf(supplierId)
   if (index > -1) {
-    // Désélectionner
     selectedSuppliers.value.splice(index, 1)
     delete supplierPrices.value[supplierId]
     if (preferredSupplierId.value === supplierId) {
       preferredSupplierId.value = null
     }
   } else {
-    // Sélectionner
     selectedSuppliers.value.push(supplierId)
     supplierPrices.value[supplierId] = null
-    // Si c'est le premier fournisseur, le marquer comme principal
     if (selectedSuppliers.value.length === 1) {
       preferredSupplierId.value = supplierId
     }
   }
 }
 
-// ✅ Vérifier si un fournisseur est sélectionné
+// 🏭 Vérifier si un fournisseur est sélectionné
 function isSupplierSelected(supplierId) {
   return selectedSuppliers.value.includes(supplierId)
 }
 
-// ✅ Obtenir le nom d'un fournisseur
+// 🏭 Obtenir le nom d'un fournisseur
 function getSupplierName(supplierId) {
   const supplier = availableSuppliers.value.find(s => s.id === supplierId)
   return supplier ? supplier.name : 'Fournisseur inconnu'
 }
 
 function onCategoryChange() {
-  form.value.subcategory_id = ''
+  // Réinitialiser la sous-catégorie si elle ne fait pas partie de la nouvelle catégorie
+  const subcatExists = availableSubcategories.value.some(
+    sc => sc.id === form.value.subcategory_id
+  )
+  if (!subcatExists) {
+    form.value.subcategory_id = ''
+  }
 }
 
 function calculateMargin() {
-  // Déclenche le recalcul du computed margin
+  // Déclenche le recalcul
+}
+
+function getInitials(name) {
+  if (!name) return '?'
+  return name
+    .split(' ')
+    .map(word => word[0])
+    .join('')
+    .toUpperCase()
+    .substring(0, 2)
 }
 
 // Validation
@@ -469,59 +520,48 @@ function validateForm() {
   errors.value = {}
   
   if (!form.value.name) errors.value.name = 'Le nom est requis'
-  if (!form.value.sku) errors.value.sku = 'Le SKU est requis'
-  if (!form.value.category_id) errors.value.category_id = 'La catégorie est requise'
-  if (form.value.cost_price < 0) errors.value.cost_price = 'Le prix doit être positif'
-  if (form.value.unit_price < 0) errors.value.unit_price = 'Le prix doit être positif'
   if (form.value.unit_price < form.value.cost_price) {
     errors.value.unit_price = 'Le prix de vente doit être supérieur au prix d\'achat'
   }
-  if (form.value.stock < 0) errors.value.stock = 'Le stock doit être positif'
-  if (form.value.min_stock < 0) errors.value.min_stock = 'Le stock minimum doit être positif'
   
   return Object.keys(errors.value).length === 0
 }
 
-// ✅ Soumission corrigée
+// Soumission
 async function handleSubmit() {
   submitError.value = ''
   
   if (!validateForm()) {
-    submitError.value = 'Veuillez corriger les erreurs dans le formulaire'
+    submitError.value = 'Veuillez corriger les erreurs'
     return
   }
   
   isSubmitting.value = true
   
   try {
-    // ✅ Préparer les données des fournisseurs
+    // Ne pas envoyer le SKU (non modifiable)
+    const { sku, ...dataToUpdate } = form.value
+    
+    // 🏭 Préparer les données des fournisseurs
     const suppliers = selectedSuppliers.value.map(supplierId => ({
       id: supplierId,
       cost_price: supplierPrices.value[supplierId] || null,
       is_preferred: preferredSupplierId.value === supplierId
     }))
 
-    // ✅ Créer le produit avec les fournisseurs
-    const productData = {
-      ...form.value,
-      suppliers: suppliers.length > 0 ? suppliers : undefined
-    }
+    // Ajouter les fournisseurs aux données
+    dataToUpdate.suppliers = suppliers.length > 0 ? suppliers : []
 
-    console.log('📤 Envoi des données:', productData)
-    
-    const result = await productsStore.createProduct(productData)
+    const result = await productsStore.updateProduct(props.product.id, dataToUpdate)
     
     if (result.success) {
-      console.log('✅ Produit créé avec succès:', result.data)
-      emit('created', result.data)
+      emit('updated', result.data)
       close()
     } else {
-      submitError.value = result.error || 'Erreur lors de la création du produit'
-      console.error('❌ Erreur:', result)
+      submitError.value = result.error || 'Erreur lors de la modification'
     }
   } catch (error) {
     submitError.value = error.message || 'Une erreur est survenue'
-    console.error('❌ Erreur fatale:', error)
   } finally {
     isSubmitting.value = false
   }
@@ -541,292 +581,27 @@ function formatCurrency(amount) {
 </script>
 
 <style scoped>
-/* Styles identiques à CreateProductModal */
-/* Réutiliser les styles existants + ajouts */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  backdrop-filter: blur(4px);
-}
-
-.modal-content {
-  background: white;
-  border-radius: 16px;
-  width: 90%;
-  max-width: 800px;
-  max-height: 90vh;
-  overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 24px;
-  border-bottom: 2px solid #e5e7eb;
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 20px;
-  color: #1f2937;
-}
-
-.btn-close {
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: #f3f4f6;
-  border-radius: 8px;
-  font-size: 20px;
-  cursor: pointer;
-  transition: all 0.2s;
-  color: #6b7280;
-}
-
-.btn-close:hover {
-  background: #e5e7eb;
-}
-
-.modal-body {
-  padding: 24px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.section {
-  margin-bottom: 24px;
-  padding: 20px;
-  background: #f9fafb;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-}
-
-.section-title {
-  margin: 0 0 16px 0;
-  font-size: 15px;
-  font-weight: 700;
-  color: #374151;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.form-row:last-child {
-  margin-bottom: 0;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-group label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-}
-
-.form-group label.required::after {
-  content: ' *';
-  color: #ef4444;
-}
-
-.form-group input,
-.form-group select,
-.form-group textarea {
-  padding: 10px 12px;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: all 0.2s;
-  font-family: inherit;
-}
-
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.form-group input.error,
-.form-group select.error {
-  border-color: #ef4444;
-}
-
-.form-group input:disabled,
-.form-group select:disabled {
-  background: #f3f4f6;
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.error-message {
-  font-size: 12px;
-  color: #ef4444;
-  margin-top: -4px;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
-
-.checkbox-label input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-.margin-indicator {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin-top: 12px;
-}
-
-.margin-indicator.margin-good {
-  background: #d1fae5;
-  border: 2px solid #10b981;
-}
-
-.margin-indicator.margin-medium {
-  background: #fef3c7;
-  border: 2px solid #f59e0b;
-}
-
-.margin-indicator.margin-low {
-  background: #fee2e2;
-  border: 2px solid #ef4444;
-}
-
-.margin-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.margin-label {
-  font-size: 12px;
-  color: #6b7280;
-  font-weight: 500;
-}
-
-.margin-value {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1f2937;
-}
-
-.margin-percent {
-  font-size: 24px;
-  font-weight: 700;
-}
-
-.margin-percent.margin-good {
-  color: #059669;
-}
-
-.margin-percent.margin-medium {
-  color: #d97706;
-}
-
-.margin-percent.margin-low {
-  color: #dc2626;
-}
-
-.alert {
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-size: 14px;
-  margin-top: 16px;
-}
-
-.alert-error {
-  background: #fee2e2;
-  border: 2px solid #f87171;
-  color: #991b1b;
-}
-
-.modal-footer {
-  padding: 20px 24px;
-  border-top: 2px solid #e5e7eb;
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-}
-
-.btn-cancel,
-.btn-submit {
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: none;
-}
-
-.btn-cancel {
-  background: #f3f4f6;
-  color: #6b7280;
-}
-
-.btn-cancel:hover:not(:disabled) {
-  background: #e5e7eb;
-}
-
-.btn-submit {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-}
-
-.btn-submit:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.btn-submit:disabled,
-.btn-cancel:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-@media (max-width: 768px) {
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-  
-  .modal-content {
-    width: 95%;
-    max-height: 95vh;
-  }
-}
-
+/* Réutiliser les styles de CreateProductModal + ajouts spécifiques */
 /* 🏭 FOURNISSEURS */
+.loading-suppliers {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  justify-content: center;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.spinner-small {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
 .suppliers-list {
   max-height: 300px;
   overflow-y: auto;
@@ -849,13 +624,13 @@ function formatCurrency(amount) {
 }
 
 .supplier-item:hover {
-  border-color: #f59e0b;
-  background: #fffbeb;
+  border-color: #667eea;
+  background: #f5f3ff;
 }
 
 .supplier-item.selected {
-  border-color: #f59e0b;
-  background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);
+  border-color: #667eea;
+  background: linear-gradient(135deg, #ede9fe 0%, #f5f3ff 100%);
 }
 
 .supplier-checkbox input[type="checkbox"] {
@@ -881,7 +656,7 @@ function formatCurrency(amount) {
 
 .supplier-badge {
   padding: 4px 12px;
-  background: #f59e0b;
+  background: #667eea;
   color: white;
   border-radius: 12px;
   font-size: 12px;
@@ -938,6 +713,12 @@ function formatCurrency(amount) {
   font-size: 13px;
 }
 
+.supplier-price-input input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
 .preferred-label {
   display: flex;
   align-items: center;
@@ -951,46 +732,15 @@ function formatCurrency(amount) {
 .preferred-label input[type="radio"] {
   cursor: pointer;
 }
-/* ✅ AJOUTS */
-.loading-suppliers {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 20px;
-  justify-content: center;
-  color: #6b7280;
-  font-size: 14px;
-}
 
-.spinner-small {
-  width: 20px;
-  height: 20px;
-  border: 3px solid #e5e7eb;
-  border-top-color: #667eea;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.empty-suppliers {
-  text-align: center;
-  padding: 40px 20px;
-  background: white;
-  border-radius: 8px;
-  border: 2px dashed #e5e7eb;
-}
-
-.empty-suppliers p {
-  margin: 8px 0;
-  color: #6b7280;
-}
-
-.empty-suppliers .hint {
-  font-size: 13px;
-  color: #9ca3af;
-  font-style: italic;
+@media (max-width: 768px) {
+  .supplier-price-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .supplier-price-input {
+    width: 100%;
+  }
 }
 </style>

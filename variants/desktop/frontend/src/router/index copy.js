@@ -31,12 +31,11 @@ const routes = [
   },
 
   // ============================================
-  // ✅ Accueil - HomeView avec component
+  // Accueil - HomeView géré par App.vue
   // ============================================
   { 
     path: '/home', 
     name: 'home',
-    component: HomeView,  // ✅ AJOUT DU COMPONENT
     meta: { requiresAuth: true } 
   },
 
@@ -46,7 +45,6 @@ const routes = [
   { 
     path: '/dashboard', 
     name: 'dashboard-home',
-    component: DashboardHome,
     meta: { requiresAuth: true } 
   },
 

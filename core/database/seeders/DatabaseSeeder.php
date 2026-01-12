@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             // 2️⃣ DONNÉES DE BASE (catégories, produits, etc.)
             CategorySeeder::class,
             SubcategorySeeder::class,
+            ProductUnitsSeeder::class,
             ProductSeeder::class,
             
             // 3️⃣ PARTENAIRES (avant les ventes)

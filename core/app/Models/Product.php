@@ -1,6 +1,6 @@
 <?php
-// app/Models/Product.php
 
+// Chemin: app/Models/Product.php
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -8,11 +8,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use App\Models\PurchaseItem;
+use App\Models\ProductUnit;
 use App\Models\StockMovement;
 use App\Models\SaleItem;
 use App\Models\Supplier;
-
-
 
 class Product extends Model
 {
@@ -33,7 +32,14 @@ class Product extends Model
         'is_consigned',
         'consignment_price',
         'empty_containers_stock',
-        'is_active'
+        'is_active',
+        // ✅ NOUVEAUX CHAMPS UNITÉS
+        'base_unit_id',
+        'base_unit_volume',
+        'base_unit_volume_unit',
+        'base_unit_quantity',
+        'retail_unit_id',
+        'retail_stock_remainder',
     ];
 
     protected $casts = [
@@ -45,7 +51,198 @@ class Product extends Model
         'empty_containers_stock' => 'integer',
         'is_consigned' => 'boolean',
         'is_active' => 'boolean',
+        'base_unit_volume' => 'decimal:3',
+        'base_unit_quantity' => 'integer',
+        'retail_stock_remainder' => 'integer',
     ];
+
+    /**
+     * ✅ NOUVEAU : Relation avec l'unité de base (casier/pack)
+     */
+    public function baseUnit(): BelongsTo
+    {
+        return $this->belongsTo(ProductUnit::class, 'base_unit_id');
+    }
+
+    /**
+     * ✅ NOUVEAU : Relation avec l'unité de détail (bouteille/canette)
+     */
+    public function retailUnit(): BelongsTo
+    {
+        return $this->belongsTo(ProductUnit::class, 'retail_unit_id');
+    }
+
+    // ✅ NOUVEAUX ACCESSORS pour stock avec reste
+    
+    /**
+     * Stock total en unités de détail (bouteilles)
+     */
+    public function getTotalRetailStockAttribute(): int
+    {
+        $baseQty = $this->base_unit_quantity ?? 1;
+        return ($this->stock * $baseQty) + ($this->retail_stock_remainder ?? 0);
+    }
+
+    /**
+     * Stock en casiers complets
+     */
+    public function getFullCasesAttribute(): int
+    {
+        return $this->stock;
+    }
+
+    /**
+     * Bouteilles restantes (casier entamé)
+     */
+    public function getLooseUnitsAttribute(): int
+    {
+        return $this->retail_stock_remainder ?? 0;
+    }
+
+    /**
+     * Affichage formaté du stock
+     * Ex: "10 casiers + 5 bouteilles" ou "10 casiers"
+     */
+    public function getFormattedStockAttribute(): string
+    {
+        $baseUnitName = $this->baseUnit->name ?? 'casiers';
+        $retailUnitName = $this->retailUnit->name ?? 'unités';
+        
+        $text = "{$this->stock} {$baseUnitName}";
+        
+        if ($this->retail_stock_remainder > 0) {
+            $text .= " + {$this->retail_stock_remainder} {$retailUnitName}";
+        }
+        
+        return $text;
+    }
+
+    /**
+     * ✅ NOUVEAU : Nom complet avec unité
+     * Ex: "Castel Beer 65cl (Casier 24 de 24)"
+     */
+    public function getDisplayNameAttribute(): string
+    {
+        if (!$this->baseUnit || !$this->base_unit_quantity) {
+            return $this->name;
+        }
+
+        return sprintf(
+            '%s (%s de %d)',
+            $this->name,
+            $this->baseUnit->name,
+            $this->base_unit_quantity
+        );
+    }
+
+    /**
+     * ✅ NOUVEAU : Prix unitaire de détail
+     * Ex: 12,000 FCFA / 24 = 500 FCFA par bouteille
+     */
+    public function getRetailUnitPriceAttribute(): float
+    {
+        if (!$this->base_unit_quantity || $this->base_unit_quantity == 0) {
+            return $this->unit_price;
+        }
+
+        return $this->unit_price / $this->base_unit_quantity;
+    }
+
+    /**
+     * ✅ NOUVEAU : Coût unitaire de détail
+     */
+    public function getRetailCostPriceAttribute(): float
+    {
+        if (!$this->base_unit_quantity || $this->base_unit_quantity == 0) {
+            return $this->cost_price;
+        }
+
+        return $this->cost_price / $this->base_unit_quantity;
+    }
+
+    // ✅ NOUVELLES MÉTHODES pour ajuster le stock
+
+    /**
+     * Ajoute du stock (casiers ou bouteilles)
+     */
+    public function addStock(int $quantity, string $unitType = 'base', string $reason = 'Réapprovisionnement', $userId = null): StockMovement
+    {
+        $previousStock = $this->stock;
+        $previousRemainder = $this->retail_stock_remainder ?? 0;
+
+        if ($unitType === 'base') {
+            // Ajout de casiers complets
+            $this->stock += $quantity;
+        } else {
+            // Ajout de bouteilles individuelles
+            $baseQty = $this->base_unit_quantity ?? 1;
+            $newRemainder = $previousRemainder + $quantity;
+            
+            // Convertir les bouteilles en casiers si >= base_unit_quantity
+            $newCases = intdiv($newRemainder, $baseQty);
+            $this->stock += $newCases;
+            $this->retail_stock_remainder = $newRemainder % $baseQty;
+        }
+
+        $this->save();
+
+        return StockMovement::create([
+            'product_id' => $this->id,
+            'type' => 'in',
+            'quantity' => $quantity,
+            'unit_type' => $unitType,
+            'previous_stock' => $previousStock,
+            'previous_remainder' => $previousRemainder,
+            'new_stock' => $this->stock,
+            'new_remainder' => $this->retail_stock_remainder,
+            'reason' => $reason,
+            'user_id' => $userId ?? auth()->id(),
+        ]);
+    }
+
+    /**
+     * Retire du stock (casiers ou bouteilles)
+     */
+    public function removeStock(int $quantity, string $unitType = 'base', string $reason = 'Sortie', $userId = null): StockMovement
+    {
+        $previousStock = $this->stock;
+        $previousRemainder = $this->retail_stock_remainder ?? 0;
+
+        if ($unitType === 'base') {
+            // Retrait de casiers complets
+            if ($this->stock < $quantity) {
+                throw new \Exception("Stock insuffisant pour {$this->name}. Disponible: {$this->stock} casiers");
+            }
+            $this->stock -= $quantity;
+        } else {
+            // Retrait de bouteilles individuelles
+            $baseQty = $this->base_unit_quantity ?? 1;
+            $totalRetail = ($this->stock * $baseQty) + $previousRemainder;
+            
+            if ($totalRetail < $quantity) {
+                throw new \Exception("Stock insuffisant pour {$this->name}. Disponible: {$totalRetail} unités");
+            }
+            
+            $remainingRetail = $totalRetail - $quantity;
+            $this->stock = intdiv($remainingRetail, $baseQty);
+            $this->retail_stock_remainder = $remainingRetail % $baseQty;
+        }
+
+        $this->save();
+
+        return StockMovement::create([
+            'product_id' => $this->id,
+            'type' => 'out',
+            'quantity' => $quantity,
+            'unit_type' => $unitType,
+            'previous_stock' => $previousStock,
+            'previous_remainder' => $previousRemainder,
+            'new_stock' => $this->stock,
+            'new_remainder' => $this->retail_stock_remainder,
+            'reason' => $reason,
+            'user_id' => $userId ?? auth()->id(),
+        ]);
+    }
 
     /**
      * Relation avec la catégorie
@@ -80,7 +277,7 @@ class Product extends Model
     }
 
     /**
-     * ✅ NOUVEAU : Relation avec les fournisseurs (Many-to-Many)
+     * Relation avec les fournisseurs (Many-to-Many)
      */
     public function suppliers(): BelongsToMany
     {
@@ -96,7 +293,7 @@ class Product extends Model
     }
 
     /**
-     * ✅ NOUVEAU : Obtenir le fournisseur principal (préféré)
+     * Obtenir le fournisseur principal (préféré)
      */
     public function preferredSupplier()
     {
@@ -119,50 +316,6 @@ class Product extends Model
     public function isOutOfStock(): bool
     {
         return $this->stock == 0;
-    }
-
-    /**
-     * Ajoute du stock et crée un mouvement
-     */
-    public function addStock(int $quantity, string $reason = 'Réapprovisionnement', $userId = null): void
-    {
-        $previousStock = $this->stock;
-        $this->stock += $quantity;
-        $this->save();
-
-        StockMovement::create([
-            'product_id' => $this->id,
-            'type' => 'in',
-            'quantity' => $quantity,
-            'previous_stock' => $previousStock,
-            'new_stock' => $this->stock,
-            'reason' => $reason,
-            'user_id' => $userId ?? auth()->id(),
-        ]);
-    }
-
-    /**
-     * Retire du stock et crée un mouvement
-     */
-    public function removeStock(int $quantity, string $reason = 'Sortie', $userId = null): void
-    {
-        if ($this->stock < $quantity) {
-            throw new \Exception("Stock insuffisant pour {$this->name}");
-        }
-
-        $previousStock = $this->stock;
-        $this->stock -= $quantity;
-        $this->save();
-
-        StockMovement::create([
-            'product_id' => $this->id,
-            'type' => 'out',
-            'quantity' => $quantity,
-            'previous_stock' => $previousStock,
-            'new_stock' => $this->stock,
-            'reason' => $reason,
-            'user_id' => $userId ?? auth()->id(),
-        ]);
     }
 
     /**

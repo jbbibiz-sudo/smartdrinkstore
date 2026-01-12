@@ -1,6 +1,9 @@
 <!-- Chemin: variants/desktop/frontend/src/App.vue -->
 <template>
   <div id="app" :key="appKey">
+    <!-- Toast Notifications -->
+    
+
     <!-- Login si pas authentifié -->
     <LoginView
       v-if="!isAuthenticated"
@@ -29,11 +32,13 @@
         <p>Initialisation de l'application…</p>
       </div>
     </div>
+    <Toast ref="toastRef" position="top-right" />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch, getCurrentInstance } from 'vue'
+import Toast from '@/components/common/Toast.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useProductsStore } from '@/stores/products'
 import LoginView from './views/LoginView.vue'
@@ -52,9 +57,26 @@ const appReady = ref(false)
 const currentUser = ref(null)
 const currentView = ref('home') // 'home' ou 'dashboard'
 
+// ✅ Référence au composant Toast
+const toastRef = ref(null)
+
+// ✅ NOUVEAU : Watch pour réagir aux changements de route
+watch(() => route.path, (newPath) => {
+  console.log('🔄 Route changée:', newPath)
+  updateCurrentView()
+})
+
 // 🔹 Vérifier session au lancement - UN SEUL onMounted
 onMounted(async () => {
   console.log('🚀 App.vue monté')
+  
+  // Connecter l'instance du toast au plugin global
+  const instance = getCurrentInstance()
+  const toastPlugin = instance?.appContext.config.globalProperties.$toast
+  
+  if (toastPlugin && toastRef.value) {
+    toastPlugin._init(toastRef.value)
+  }
   
   // Déterminer la vue selon la route
   updateCurrentView()
@@ -65,11 +87,13 @@ onMounted(async () => {
 
 // 🔹 Déterminer quelle vue afficher selon la route
 function updateCurrentView() {
-  // Si on est sur la route racine "/", afficher HomeView
-  if (route.path === '/' || route.path === '') {
+  // Si on est sur /home, afficher HomeView
+  if (route.path === '/' || route.path === '/home') {
     currentView.value = 'home'
+    console.log('📍 Vue actuelle: HomeView')
   } else {
     currentView.value = 'dashboard'
+    console.log('📍 Vue actuelle: Dashboard')
   }
 }
 
