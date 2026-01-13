@@ -1,78 +1,51 @@
 <?php
+/**
+ * Routes API - Customers (Clients)
+ * Fichier: routes/api/v1/customers.php
+ * 
+ * ⚠️ IMPORTANT: Les routes spécifiques doivent être AVANT les routes avec {id}
+ */
 
-// core/routes/api/customers.php
-
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\Api\CustomerController;
 use Illuminate\Support\Facades\Route;
 
-// ====================================
-// CLIENTS
-// ====================================
+// ==========================================
+// ROUTES CUSTOMERS (CLIENTS)
+// ==========================================
 
-Route::get('/customers', function () {
-    try {
-        return response()->json([
-            'success' => true,
-            'data' => DB::table('customers')->orderBy('name')->get()
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Erreur lors du chargement des clients',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-});
+// ✅ ROUTES SPÉCIFIQUES EN PREMIER (avant {id})
+// ==========================================
 
-Route::post('/customers', function (Request $request) {
-    try {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'phone' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:255',
-            'address' => 'nullable|string'
-        ]);
-        
-        $id = DB::table('customers')->insertGetId(array_merge($validated, [
-            'balance' => 0,
-            'created_at' => now(),
-            'updated_at' => now()
-        ]));
-        
-        return response()->json([
-            'success' => true,
-            'data' => DB::table('customers')->find($id)
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Erreur lors de la création du client',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-});
+// Statistiques des clients
+Route::get('/customers/stats', [CustomerController::class, 'stats']);
 
-Route::put('/customers/{id}', function (Request $request, $id) {
-    try {
-        $validated = $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'phone' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:255',
-            'address' => 'nullable|string'
-        ]);
-        
-        DB::table('customers')->where('id', $id)->update($validated);
-        
-        return response()->json([
-            'success' => true,
-            'data' => DB::table('customers')->find($id)
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Erreur lors de la mise à jour du client',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-});
+
+// ✅ ROUTES AVEC PARAMÈTRE {id} APRÈS
+// ==========================================
+
+// Liste des clients
+Route::get('/customers', [CustomerController::class, 'index']);
+
+// Créer un client
+Route::post('/customers', [CustomerController::class, 'store']);
+
+// Obtenir un client spécifique
+Route::get('/customers/{id}', [CustomerController::class, 'show']);
+
+// Mettre à jour un client
+Route::put('/customers/{id}', [CustomerController::class, 'update']);
+
+// Supprimer un client
+Route::delete('/customers/{id}', [CustomerController::class, 'destroy']);
+
+// Historique d'un client (ventes + paiements)
+Route::get('/customers/{id}/history', [CustomerController::class, 'history']);
+
+// Paiements d'un client
+Route::get('/customers/{id}/payments', [CustomerController::class, 'payments']);
+
+// Enregistrer un paiement de dette
+Route::post('/customers/{id}/payments', [CustomerController::class, 'recordPayment']);
+
+// Ajuster le solde d'un client
+Route::post('/customers/{id}/adjust-balance', [CustomerController::class, 'adjustBalance']);

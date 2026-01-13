@@ -48,7 +48,7 @@ export const useCustomersStore = defineStore('customers', () => {
   // Filtres
   const filters = ref({
     has_balance: false, // Clients avec dette uniquement
-    is_active: true, // Clients actifs uniquement
+    is_active: null, // null = tous les clients (actifs + inactifs)
     search: ''
   })
 
@@ -661,7 +661,7 @@ export const useCustomersStore = defineStore('customers', () => {
   function resetFilters() {
     filters.value = {
       has_balance: false,
-      is_active: true,
+      is_active: null, // null = tous les clients
       search: ''
     }
   }
