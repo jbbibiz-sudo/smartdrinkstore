@@ -250,10 +250,19 @@ onMounted(async () => {
 // 📊 CHARGEMENT DES DONNÉES
 // ==========================================
 
+// À ajouter temporairement pour débugger
 async function loadData() {
   try {
     await customersStore.fetchCustomers()
     await customersStore.fetchStats()
+    
+    // 🔍 DEBUG TEMPORAIRE
+    console.log('🔍 DEBUG:', {
+      totalCustomers: customers.value.length,
+      filteredCustomers: filteredCustomers.value.length,
+      activeFilters: filters.value,
+      sampleCustomer: customers.value[0] // Premier client
+    })
   } catch (error) {
     console.error('❌ Erreur chargement données:', error)
     toast.error('Erreur lors du chargement des clients', {
@@ -261,6 +270,22 @@ async function loadData() {
     })
   }
 }
+
+// ==========================================
+// 🔍 LOG
+// ==========================================
+
+console.log('🔍 DEBUG Clients:', {
+  total: customers.value.length,
+  filtered: filteredCustomers.value.length,
+  filters: filters.value,
+  premiers: customers.value.slice(0, 2)
+})
+
+// ==========================================
+// 🔄 REFRESH
+// ==========================================
+
 
 async function refreshData() {
   await customersStore.forceRefresh()

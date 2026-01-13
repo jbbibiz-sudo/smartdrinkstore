@@ -117,7 +117,7 @@
         <!-- Actions -->
         <div class="product-actions">
           <button @click="viewProduct(product)" class="btn-action" title="Voir détails">
-            ℹ️ Voir
+            👀 Voir
           </button>
           <button @click="editProduct(product)" class="btn-action" title="Modifier">
             ✏️ Modifier

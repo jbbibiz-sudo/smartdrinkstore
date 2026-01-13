@@ -115,7 +115,7 @@
                 class="btn-icon" 
                 title="Voir détails"
               >
-                ℹ️
+                👀
               </button>
               <button 
                 v-if="purchase.status === 'pending'"
